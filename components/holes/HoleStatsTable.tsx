@@ -17,6 +17,7 @@ type RawRow = {
   tee_name: string | null;
   hole_number: number;
   gross_score: number;
+  round_signature?: string | null;
 };
 
 type CourseHole = {
