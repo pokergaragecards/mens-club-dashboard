@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import pdf from "pdf-parse";
+import { PDFParse } from "pdf-parse";
 import { parseHoleByHoleText } from "@/utils/holeByHoleParser";
 import { importHoleByHoleRounds } from "@/services/holeByHoleImportService";
 
