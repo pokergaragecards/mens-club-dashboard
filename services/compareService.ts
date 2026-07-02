@@ -1,0 +1,7 @@
+comparePlayers()
+
+compareHoleByHole()
+
+compareScoring()
+
+compareTrends()

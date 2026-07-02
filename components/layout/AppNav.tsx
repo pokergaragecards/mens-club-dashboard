@@ -8,14 +8,19 @@ const navItems = [
   { href: "/import", label: "Import" },
   { href: "/audit", label: "Audit" },
   { href: "/reports", label: "Reports" },
+  { href: "/import/history", label: "Import History" },
+  { href: "/compare", label: "Compare" },
+  { href: "/holes", label: "Hole Stats" },
 ];
 
 export function AppNav() {
   return (
-    <aside className="min-h-screen w-64 border-r bg-gray-950 text-white">
-      <div className="border-b border-gray-800 p-6">
-        <h1 className="text-xl font-bold">Men&apos;s Club</h1>
-        <p className="text-sm text-gray-400">Handicap Dashboard</p>
+    <aside className="min-h-screen w-64 border-r border-slate-800 bg-slate-950 text-white">
+      <div className="border-b border-slate-800 p-6">
+        <h1 className="text-xl font-bold text-white">Men&apos;s Club</h1>
+        <p className="mt-1 text-sm font-medium text-slate-300">
+          Handicap Dashboard
+        </p>
       </div>
 
       <nav className="p-4">
@@ -24,7 +29,7 @@ export function AppNav() {
             <Link
               key={item.href}
               href={item.href}
-              className="block rounded-md px-4 py-2 text-sm text-gray-200 hover:bg-gray-800"
+              className="block rounded-md px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-800 hover:text-white"
             >
               {item.label}
             </Link>

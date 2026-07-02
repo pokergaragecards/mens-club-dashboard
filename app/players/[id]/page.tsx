@@ -1,123 +1,105 @@
-import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import Link from "next/link";
+import { playerStatsService } from "@/services/playerStatsService";
+import { PlayerProfileTabs } from "@/components/players/PlayerProfileTabs";
 
 type PageProps = {
   params: Promise<{ id: string }>;
 };
 
+function formatNumber(value: unknown, decimals = 1) {
+  if (value === null || value === undefined) return "-";
+  const number = Number(value);
+  if (Number.isNaN(number)) return "-";
+  return number.toFixed(decimals);
+}
+
+function getSeasonStart() {
+  return `${new Date().getFullYear()}-01-01`;
+}
+
+function getThirtyDaysAgo() {
+  const date = new Date();
+  date.setDate(date.getDate() - 30);
+  return date.toISOString().slice(0, 10);
+}
+
+function StatCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
+      <div className="text-sm font-bold text-gray-600">{label}</div>
+      <div className="mt-1 text-3xl font-bold text-gray-950">{value}</div>
+    </div>
+  );
+}
+
 export default async function PlayerDetailPage({ params }: PageProps) {
   const { id } = await params;
-  const supabase = createSupabaseServerClient();
 
-  const { data: player, error: playerError } = await supabase
-    .from("players")
-    .select("*")
-    .eq("id", id)
-    .single();
+  const [summary, rounds, seasonHoles, thirtyDayHoles, scoring] =
+    await Promise.all([
+      playerStatsService.getSummary(id),
+      playerStatsService.getRoundHistory(id, 20),
+      playerStatsService.getHoleStats(id, getSeasonStart()),
+      playerStatsService.getHoleStats(id, getThirtyDaysAgo()),
+      playerStatsService.getScoringBreakdown(id),
+    ]);
 
-  const { data: rounds, error: roundsError } = await supabase
-    .from("rounds")
-    .select("*")
-    .eq("player_id", id)
-    .order("played_at", { ascending: false })
-    .limit(20);
-
-  if (playerError || !player) {
+  if (!summary) {
     return (
-      <div className="p-8">
-        <Link href="/players" className="text-blue-700 hover:underline">
+      <main className="p-8 text-gray-900">
+        <Link href="/players" className="font-bold text-blue-800 hover:underline">
           ← Back to Players
         </Link>
-        <p className="mt-4 text-red-600">Player not found.</p>
-      </div>
+        <p className="mt-4 font-medium text-red-700">Player not found.</p>
+      </main>
     );
   }
 
-  if (roundsError) {
-    return <div className="p-8 text-red-600">{roundsError.message}</div>;
-  }
-
   return (
-    <div className="p-8">
-      <Link href="/players" className="text-blue-700 hover:underline">
-        ← Back to Players
-      </Link>
+    <main className="space-y-6 p-8 text-gray-900">
+      <div>
+        <Link href="/players" className="font-bold text-blue-800 hover:underline">
+          ← Back to Players
+        </Link>
 
-      <div className="mt-6 rounded-xl border bg-white p-6 shadow-sm">
-        <h1 className="text-3xl font-bold">{player.full_name}</h1>
-        <p className="mt-1 text-gray-600">GHIN: {player.ghin_number}</p>
+        <h1 className="mt-4 text-4xl font-bold text-gray-950">
+          {summary.name}
+        </h1>
 
-        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-4">
-          <div className="rounded-lg border p-4">
-            <p className="text-sm text-gray-500">Current Index</p>
-            <p className="text-2xl font-bold">{player.current_index ?? "-"}</p>
-          </div>
-
-          <div className="rounded-lg border p-4">
-            <p className="text-sm text-gray-500">Low Index</p>
-            <p className="text-2xl font-bold">{player.low_index ?? "-"}</p>
-          </div>
-
-          <div className="rounded-lg border p-4">
-            <p className="text-sm text-gray-500">Rounds</p>
-            <p className="text-2xl font-bold">{rounds?.length ?? 0}</p>
-          </div>
-
-          <div className="rounded-lg border p-4">
-            <p className="text-sm text-gray-500">Fetch Enabled</p>
-            <p className="text-2xl font-bold">
-              {player.score_fetch_enabled ? "Yes" : "No"}
-            </p>
-          </div>
-        </div>
+        <p className="mt-1 text-gray-600">Player performance profile</p>
       </div>
 
-      <div className="mt-6 overflow-hidden rounded-xl border bg-white shadow-sm">
-        <div className="border-b p-4">
-          <h2 className="text-xl font-semibold">Recent Rounds</h2>
-        </div>
-
-        <table className="w-full text-left text-sm">
-          <thead className="border-b bg-gray-50 text-gray-600">
-            <tr>
-              <th className="p-3">Date</th>
-              <th className="p-3">Type</th>
-              <th className="p-3 text-right">Score</th>
-              <th className="p-3 text-right">Adj</th>
-              <th className="p-3 text-right">Diff</th>
-              <th className="p-3 text-right">Rating</th>
-              <th className="p-3 text-right">Slope</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rounds?.length ? (
-              rounds.map((round) => (
-                <tr key={round.id} className="border-b">
-                  <td className="p-3">{round.played_at}</td>
-                  <td className="p-3">{round.score_type ?? "-"}</td>
-                  <td className="p-3 text-right">{round.gross_score ?? "-"}</td>
-                  <td className="p-3 text-right">
-                    {round.adjusted_gross_score ?? "-"}
-                  </td>
-                  <td className="p-3 text-right">
-                    {round.differential != null
-                      ? Number(round.differential).toFixed(1)
-                      : "-"}
-                  </td>
-                  <td className="p-3 text-right">{round.course_rating ?? "-"}</td>
-                  <td className="p-3 text-right">{round.slope_rating ?? "-"}</td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td className="p-4 text-gray-500" colSpan={7}>
-                  No rounds imported yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <StatCard label="Handicap" value={formatNumber(summary.handicap)} />
+        <StatCard label="Rounds" value={summary.rounds} />
+        <StatCard label="Average" value={formatNumber(summary.average)} />
+        <StatCard label="Best Round" value={summary.best ?? "-"} />
       </div>
-    </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <PlayerProfileTabs
+          rounds={rounds}
+          seasonHoles={seasonHoles}
+          thirtyDayHoles={thirtyDayHoles}
+        />
+
+        <section className="rounded-xl border border-gray-300 bg-white p-5 shadow-sm">
+          <h2 className="text-xl font-bold text-gray-950">Scoring Breakdown</h2>
+
+          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <StatCard label="Birdies" value={scoring.birdies} />
+            <StatCard label="Pars" value={scoring.pars} />
+            <StatCard label="Bogeys" value={scoring.bogeys} />
+            <StatCard label="Double+" value={scoring.doubles} />
+          </div>
+        </section>
+      </div>
+    </main>
   );
 }
