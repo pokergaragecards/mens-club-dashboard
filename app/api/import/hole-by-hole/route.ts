@@ -8,8 +8,13 @@ function parsePdfBuffer(buffer: Buffer): Promise<string> {
     const pdfParser = new PDFParser();
 
     pdfParser.on("pdfParser_dataError", (errData) => {
-      reject(new Error(errData.parserError));
-    });
+  const message =
+    errData instanceof Error
+      ? errData.message
+      : errData.parserError?.message ?? "PDF parsing failed.";
+
+  reject(new Error(message));
+});
 
     pdfParser.on("pdfParser_dataReady", (pdfData) => {
       const text =
