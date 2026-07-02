@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { parseGhinExport } from "@/utils/ghinParser";
-import { importGhinRounds } from "@/services/ghinImportService";
+import { importGhinRounds } from "@/services/ghinScoreImportService";
 
 function playerNameFromFileName(fileName: string) {
   const base = fileName.replace(/\.(xlsx|xls|csv)$/i, "");
