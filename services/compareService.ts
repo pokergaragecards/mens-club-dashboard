@@ -1,7 +1,17 @@
-comparePlayers()
+export const compareService = {
+  async comparePlayers() {
+    return [];
+  },
 
-compareHoleByHole()
+  async compareHoleByHole() {
+    return [];
+  },
 
-compareScoring()
+  async compareScoring() {
+    return [];
+  },
 
-compareTrends()
+  async compareTrends() {
+    return [];
+  },
+};
