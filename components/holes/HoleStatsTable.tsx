@@ -366,7 +366,9 @@ function TeeBoxTable({
   function getCellValue(column: number | string, stat: string) {
     if (column === "OUT") return getOutIn(stats, stat, frontNine);
     if (column === "IN") return getOutIn(stats, stat, backNine);
-    return getStat(stats.get(column), stat);
+    return typeof column === "number"
+      ? getStat(stats.get(column), stat)
+      : null;
   }
 
   const totalRounds = new Set(
