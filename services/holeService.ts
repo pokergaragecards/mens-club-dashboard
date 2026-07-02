@@ -1,11 +1,17 @@
-getHoleLeaderboard()
+export const holeService = {
+  async getHoleLeaderboard() {
+    return [];
+  },
 
-getHoleDifficulty()
+  async getHoleDifficulty() {
+    return [];
+  },
 
-getHoleStatistics()
+  async getHoleStatistics() {
+    return [];
+  },
 
-getHoleHistory()
-
-getHoleBirdieRate()
-
-getHoleAverage()
+  async getHoleHistory() {
+    return [];
+  },
+};
