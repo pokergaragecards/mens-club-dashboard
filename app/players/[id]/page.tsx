@@ -31,9 +31,11 @@ function StatCard({
   value: string | number;
 }) {
   return (
-    <div className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
-      <div className="text-sm font-bold text-gray-600">{label}</div>
-      <div className="mt-1 text-3xl font-bold text-gray-950">{value}</div>
+    <div className="rounded-xl border border-gray-300 bg-white p-3 shadow-sm md:p-4">
+      <div className="text-xs font-bold text-gray-600 md:text-sm">{label}</div>
+      <div className="mt-1 text-2xl font-bold text-gray-950 md:text-3xl">
+        {value}
+      </div>
     </div>
   );
 }
@@ -52,7 +54,7 @@ export default async function PlayerDetailPage({ params }: PageProps) {
 
   if (!summary) {
     return (
-      <main className="p-8 text-gray-900">
+      <main className="p-4 text-gray-900 md:p-8">
         <Link href="/players" className="font-bold text-blue-800 hover:underline">
           ← Back to Players
         </Link>
@@ -62,44 +64,46 @@ export default async function PlayerDetailPage({ params }: PageProps) {
   }
 
   return (
-    <main className="space-y-6 p-8 text-gray-900">
+    <main className="space-y-5 p-4 text-gray-900 md:space-y-6 md:p-8">
       <div>
         <Link href="/players" className="font-bold text-blue-800 hover:underline">
           ← Back to Players
         </Link>
 
-        <h1 className="mt-4 text-4xl font-bold text-gray-950">
+        <h1 className="mt-4 text-3xl font-bold text-gray-950 md:text-4xl">
           {summary.name}
         </h1>
 
-        <p className="mt-1 text-gray-600">Player performance profile</p>
+        <p className="mt-1 text-sm text-gray-600 md:text-base">
+          Player performance profile
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
         <StatCard label="Handicap" value={formatNumber(summary.handicap)} />
         <StatCard label="Rounds" value={summary.rounds} />
         <StatCard label="Average" value={formatNumber(summary.average)} />
         <StatCard label="Best Round" value={summary.best ?? "-"} />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <PlayerProfileTabs
-          rounds={rounds}
-          seasonHoles={seasonHoles}
-          thirtyDayHoles={thirtyDayHoles}
-        />
+      <section className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm md:p-5">
+        <h2 className="text-lg font-bold text-gray-950 md:text-xl">
+          Scoring Breakdown
+        </h2>
 
-        <section className="rounded-xl border border-gray-300 bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-bold text-gray-950">Scoring Breakdown</h2>
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <StatCard label="Birdies" value={scoring.birdies} />
+          <StatCard label="Pars" value={scoring.pars} />
+          <StatCard label="Bogeys" value={scoring.bogeys} />
+          <StatCard label="Double+" value={scoring.doubles} />
+        </div>
+      </section>
 
-          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatCard label="Birdies" value={scoring.birdies} />
-            <StatCard label="Pars" value={scoring.pars} />
-            <StatCard label="Bogeys" value={scoring.bogeys} />
-            <StatCard label="Double+" value={scoring.doubles} />
-          </div>
-        </section>
-      </div>
+      <PlayerProfileTabs
+        rounds={rounds}
+        seasonHoles={seasonHoles}
+        thirtyDayHoles={thirtyDayHoles}
+      />
     </main>
   );
 }
