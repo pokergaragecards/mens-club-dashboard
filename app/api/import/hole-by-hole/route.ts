@@ -1,14 +1,43 @@
 import { NextResponse } from "next/server";
-import { gunzipSync } from "zlib";
+import PDFParser from "pdf2json";
+import { createClient } from "@supabase/supabase-js";
 import { parseHoleByHoleText } from "@/utils/holeByHoleParser";
 import { importHoleByHoleRounds } from "@/services/holeByHoleImportService";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-function decompressBase64Gzip(value: string) {
-  const buffer = Buffer.from(value, "base64");
-  return gunzipSync(buffer).toString("utf8");
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+function parsePdfBuffer(buffer: Buffer): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const pdfParser = new PDFParser();
+
+    pdfParser.on("pdfParser_dataError", (errData) => {
+      const message =
+        errData instanceof Error
+          ? errData.message
+          : errData.parserError?.message ?? "PDF parsing failed.";
+
+      reject(new Error(message));
+    });
+
+    pdfParser.on("pdfParser_dataReady", (pdfData) => {
+      const text =
+        pdfData.Pages?.flatMap((page) =>
+          page.Texts?.map((textItem) =>
+            decodeURIComponent(textItem.R?.[0]?.T ?? "")
+          )
+        ).join(" ") ?? "";
+
+      resolve(text);
+    });
+
+    pdfParser.parseBuffer(buffer);
+  });
 }
 
 export async function POST(request: Request) {
@@ -18,20 +47,24 @@ export async function POST(request: Request) {
     const fileName =
       typeof body.fileName === "string" ? body.fileName : "hole-by-hole.pdf";
 
-    let text = "";
+    const storagePath = body.storagePath;
 
-    if (typeof body.compressedText === "string" && body.compressedText.length) {
-      text = decompressBase64Gzip(body.compressedText);
-    } else if (typeof body.text === "string") {
-      text = body.text;
-    }
-
-    if (!text.trim()) {
+    if (!storagePath || typeof storagePath !== "string") {
       return NextResponse.json(
-        { error: "No extracted PDF text received." },
+        { error: "No storage path received." },
         { status: 400 }
       );
     }
+
+    const { data, error: downloadError } = await supabaseAdmin.storage
+      .from("imports")
+      .download(storagePath);
+
+    if (downloadError) throw downloadError;
+    if (!data) throw new Error("Unable to download stored PDF.");
+
+    const buffer = Buffer.from(await data.arrayBuffer());
+    const text = await parsePdfBuffer(buffer);
 
     const parsed = parseHoleByHoleText(text);
 

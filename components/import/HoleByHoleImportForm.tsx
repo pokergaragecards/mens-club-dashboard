@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import * as pdfjsLib from "pdfjs-dist";
-import pako from "pako";
+import { createClient } from "@supabase/supabase-js";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+const supabaseBrowser = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 type ImportResult = {
   fileName: string;
@@ -17,41 +19,6 @@ type ImportResult = {
   error?: string;
 };
 
-async function extractPdfText(file: File) {
-  const buffer = await file.arrayBuffer();
-
-  const pdf = await pdfjsLib.getDocument({
-    data: buffer,
-    disableWorker: true,
-  }).promise;
-
-  let fullText = "";
-
-  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-    const page = await pdf.getPage(pageNumber);
-    const content = await page.getTextContent();
-
-    const pageText = content.items
-      .map((item) => ("str" in item ? item.str : ""))
-      .join(" ");
-
-    fullText += `\n${pageText}`;
-  }
-
-  return fullText;
-}
-
-function compressTextToBase64(text: string) {
-  const compressed = pako.gzip(text);
-  let binary = "";
-
-  compressed.forEach((byte) => {
-    binary += String.fromCharCode(byte);
-  });
-
-  return btoa(binary);
-}
-
 export function HoleByHoleImportForm() {
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -60,20 +27,26 @@ export function HoleByHoleImportForm() {
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-
     if (!file) return;
 
     setLoading(true);
     setResult(null);
 
     try {
-      setStatus("Reading PDF in browser...");
-      const text = await extractPdfText(file);
+      setStatus("Uploading PDF to storage...");
 
-      setStatus("Compressing extracted text...");
-      const compressedText = compressTextToBase64(text);
+      const storagePath = `hole-by-hole/${Date.now()}-${file.name}`;
 
-      setStatus("Uploading compressed text...");
+      const { error: uploadError } = await supabaseBrowser.storage
+        .from("imports")
+        .upload(storagePath, file, {
+          contentType: "application/pdf",
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      setStatus("Importing stored PDF...");
 
       const response = await fetch("/api/import/hole-by-hole", {
         method: "POST",
@@ -82,7 +55,7 @@ export function HoleByHoleImportForm() {
         },
         body: JSON.stringify({
           fileName: file.name,
-          compressedText,
+          storagePath,
         }),
       });
 
