@@ -6,6 +6,19 @@ type PageProps = {
   params: Promise<{ id: string }>;
 };
 
+type RoundLike = {
+  played_at: string;
+  gross_score: number | null;
+  adjusted_gross_score: number | null;
+  differential: number | null;
+  course_rating: number | null;
+  slope_rating: number | null;
+  score_type: string | null;
+  source: string | null;
+  course_name: string | null;
+  tee_name: string | null;
+};
+
 function formatNumber(value: unknown, decimals = 1) {
   if (value === null || value === undefined) return "-";
   const number = Number(value);
@@ -21,6 +34,36 @@ function getThirtyDaysAgo() {
   const date = new Date();
   date.setDate(date.getDate() - 30);
   return date.toISOString().slice(0, 10);
+}
+
+function average(values: number[]) {
+  if (!values.length) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function isCompetition(scoreType: string | null | undefined) {
+  return ["C", "CH"].includes(scoreType ?? "");
+}
+
+function isGoodrich(round: RoundLike) {
+  return (
+    round.source === "GHIN_HBH_PDF" ||
+    String(round.course_name ?? "").toLowerCase() === "goodrich"
+  );
+}
+
+function getDiff(round: RoundLike) {
+  if (round.differential != null) return Number(round.differential);
+
+  const score = Number(round.adjusted_gross_score ?? round.gross_score);
+  const rating = Number(round.course_rating);
+  const slope = Number(round.slope_rating);
+
+  if (!Number.isFinite(score) || !Number.isFinite(rating) || !Number.isFinite(slope) || slope <= 0) {
+    return null;
+  }
+
+  return ((score - rating) * 113) / slope;
 }
 
 function StatCard({
@@ -46,7 +89,7 @@ export default async function PlayerDetailPage({ params }: PageProps) {
   const [summary, rounds, seasonHoles, thirtyDayHoles, scoring] =
     await Promise.all([
       playerStatsService.getSummary(id),
-      playerStatsService.getRoundHistory(id, 20),
+      playerStatsService.getRoundHistory(id, 50),
       playerStatsService.getHoleStats(id, getSeasonStart()),
       playerStatsService.getHoleStats(id, getThirtyDaysAgo()),
       playerStatsService.getScoringBreakdown(id),
@@ -63,6 +106,33 @@ export default async function PlayerDetailPage({ params }: PageProps) {
     );
   }
 
+  const diffRows = rounds
+    .map((round) => ({
+      round,
+      differential: getDiff(round as RoundLike),
+    }))
+    .filter((row) => row.differential != null) as {
+    round: RoundLike;
+    differential: number;
+  }[];
+
+  const allDiffs = diffRows.map((row) => row.differential);
+  const compDiffs = diffRows
+    .filter(({ round }) => isCompetition(round.score_type))
+    .map((row) => row.differential);
+  const casualDiffs = diffRows
+    .filter(({ round }) => !isCompetition(round.score_type))
+    .map((row) => row.differential);
+  const goodrichDiffs = diffRows
+    .filter(({ round }) => isGoodrich(round))
+    .map((row) => row.differential);
+  const otherDiffs = diffRows
+    .filter(({ round }) => !isGoodrich(round))
+    .map((row) => row.differential);
+
+  const bestDiff = allDiffs.length ? Math.min(...allDiffs) : null;
+  const avgDiff = average(allDiffs);
+
   return (
     <main className="space-y-5 p-4 text-gray-900 md:space-y-6 md:p-8">
       <div>
@@ -75,16 +145,29 @@ export default async function PlayerDetailPage({ params }: PageProps) {
         </h1>
 
         <p className="mt-1 text-sm text-gray-600 md:text-base">
-          Player performance profile
+          GHIN-style player performance profile
         </p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
-        <StatCard label="Handicap" value={formatNumber(summary.handicap)} />
+        <StatCard label="Current HI" value={formatNumber(summary.handicap)} />
         <StatCard label="Rounds" value={summary.rounds} />
-        <StatCard label="Average" value={formatNumber(summary.average)} />
-        <StatCard label="Best Round" value={summary.best ?? "-"} />
+        <StatCard label="Avg Diff" value={formatNumber(avgDiff)} />
+        <StatCard label="Best Diff" value={formatNumber(bestDiff)} />
       </div>
+
+      <section className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm md:p-5">
+        <h2 className="text-lg font-bold text-gray-950 md:text-xl">
+          Differential Breakdown
+        </h2>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <StatCard label="Comp Diff" value={formatNumber(average(compDiffs))} />
+          <StatCard label="Casual Diff" value={formatNumber(average(casualDiffs))} />
+          <StatCard label="Goodrich Diff" value={formatNumber(average(goodrichDiffs))} />
+          <StatCard label="Other Diff" value={formatNumber(average(otherDiffs))} />
+        </div>
+      </section>
 
       <section className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm md:p-5">
         <h2 className="text-lg font-bold text-gray-950 md:text-xl">

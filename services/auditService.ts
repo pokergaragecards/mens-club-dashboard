@@ -2,7 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabaseServer";
 
 const supabase = createSupabaseServerClient();
 
-type Period = "30" | "60" | "90" | "season" | "last20";
+type Period = "last20" | "30" | "60" | "90" | "season";
 
 type RoundRow = {
   id: string;
@@ -10,34 +10,60 @@ type RoundRow = {
   played_at: string;
   gross_score: number | null;
   adjusted_gross_score: number | null;
+  differential: number | null;
+  course_rating: number | null;
+  slope_rating: number | null;
+  pcc: number | null;
   score_type: string | null;
   source: string | null;
   course_name: string | null;
-  tee_name: string | null;
 };
 
 type PlayerRow = {
   id: string;
   full_name: string;
+  current_index: number | null;
 };
 
-function periodStart(period: Period): string {
-  if (period === "30") return "2026-06-01";
-  if (period === "60") return "2026-05-01";
-  if (period === "90") return "2026-04-01";
-  return "2026-01-01";
+function currentYearStart() {
+  return `${new Date().getFullYear()}-01-01`;
+}
+
+function periodStart(period: Period) {
+  if (period === "season" || period === "last20") return currentYearStart();
+
+  const date = new Date();
+  date.setDate(date.getDate() - Number(period));
+  return date.toISOString().slice(0, 10);
 }
 
 function avg(values: number[]) {
   if (!values.length) return null;
-
-  return Number(
-    (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1)
-  );
+  return Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1));
 }
 
-function pointsFromGap(gap: number) {
-  return gap > 0 ? Math.round(gap * 10) : 0;
+function getDifferential(round: RoundRow) {
+  if (round.differential != null) return Number(round.differential);
+
+  const score = Number(round.adjusted_gross_score ?? round.gross_score);
+  const rating = Number(round.course_rating);
+  const slope = Number(round.slope_rating);
+  const pcc = Number(round.pcc ?? 0);
+
+  if (!Number.isFinite(score) || !Number.isFinite(rating) || !Number.isFinite(slope) || slope <= 0) {
+    return null;
+  }
+
+  return Number((((score - rating) * 113) / slope + pcc).toFixed(1));
+}
+
+function isCompetition(scoreType: string | null | undefined) {
+  return ["C", "CH"].includes(scoreType ?? "");
+}
+
+function pointsFromGap(gap: number | null) {
+  if (gap == null || gap <= 0) return 0;
+  return Math.round(gap * 10);
 }
 
 function getFlag(score: number) {
@@ -51,14 +77,6 @@ function confidenceFromSamples(totalRounds: number) {
   if (totalRounds >= 10) return "High";
   if (totalRounds >= 5) return "Medium";
   return "Low";
-}
-
-function isCompetition(scoreType: string | null | undefined) {
-  return ["C", "CH"].includes(scoreType ?? "");
-}
-
-function roundScore(round: RoundRow) {
-  return Number(round.adjusted_gross_score ?? round.gross_score);
 }
 
 async function fetchAllRounds(startDate: string): Promise<RoundRow[]> {
@@ -75,10 +93,13 @@ async function fetchAllRounds(startDate: string): Promise<RoundRow[]> {
         played_at,
         gross_score,
         adjusted_gross_score,
+        differential,
+        course_rating,
+        slope_rating,
+        pcc,
         score_type,
         source,
-        course_name,
-        tee_name
+        course_name
       `)
       .gte("played_at", startDate)
       .not("gross_score", "is", null)
@@ -97,7 +118,7 @@ async function fetchAllRounds(startDate: string): Promise<RoundRow[]> {
   return allRows;
 }
 
-async function fetchGoodrichRoundIds(): Promise<Set<string>> {
+async function fetchGoodrichRoundIds() {
   const pageSize = 1000;
   let from = 0;
   const ids = new Set<string>();
@@ -111,13 +132,11 @@ async function fetchGoodrichRoundIds(): Promise<Set<string>> {
 
     if (error) throw error;
 
-    const rows = data ?? [];
-
-    for (const row of rows) {
+    for (const row of data ?? []) {
       if (row.round_id) ids.add(row.round_id);
     }
 
-    if (rows.length < pageSize) break;
+    if ((data ?? []).length < pageSize) break;
     from += pageSize;
   }
 
@@ -128,21 +147,18 @@ export const auditService = {
   async getAuditRows(period: Period) {
     const startDate = periodStart(period);
 
-    const [
-      { data: players, error: playersError },
-      rounds,
-      goodrichRoundIds,
-    ] = await Promise.all([
-      supabase
-        .from("players")
-        .select("id, full_name")
-        .eq("is_active", true)
-        .order("full_name"),
+    const [{ data: players, error: playersError }, rounds, goodrichRoundIds] =
+      await Promise.all([
+        supabase
+          .from("players")
+          .select("id, full_name, current_index")
+          .eq("is_active", true)
+          .order("full_name"),
 
-      fetchAllRounds(startDate),
+        fetchAllRounds(startDate),
 
-      fetchGoodrichRoundIds(),
-    ]);
+        fetchGoodrichRoundIds(),
+      ]);
 
     if (playersError) throw playersError;
 
@@ -153,105 +169,98 @@ export const auditService = {
 
     return ((players ?? []) as PlayerRow[])
       .map((player) => {
-        const playerRounds =
-          period === "last20"
-          ? rounds
+        const allPlayerRounds = rounds
           .filter((round) => round.player_id === player.id)
           .sort(
             (a, b) =>
-              new Date(b.played_at).getTime() -
-              new Date(a.played_at).getTime()
-            )
-            .slice(0, 20)
-          : rounds.filter((round) => round.player_id === player.id);
+              new Date(b.played_at).getTime() - new Date(a.played_at).getTime()
+          );
 
-        const compScores = playerRounds
-          .filter((round) => isCompetition(round.score_type))
-          .map(roundScore)
-          .filter(Number.isFinite);
+        const playerRounds =
+          period === "last20" ? allPlayerRounds.slice(0, 20) : allPlayerRounds;
 
-        const casualScores = playerRounds
-          .filter((round) => !isCompetition(round.score_type))
-          .map(roundScore)
-          .filter(Number.isFinite);
+        const diffRows = playerRounds
+          .map((round) => ({
+            round,
+            differential: getDifferential(round),
+          }))
+          .filter((row) => row.differential != null) as {
+          round: RoundRow;
+          differential: number;
+        }[];
 
-        const goodrichScores = playerRounds
-          .filter(isGoodrichRound)
-          .map(roundScore)
-          .filter(Number.isFinite);
+        const compDiffs = diffRows
+          .filter(({ round }) => isCompetition(round.score_type))
+          .map((row) => row.differential);
 
-        const otherScores = playerRounds
-          .filter((round) => !isGoodrichRound(round))
-          .map(roundScore)
-          .filter(Number.isFinite);
+        const casualDiffs = diffRows
+          .filter(({ round }) => !isCompetition(round.score_type))
+          .map((row) => row.differential);
 
-        const compAvg = avg(compScores);
-        const casualAvg = avg(casualScores);
-        const goodrichAvg = avg(goodrichScores);
-        const otherAvg = avg(otherScores);
+        const goodrichDiffs = diffRows
+          .filter(({ round }) => isGoodrichRound(round))
+          .map((row) => row.differential);
 
-        const compAdvantage =
-          compAvg != null && casualAvg != null ? casualAvg - compAvg : null;
+        const otherDiffs = diffRows
+          .filter(({ round }) => !isGoodrichRound(round))
+          .map((row) => row.differential);
 
-        const goodrichAdvantage =
-          goodrichAvg != null && otherAvg != null
-            ? otherAvg - goodrichAvg
+        const compDiff = avg(compDiffs);
+        const casualDiff = avg(casualDiffs);
+        const goodrichDiff = avg(goodrichDiffs);
+        const otherDiff = avg(otherDiffs);
+
+        const compGap =
+          compDiff != null && casualDiff != null ? casualDiff - compDiff : null;
+
+        const goodrichGap =
+          goodrichDiff != null && otherDiff != null
+            ? otherDiff - goodrichDiff
             : null;
 
-        const compPoints =
-          compAdvantage == null ? 0 : pointsFromGap(compAdvantage);
-
-        const goodrichPoints =
-          goodrichAdvantage == null ? 0 : pointsFromGap(goodrichAdvantage);
-
+        const compPoints = pointsFromGap(compGap);
+        const goodrichPoints = pointsFromGap(goodrichGap);
         const sandbagIndex = compPoints + goodrichPoints;
-        const totalRounds = playerRounds.length;
 
         const reasons: string[] = [];
 
         if (compPoints > 0) {
           reasons.push(
-            `Competition scoring is ${compAdvantage!.toFixed(
-              1
-            )} strokes better (+${compPoints}).`
+            `Competition differential is ${compGap!.toFixed(1)} lower (+${compPoints}).`
           );
         }
 
         if (goodrichPoints > 0) {
           reasons.push(
-            `Goodrich scoring is ${goodrichAdvantage!.toFixed(
-              1
-            )} strokes better (+${goodrichPoints}).`
+            `Goodrich differential is ${goodrichGap!.toFixed(1)} lower (+${goodrichPoints}).`
           );
         }
 
-        if (!reasons.length) {
-          reasons.push("No major flags.");
-        }
+        if (!reasons.length) reasons.push("No major differential flags.");
 
         return {
           id: player.id,
           full_name: player.full_name,
+          currentIndex: player.current_index,
 
           sandbagIndex,
-          auditScore: sandbagIndex,
           flag: getFlag(sandbagIndex),
-          confidence: confidenceFromSamples(totalRounds),
+          confidence: confidenceFromSamples(diffRows.length),
 
-          totalRounds,
-          compRounds: compScores.length,
-          casualRounds: casualScores.length,
-          goodrichRounds: goodrichScores.length,
-          otherRounds: otherScores.length,
+          totalRounds: diffRows.length,
+          compRounds: compDiffs.length,
+          casualRounds: casualDiffs.length,
+          goodrichRounds: goodrichDiffs.length,
+          otherRounds: otherDiffs.length,
 
-          compAvg,
-          casualAvg,
-          compAdvantage,
+          compDiff,
+          casualDiff,
+          compGap,
           compPoints,
 
-          goodrichAvg,
-          otherAvg,
-          goodrichAdvantage,
+          goodrichDiff,
+          otherDiff,
+          goodrichGap,
           goodrichPoints,
 
           reasons,
