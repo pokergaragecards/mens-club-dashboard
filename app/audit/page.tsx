@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { auditService } from "@/services/auditService";
 
+type Period = "last20" | "30" | "60" | "90" | "season";
+
 type SearchParams = {
-  period?: "30" | "60" | "90" | "season" | "last20";
+  period?: Period;
 };
 
 type PageProps = {
@@ -29,13 +31,28 @@ function confidenceClass(confidence: string) {
   return "bg-yellow-100 text-yellow-900";
 }
 
+function MobileStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-3">
+      <div className="text-xs font-bold text-gray-500">{label}</div>
+      <div className="mt-1 text-lg font-bold text-gray-950">{value}</div>
+    </div>
+  );
+}
+
 export default async function AuditPage({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
-  const period = params.period ?? "season";
+  const period: Period = params.period ?? "season";
 
   const rows = await auditService.getAuditRows(period);
 
-  const tabs = [
+  const tabs: { href: string; label: string; value: Period }[] = [
     { href: "/audit?period=last20", label: "Last 20", value: "last20" },
     { href: "/audit?period=30", label: "30 Days", value: "30" },
     { href: "/audit?period=60", label: "60 Days", value: "60" },
@@ -44,17 +61,17 @@ export default async function AuditPage({ searchParams }: PageProps) {
   ];
 
   return (
-    <main className="p-4 text-gray-900 md:p-8">
-      <h1 className="text-2xl font-bold text-gray-950 md:text-3xl">
+    <main className="p-4 text-gray-900 lg:p-8">
+      <h1 className="text-2xl font-bold text-gray-950 lg:text-3xl">
         Handicap Audit
       </h1>
 
-      <p className="mt-1 text-sm font-medium text-gray-700 md:text-base">
+      <p className="mt-1 text-sm font-medium text-gray-700 lg:text-base">
         Sandbag Index based on competition/casual and Goodrich/other course
         scoring gaps.
       </p>
 
-      <div className="mt-5 flex gap-2 overflow-x-auto pb-2 md:flex-wrap">
+      <div className="mt-5 flex gap-2 overflow-x-auto pb-2 lg:flex-wrap">
         {tabs.map((tab) => (
           <Link
             key={tab.value}
@@ -70,8 +87,8 @@ export default async function AuditPage({ searchParams }: PageProps) {
         ))}
       </div>
 
-      {/* Mobile per-person cards */}
-      <div className="mt-5 space-y-5 md:hidden">
+      {/* MOBILE / TABLET CARD VIEW */}
+      <div className="mt-5 space-y-5 lg:hidden">
         {rows.map((row, index) => (
           <article
             key={row.id}
@@ -180,8 +197,8 @@ export default async function AuditPage({ searchParams }: PageProps) {
         ))}
       </div>
 
-      {/* Desktop table */}
-      <div className="mt-6 hidden overflow-x-auto rounded-xl border border-gray-300 bg-white shadow-sm md:block">
+      {/* DESKTOP TABLE VIEW */}
+      <div className="mt-6 hidden overflow-x-auto rounded-xl border border-gray-300 bg-white shadow-sm lg:block">
         <table className="w-full min-w-[1200px] text-left text-sm text-gray-900">
           <thead className="border-b border-gray-300 bg-gray-200 text-gray-950">
             <tr>
@@ -260,20 +277,5 @@ export default async function AuditPage({ searchParams }: PageProps) {
         </table>
       </div>
     </main>
-  );
-}
-
-function MobileStat({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number;
-}) {
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white p-3">
-      <div className="text-xs font-bold text-gray-500">{label}</div>
-      <div className="mt-1 text-lg font-bold text-gray-950">{value}</div>
-    </div>
   );
 }
