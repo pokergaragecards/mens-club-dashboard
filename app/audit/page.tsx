@@ -32,6 +32,7 @@ function confidenceClass(confidence: string) {
 export default async function AuditPage({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
   const period = params.period ?? "season";
+
   const rows = await auditService.getAuditRows(period);
 
   const tabs = [
@@ -48,10 +49,11 @@ export default async function AuditPage({ searchParams }: PageProps) {
       </h1>
 
       <p className="mt-1 text-sm font-medium text-gray-700 md:text-base">
-        Sandbag Index based on competition/casual and Goodrich/other course scoring gaps.
+        Sandbag Index based on competition/casual and Goodrich/other course
+        scoring gaps.
       </p>
 
-      <div className="mt-4 flex gap-2 overflow-x-auto pb-2 md:mt-6 md:flex-wrap">
+      <div className="mt-5 flex gap-2 overflow-x-auto pb-2 md:flex-wrap">
         {tabs.map((tab) => (
           <Link
             key={tab.value}
@@ -67,62 +69,119 @@ export default async function AuditPage({ searchParams }: PageProps) {
         ))}
       </div>
 
-      <div className="mt-5 space-y-4 md:hidden">
-        {rows.map((row) => (
-          <div
+      {/* Mobile per-person cards */}
+      <div className="mt-5 space-y-5 md:hidden">
+        {rows.map((row, index) => (
+          <article
             key={row.id}
-            className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm"
+            className="rounded-2xl border border-gray-300 bg-white p-4 shadow-sm"
           >
             <div className="flex items-start justify-between gap-3">
               <div>
+                <div className="text-xs font-bold text-gray-500">
+                  #{index + 1}
+                </div>
+
                 <Link
                   href={`/players/${row.id}`}
-                  className="text-lg font-bold text-blue-800 hover:underline"
+                  className="text-xl font-bold text-blue-800 hover:underline"
                 >
                   {row.full_name}
                 </Link>
-                <div className="mt-1 text-sm text-gray-600">
-                  {row.totalRounds} rounds · {row.confidence} confidence
+
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-bold ${flagClass(
+                      row.flag
+                    )}`}
+                  >
+                    {row.flag}
+                  </span>
+
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-bold ${confidenceClass(
+                      row.confidence
+                    )}`}
+                  >
+                    {row.confidence} Confidence
+                  </span>
                 </div>
               </div>
 
               <div className="text-right">
-                <div className="text-xs font-bold text-gray-600">
-                  Sandbag
+                <div className="text-xs font-bold text-gray-500">
+                  Sandbag Index
                 </div>
-                <div className="text-3xl font-bold text-gray-950">
+                <div className="text-4xl font-bold text-gray-950">
                   {row.sandbagIndex}
                 </div>
               </div>
             </div>
 
-            <div className="mt-3 flex flex-wrap gap-2">
-              <span className={`rounded-full px-3 py-1 text-xs font-bold ${flagClass(row.flag)}`}>
-                {row.flag}
-              </span>
-              <span className={`rounded-full px-3 py-1 text-xs font-bold ${confidenceClass(row.confidence)}`}>
-                {row.confidence}
-              </span>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <MobileStat label="Total Rounds" value={row.totalRounds} />
+              <MobileStat label="Comp Rounds" value={row.compRounds} />
+              <MobileStat label="Casual Rounds" value={row.casualRounds} />
+              <MobileStat label="Goodrich Rounds" value={row.goodrichRounds} />
+              <MobileStat label="Other Rounds" value={row.otherRounds} />
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-              <MobileStat label="Comp Avg" value={formatNumber(row.compAvg)} />
-              <MobileStat label="Casual Avg" value={formatNumber(row.casualAvg)} />
-              <MobileStat label="Comp Pts" value={row.compPoints} />
-              <MobileStat label="Goodrich Avg" value={formatNumber(row.goodrichAvg)} />
-              <MobileStat label="Other Avg" value={formatNumber(row.otherAvg)} />
-              <MobileStat label="Goodrich Pts" value={row.goodrichPoints} />
+            <div className="mt-5 rounded-xl border border-gray-200 bg-gray-50 p-3">
+              <h3 className="text-sm font-bold text-gray-800">
+                Competition vs Casual
+              </h3>
+
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <MobileStat label="Comp Avg" value={formatNumber(row.compAvg)} />
+                <MobileStat
+                  label="Casual Avg"
+                  value={formatNumber(row.casualAvg)}
+                />
+                <MobileStat
+                  label="Advantage"
+                  value={formatNumber(row.compAdvantage)}
+                />
+                <MobileStat label="Points" value={row.compPoints} />
+              </div>
             </div>
 
-            <p className="mt-4 text-sm font-medium text-gray-700">
-              {row.reasons.join(" ")}
-            </p>
-          </div>
+            <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
+              <h3 className="text-sm font-bold text-gray-800">
+                Goodrich vs Other Courses
+              </h3>
+
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <MobileStat
+                  label="Goodrich Avg"
+                  value={formatNumber(row.goodrichAvg)}
+                />
+                <MobileStat
+                  label="Other Avg"
+                  value={formatNumber(row.otherAvg)}
+                />
+                <MobileStat
+                  label="Advantage"
+                  value={formatNumber(row.goodrichAdvantage)}
+                />
+                <MobileStat label="Points" value={row.goodrichPoints} />
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-xl bg-slate-50 p-3">
+              <div className="text-xs font-bold uppercase text-gray-500">
+                Reason
+              </div>
+              <p className="mt-1 text-sm font-medium text-gray-800">
+                {row.reasons.join(" ")}
+              </p>
+            </div>
+          </article>
         ))}
       </div>
 
+      {/* Desktop table */}
       <div className="mt-6 hidden overflow-x-auto rounded-xl border border-gray-300 bg-white shadow-sm md:block">
-        <table className="w-full min-w-[1100px] text-left text-sm text-gray-900">
+        <table className="w-full min-w-[1200px] text-left text-sm text-gray-900">
           <thead className="border-b border-gray-300 bg-gray-200 text-gray-950">
             <tr>
               <th className="p-3 font-bold">Player</th>
@@ -142,31 +201,58 @@ export default async function AuditPage({ searchParams }: PageProps) {
 
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id} className="border-b border-gray-200 hover:bg-blue-50">
+              <tr
+                key={row.id}
+                className="border-b border-gray-200 hover:bg-blue-50"
+              >
                 <td className="p-3 font-bold">
-                  <Link href={`/players/${row.id}`} className="text-blue-800 hover:underline">
+                  <Link
+                    href={`/players/${row.id}`}
+                    className="text-blue-800 hover:underline"
+                  >
                     {row.full_name}
                   </Link>
                 </td>
-                <td className="p-3 text-right font-bold">{row.sandbagIndex}</td>
-                <td className="p-3 text-right font-medium">{row.totalRounds}</td>
+
+                <td className="p-3 text-right font-bold">
+                  {row.sandbagIndex}
+                </td>
+
+                <td className="p-3 text-right font-medium">
+                  {row.totalRounds}
+                </td>
+
                 <td className="p-3 font-bold">
-                  <span className={`rounded-full px-3 py-1 ${confidenceClass(row.confidence)}`}>
+                  <span
+                    className={`rounded-full px-3 py-1 ${confidenceClass(
+                      row.confidence
+                    )}`}
+                  >
                     {row.confidence}
                   </span>
                 </td>
+
                 <td className="p-3 font-bold">
-                  <span className={`rounded-full px-3 py-1 ${flagClass(row.flag)}`}>
+                  <span
+                    className={`rounded-full px-3 py-1 ${flagClass(row.flag)}`}
+                  >
                     {row.flag}
                   </span>
                 </td>
+
                 <td className="p-3 text-right">{formatNumber(row.compAvg)}</td>
                 <td className="p-3 text-right">{formatNumber(row.casualAvg)}</td>
                 <td className="p-3 text-right font-bold">{row.compPoints}</td>
-                <td className="p-3 text-right">{formatNumber(row.goodrichAvg)}</td>
+                <td className="p-3 text-right">
+                  {formatNumber(row.goodrichAvg)}
+                </td>
                 <td className="p-3 text-right">{formatNumber(row.otherAvg)}</td>
-                <td className="p-3 text-right font-bold">{row.goodrichPoints}</td>
-                <td className="p-3 text-gray-800">{row.reasons.join(" ")}</td>
+                <td className="p-3 text-right font-bold">
+                  {row.goodrichPoints}
+                </td>
+                <td className="p-3 text-gray-800">
+                  {row.reasons.join(" ")}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -184,7 +270,7 @@ function MobileStat({
   value: string | number;
 }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+    <div className="rounded-lg border border-gray-200 bg-white p-3">
       <div className="text-xs font-bold text-gray-500">{label}</div>
       <div className="mt-1 text-lg font-bold text-gray-950">{value}</div>
     </div>
