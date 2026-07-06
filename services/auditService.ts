@@ -2,7 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabaseServer";
 
 const supabase = createSupabaseServerClient();
 
-type Period = "30" | "60" | "90" | "season";
+type Period = "30" | "60" | "90" | "season" | "last20";
 
 type RoundRow = {
   id: string;
@@ -153,9 +153,17 @@ export const auditService = {
 
     return ((players ?? []) as PlayerRow[])
       .map((player) => {
-        const playerRounds = rounds.filter(
-          (round) => round.player_id === player.id
-        );
+        const playerRounds =
+          period === "last20"
+          ? rounds
+          .filter((round) => round.player_id === player.id)
+          .sort(
+            (a, b) =>
+              new Date(b.played_at).getTime() -
+              new Date(a.played_at).getTime()
+            )
+            .slice(0, 20)
+          : rounds.filter((round) => round.player_id === player.id);
 
         const compScores = playerRounds
           .filter((round) => isCompetition(round.score_type))

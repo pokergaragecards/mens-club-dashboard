@@ -2,7 +2,7 @@ import Link from "next/link";
 import { auditService } from "@/services/auditService";
 
 type SearchParams = {
-  period?: "30" | "60" | "90" | "season";
+  period?: "30" | "60" | "90" | "season" | "last20";
 };
 
 type PageProps = {
@@ -36,6 +36,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
   const rows = await auditService.getAuditRows(period);
 
   const tabs = [
+    { href: "/audit?period=last20", label: "Last 20", value: "last20" },
     { href: "/audit?period=30", label: "30 Days", value: "30" },
     { href: "/audit?period=60", label: "60 Days", value: "60" },
     { href: "/audit?period=90", label: "90 Days", value: "90" },
