@@ -1,8 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
+import * as pdfjsLib from "pdfjs-dist";
+import pako from "pako";
 
-type HoleImportResult = {
+pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+
+type ImportResult = {
   fileName: string;
   rowsFound: number;
   validRounds: number;
@@ -10,166 +14,132 @@ type HoleImportResult = {
   roundsImported: number;
   holesImported: number;
   rowsSkipped: number;
-  sampleRounds?: unknown[];
-  invalidSamples?: string[];
+  error?: string;
 };
 
+async function extractPdfText(file: File) {
+  const buffer = await file.arrayBuffer();
+
+  const pdf = await pdfjsLib.getDocument({
+    data: buffer,
+    disableWorker: true,
+  }).promise;
+
+  let fullText = "";
+
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+    const page = await pdf.getPage(pageNumber);
+    const content = await page.getTextContent();
+
+    const pageText = content.items
+      .map((item) => ("str" in item ? item.str : ""))
+      .join(" ");
+
+    fullText += `\n${pageText}`;
+  }
+
+  return fullText;
+}
+
+function compressTextToBase64(text: string) {
+  const compressed = pako.gzip(text);
+  let binary = "";
+
+  compressed.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+
+  return btoa(binary);
+}
+
 export function HoleByHoleImportForm() {
-  const formRef = useRef<HTMLFormElement | null>(null);
-
-  const [fileName, setFileName] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [result, setResult] = useState<ImportResult | null>(null);
+  const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
-  const [result, setResult] = useState<HoleImportResult | null>(null);
-  const [error, setError] = useState("");
-  const [isUploading, setIsUploading] = useState(false);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
 
-    setStatus("");
-    setError("");
+    if (!file) return;
+
+    setLoading(true);
     setResult(null);
-    setIsUploading(true);
-
-    const formData = new FormData(event.currentTarget);
-    const file = formData.get("file") as File | null;
-
-    if (!file) {
-      setIsUploading(false);
-      setError("Choose a hole-by-hole PDF first.");
-      return;
-    }
-
-    setFileName(file.name);
-    setStatus("Uploading and parsing PDF...");
 
     try {
+      setStatus("Reading PDF in browser...");
+      const text = await extractPdfText(file);
+
+      setStatus("Compressing extracted text...");
+      const compressedText = compressTextToBase64(text);
+
+      setStatus("Uploading compressed text...");
+
       const response = await fetch("/api/import/hole-by-hole", {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fileName: file.name,
+          compressedText,
+        }),
       });
 
-      const responseText = await response.text();
-
-      let json: HoleImportResult & { error?: string };
-
-      try {
-        json = JSON.parse(responseText);
-      } catch {
-        throw new Error(responseText || "Server returned a non-JSON error.");
-      }
-
-      if (!response.ok) {
-        throw new Error(json.error ?? "Import failed.");
-      }
-
+      const json = await response.json();
       setResult(json);
-      setStatus(
-        `Import complete: ${json.roundsImported} rounds and ${json.holesImported} hole scores imported.`
-      );
-
-      formRef.current?.reset();
-    } catch (err) {
-      setStatus("");
-      setError(err instanceof Error ? err.message : "Import failed.");
+    } catch (error) {
+      setResult({
+        fileName: file.name,
+        rowsFound: 0,
+        validRounds: 0,
+        invalidRows: 0,
+        roundsImported: 0,
+        holesImported: 0,
+        rowsSkipped: 0,
+        error: error instanceof Error ? error.message : "Import failed.",
+      });
     } finally {
-      setIsUploading(false);
+      setLoading(false);
+      setStatus("");
     }
   }
 
   return (
-    <div className="mt-4 text-gray-900">
-      <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
-        <input
-          type="file"
-          name="file"
-          accept=".pdf"
-          disabled={isUploading}
-          className="block w-full rounded-md border border-gray-400 bg-white p-2 text-sm font-medium text-gray-900 disabled:bg-gray-100"
-        />
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <input
+        type="file"
+        accept="application/pdf"
+        onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+        className="block w-full rounded-md border border-gray-300 bg-white p-2 text-sm"
+      />
 
-        <button
-          type="submit"
-          disabled={isUploading}
-          className="rounded-md bg-slate-950 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-500"
-          style={{ color: "#ffffff" }}
-        >
-          {isUploading ? "Uploading..." : "Upload Hole-by-Hole PDF"}
-        </button>
-      </form>
+      <button
+        type="submit"
+        disabled={!file || loading}
+        className="rounded-md bg-slate-950 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+      >
+        {loading ? "Importing..." : "Import Hole-by-Hole PDF"}
+      </button>
 
-      {fileName && (
-        <p className="mt-3 text-sm font-medium text-gray-700">File: {fileName}</p>
-      )}
-
-      {status && (
-        <p className="mt-3 text-sm font-bold text-green-800">{status}</p>
-      )}
-
-      {error && (
-        <p className="mt-3 whitespace-pre-wrap text-sm font-bold text-red-700">
-          {error}
-        </p>
-      )}
+      {status && <p className="text-sm font-medium text-gray-700">{status}</p>}
 
       {result && (
-        <div className="mt-6 space-y-6">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
-            <div className="rounded-lg border border-gray-300 bg-white p-4">
-              <p className="text-sm font-bold text-gray-700">Rows Found</p>
-              <p className="text-2xl font-bold text-gray-950">
-                {result.rowsFound}
-              </p>
-            </div>
-
-            <div className="rounded-lg border border-gray-300 bg-white p-4">
-              <p className="text-sm font-bold text-gray-700">Valid Rounds</p>
-              <p className="text-2xl font-bold text-gray-950">
-                {result.validRounds}
-              </p>
-            </div>
-
-            <div className="rounded-lg border border-gray-300 bg-white p-4">
-              <p className="text-sm font-bold text-gray-700">Rounds Imported</p>
-              <p className="text-2xl font-bold text-gray-950">
-                {result.roundsImported}
-              </p>
-            </div>
-
-            <div className="rounded-lg border border-gray-300 bg-white p-4">
-              <p className="text-sm font-bold text-gray-700">Holes Imported</p>
-              <p className="text-2xl font-bold text-gray-950">
-                {result.holesImported}
-              </p>
-            </div>
-
-            <div className="rounded-lg border border-gray-300 bg-white p-4">
-              <p className="text-sm font-bold text-gray-700">Skipped</p>
-              <p className="text-2xl font-bold text-gray-950">
-                {result.rowsSkipped}
-              </p>
-            </div>
-          </div>
-
-          {result.sampleRounds && result.sampleRounds.length > 0 && (
-            <div className="rounded-lg border border-gray-300 bg-gray-50 p-4">
-              <h3 className="font-bold text-gray-950">Sample Parsed Rounds</h3>
-              <pre className="mt-3 max-h-96 overflow-auto rounded-md border border-gray-300 bg-white p-4 text-xs font-medium text-gray-900">
-                {JSON.stringify(result.sampleRounds, null, 2)}
-              </pre>
-            </div>
-          )}
-
-          {result.invalidSamples && result.invalidSamples.length > 0 && (
-            <div className="rounded-lg border border-red-300 bg-red-50 p-4">
-              <h3 className="font-bold text-red-800">Invalid Samples</h3>
-              <pre className="mt-3 max-h-96 overflow-auto rounded-md border border-red-200 bg-white p-4 text-xs font-medium text-gray-900">
-                {JSON.stringify(result.invalidSamples, null, 2)}
-              </pre>
+        <div className="rounded-lg border border-gray-300 bg-gray-50 p-4 text-sm">
+          {result.error ? (
+            <p className="font-bold text-red-700">{result.error}</p>
+          ) : (
+            <div className="space-y-1">
+              <p><span className="font-bold">File:</span> {result.fileName}</p>
+              <p><span className="font-bold">Rows found:</span> {result.rowsFound}</p>
+              <p><span className="font-bold">Valid rounds:</span> {result.validRounds}</p>
+              <p><span className="font-bold">Rounds imported:</span> {result.roundsImported}</p>
+              <p><span className="font-bold">Holes imported:</span> {result.holesImported}</p>
+              <p><span className="font-bold">Rows skipped:</span> {result.rowsSkipped}</p>
             </div>
           )}
         </div>
       )}
-    </div>
+    </form>
   );
 }

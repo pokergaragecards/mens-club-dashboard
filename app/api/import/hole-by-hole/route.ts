@@ -1,67 +1,47 @@
 import { NextResponse } from "next/server";
-import PDFParser from "pdf2json";
+import { gunzipSync } from "zlib";
 import { parseHoleByHoleText } from "@/utils/holeByHoleParser";
 import { importHoleByHoleRounds } from "@/services/holeByHoleImportService";
 
-function parsePdfBuffer(buffer: Buffer): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const pdfParser = new PDFParser();
+export const runtime = "nodejs";
+export const maxDuration = 60;
 
-    pdfParser.on("pdfParser_dataError", (errData) => {
-  const message =
-    errData instanceof Error
-      ? errData.message
-      : errData.parserError?.message ?? "PDF parsing failed.";
-
-  reject(new Error(message));
-});
-
-    pdfParser.on("pdfParser_dataReady", (pdfData) => {
-      const text =
-        pdfData.Pages?.flatMap((page) =>
-          page.Texts?.map((textItem) =>
-            decodeURIComponent(textItem.R?.[0]?.T ?? "")
-          )
-        ).join(" ") ?? "";
-
-      resolve(text);
-    });
-
-    pdfParser.parseBuffer(buffer);
-  });
+function decompressBase64Gzip(value: string) {
+  const buffer = Buffer.from(value, "base64");
+  return gunzipSync(buffer).toString("utf8");
 }
 
 export async function POST(request: Request) {
   try {
-    const formData = await request.formData();
-    const file = formData.get("file") as File | null;
+    const body = await request.json();
 
-    if (!file) {
-      return NextResponse.json({ error: "No file uploaded." }, { status: 400 });
+    const fileName =
+      typeof body.fileName === "string" ? body.fileName : "hole-by-hole.pdf";
+
+    let text = "";
+
+    if (typeof body.compressedText === "string" && body.compressedText.length) {
+      text = decompressBase64Gzip(body.compressedText);
+    } else if (typeof body.text === "string") {
+      text = body.text;
     }
 
-    if (!file.name.toLowerCase().endsWith(".pdf")) {
+    if (!text.trim()) {
       return NextResponse.json(
-        { error: "Upload a PDF hole-by-hole report." },
+        { error: "No extracted PDF text received." },
         { status: 400 }
       );
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const text = await parsePdfBuffer(buffer);
-
     const parsed = parseHoleByHoleText(text);
-    console.log("PDF TEXT SAMPLE:", text.slice(0, 3000));
-    console.log("PARSED ROUNDS:", parsed.validRounds.length);
-    console.log("INVALID ROWS:", parsed.invalidRows.length); 
 
     const importResult = await importHoleByHoleRounds({
-      fileName: file.name,
+      fileName,
       rounds: parsed.validRounds,
     });
 
     return NextResponse.json({
-      fileName: file.name,
+      fileName,
       rowsFound: parsed.rowsFound,
       validRounds: parsed.validRounds.length,
       invalidRows: parsed.invalidRows.length,
