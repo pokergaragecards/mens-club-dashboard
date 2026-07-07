@@ -5,7 +5,6 @@ const navItems = [
   { href: "/players", label: "Players" },
   { href: "/import", label: "Import" },
   { href: "/audit", label: "Audit" },
-  { href: "/import/history", label: "Import History" },
   { href: "/compare", label: "Compare" },
   { href: "/holes", label: "Hole Stats" },
 ];
