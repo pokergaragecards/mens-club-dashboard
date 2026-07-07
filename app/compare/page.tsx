@@ -456,7 +456,14 @@ export default async function ComparePage({ searchParams }: PageProps) {
             p2ActualHandicap,
           });
 
-    const allHoleRows = (holeRows ?? []) as HoleScoreRow[];
+    const allHoleRows: HoleScoreRow[] = (holeRows ?? []).map((row: any) => ({
+      player_id: row.player_id,
+      hole_number: row.hole_number,
+      gross_score: row.gross_score,
+      par: row.par,
+      stroke_index: row.stroke_index,
+      rounds: Array.isArray(row.rounds) ? row.rounds[0] ?? null : row.rounds,
+    }));
 
     const filteredHoleRows =
       holeMode === "competition"
