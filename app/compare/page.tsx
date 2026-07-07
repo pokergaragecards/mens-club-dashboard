@@ -30,6 +30,22 @@ type HoleScoreRow = {
   stroke_index: number | null;
 };
 
+type HoleDetail = {
+  hole: number;
+  strokeIndex: number | null;
+  p1Stroke: number;
+  p2Stroke: number;
+  p1Win: number;
+  p2Win: number;
+  tie: number;
+  p1Samples: number;
+  p2Samples: number;
+  p1AvgGross: number | null;
+  p2AvgGross: number | null;
+  p1AvgNet: number | null;
+  p2AvgNet: number | null;
+};
+
 function avg(values: number[]) {
   if (!values.length) return null;
   return values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -193,7 +209,6 @@ function estimateHoleByHoleMatchPlay(params: {
   const p2CourseHcp = getCourseHandicap(params.p2ActualHandicap);
 
   const strokeDiff = Math.abs(p1CourseHcp - p2CourseHcp);
-
   const p1GetsStrokes = p1CourseHcp > p2CourseHcp;
   const p2GetsStrokes = p2CourseHcp > p1CourseHcp;
 
@@ -201,7 +216,7 @@ function estimateHoleByHoleMatchPlay(params: {
   let p2ExpectedHoles = 0;
   let expectedTies = 0;
 
-  const holeDetails = [];
+  const holeDetails: HoleDetail[] = [];
 
   for (let hole = 1; hole <= 18; hole++) {
     const p1Scores = p1Dist.get(hole) ?? [];
@@ -227,6 +242,9 @@ function estimateHoleByHoleMatchPlay(params: {
       p2Stroke,
     });
 
+    const p1AvgGross = avg(p1Scores);
+    const p2AvgGross = avg(p2Scores);
+
     p1ExpectedHoles += result.p1Win;
     p2ExpectedHoles += result.p2Win;
     expectedTies += result.tie;
@@ -241,6 +259,10 @@ function estimateHoleByHoleMatchPlay(params: {
       tie: result.tie,
       p1Samples: p1Scores.length,
       p2Samples: p2Scores.length,
+      p1AvgGross,
+      p2AvgGross,
+      p1AvgNet: p1AvgGross == null ? null : p1AvgGross - p1Stroke,
+      p2AvgNet: p2AvgGross == null ? null : p2AvgGross - p2Stroke,
     });
   }
 
@@ -284,48 +306,29 @@ export default async function ComparePage({ searchParams }: PageProps) {
   let analysis: null | {
     p1Name: string;
     p2Name: string;
-
     p1ActualHandicap: number;
     p2ActualHandicap: number;
-
     p1CompetitionDiff: number | null;
     p2CompetitionDiff: number | null;
-
     p1RecentDiff: number | null;
     p2RecentDiff: number | null;
-
     p1CompRounds: number;
     p2CompRounds: number;
     p1TotalRounds: number;
     p2TotalRounds: number;
-
     p1Volatility: number;
     p2Volatility: number;
-
     strokeP1: number;
     strokeP2: number;
     matchP1: number;
     matchP2: number;
-
     strokesGiven: number;
     strokesReceiver: string;
     favorite: string;
-
     p1ExpectedHoles: number;
     p2ExpectedHoles: number;
     expectedTies: number;
-
-    holeDetails: {
-      hole: number;
-      strokeIndex: number | null;
-      p1Stroke: number;
-      p2Stroke: number;
-      p1Win: number;
-      p2Win: number;
-      tie: number;
-      p1Samples: number;
-      p2Samples: number;
-    }[];
+    holeDetails: HoleDetail[];
   } = null;
 
   if (p1 && p2 && p1 !== p2 && selectedPlayers.length === 2) {
@@ -346,11 +349,19 @@ export default async function ComparePage({ searchParams }: PageProps) {
       ]);
 
     if (roundsError) {
-      return <div className="p-8 font-bold text-red-700">{roundsError.message}</div>;
+      return (
+        <div className="p-8 font-bold text-red-700">
+          {roundsError.message}
+        </div>
+      );
     }
 
     if (holeError) {
-      return <div className="p-8 font-bold text-red-700">{holeError.message}</div>;
+      return (
+        <div className="p-8 font-bold text-red-700">
+          {holeError.message}
+        </div>
+      );
     }
 
     const playerOne = selectedPlayers.find((player) => player.id === p1)!;
@@ -436,42 +447,31 @@ export default async function ComparePage({ searchParams }: PageProps) {
     analysis = {
       p1Name: playerOne.full_name,
       p2Name: playerTwo.full_name,
-
       p1ActualHandicap,
       p2ActualHandicap,
-
       p1CompetitionDiff,
       p2CompetitionDiff,
-
       p1RecentDiff,
       p2RecentDiff,
-
       p1CompRounds: p1CompetitionDiffs.length,
       p2CompRounds: p2CompetitionDiffs.length,
       p1TotalRounds: p1Diffs.length,
       p2TotalRounds: p2Diffs.length,
-
       p1Volatility,
       p2Volatility,
-
       strokeP1,
       strokeP2: 1 - strokeP1,
-
       matchP1,
       matchP2: 1 - matchP1,
-
       strokesGiven: handicapDifference,
       strokesReceiver:
         p1ActualHandicap > p2ActualHandicap
           ? playerOne.full_name
           : playerTwo.full_name,
-
       favorite: strokeP1 >= 0.5 ? playerOne.full_name : playerTwo.full_name,
-
       p1ExpectedHoles: matchEstimate.p1ExpectedHoles,
       p2ExpectedHoles: matchEstimate.p2ExpectedHoles,
       expectedTies: matchEstimate.expectedTies,
-
       holeDetails: matchEstimate.holeDetails,
     };
   }
@@ -487,7 +487,9 @@ export default async function ComparePage({ searchParams }: PageProps) {
 
       <form className="mt-6 grid gap-4 rounded-xl border border-gray-300 bg-white p-4 shadow-sm md:grid-cols-[1fr_1fr_auto] md:items-end">
         <div>
-          <label className="block text-sm font-bold text-gray-700">Player 1</label>
+          <label className="block text-sm font-bold text-gray-700">
+            Player 1
+          </label>
           <select
             name="p1"
             defaultValue={p1}
@@ -503,7 +505,9 @@ export default async function ComparePage({ searchParams }: PageProps) {
         </div>
 
         <div>
-          <label className="block text-sm font-bold text-gray-700">Player 2</label>
+          <label className="block text-sm font-bold text-gray-700">
+            Player 2
+          </label>
           <select
             name="p2"
             defaultValue={p2}
@@ -616,19 +620,24 @@ export default async function ComparePage({ searchParams }: PageProps) {
             </div>
 
             <div className="mt-5 overflow-x-auto">
-              <table className="w-full min-w-[850px] text-sm">
+              <table className="w-full min-w-[1150px] text-sm">
                 <thead className="bg-gray-100 text-gray-900">
                   <tr>
                     <th className="p-2 text-left">Hole</th>
                     <th className="p-2 text-right">HCP</th>
                     <th className="p-2 text-right">{analysis.p1Name} Stroke</th>
                     <th className="p-2 text-right">{analysis.p2Name} Stroke</th>
+                    <th className="p-2 text-right">{analysis.p1Name} Gross</th>
+                    <th className="p-2 text-right">{analysis.p1Name} Net</th>
+                    <th className="p-2 text-right">{analysis.p2Name} Gross</th>
+                    <th className="p-2 text-right">{analysis.p2Name} Net</th>
                     <th className="p-2 text-right">{analysis.p1Name} Win</th>
                     <th className="p-2 text-right">{analysis.p2Name} Win</th>
                     <th className="p-2 text-right">Tie</th>
                     <th className="p-2 text-right">Samples</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {analysis.holeDetails.map((hole) => (
                     <tr key={hole.hole} className="border-b border-gray-200">
@@ -636,6 +645,10 @@ export default async function ComparePage({ searchParams }: PageProps) {
                       <td className="p-2 text-right">{hole.strokeIndex ?? "-"}</td>
                       <td className="p-2 text-right">{hole.p1Stroke}</td>
                       <td className="p-2 text-right">{hole.p2Stroke}</td>
+                      <td className="p-2 text-right">{formatNumber(hole.p1AvgGross)}</td>
+                      <td className="p-2 text-right font-bold">{formatNumber(hole.p1AvgNet)}</td>
+                      <td className="p-2 text-right">{formatNumber(hole.p2AvgGross)}</td>
+                      <td className="p-2 text-right font-bold">{formatNumber(hole.p2AvgNet)}</td>
                       <td className="p-2 text-right">{formatPercent(hole.p1Win)}</td>
                       <td className="p-2 text-right">{formatPercent(hole.p2Win)}</td>
                       <td className="p-2 text-right">{formatPercent(hole.tie)}</td>
@@ -741,8 +754,8 @@ function PlayerCard({
         <MiniStat label="Actual HI" value={formatNumber(actualHandicap)} />
         <MiniStat label="Competition Diff" value={formatNumber(competitionDiff)} />
         <MiniStat label="Recent Diff" value={formatNumber(recentDiff)} />
-        <MiniStat label="Comp Rounds" value={compRounds.toString()} />
-        <MiniStat label="Total Rounds" value={totalRounds.toString()} />
+        <MiniStat label="Comp Rounds" value={compRounds} />
+        <MiniStat label="Total Rounds" value={totalRounds} />
         <MiniStat label="Volatility" value={formatNumber(volatility)} />
       </div>
     </div>
