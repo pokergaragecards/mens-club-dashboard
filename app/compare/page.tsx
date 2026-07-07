@@ -1,12 +1,13 @@
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 
-type SearchParams = {
-  p1?: string;
-  p2?: string;
-};
+type HoleMode = "competition" | "all";
 
 type PageProps = {
-  searchParams?: Promise<SearchParams>;
+  searchParams?: Promise<{
+    p1?: string;
+    p2?: string;
+    holes?: HoleMode;
+  }>;
 };
 
 type PlayerRow = {
@@ -26,8 +27,11 @@ type HoleScoreRow = {
   player_id: string;
   hole_number: number;
   gross_score: number | null;
-  par: number | null;
   stroke_index: number | null;
+  rounds?: {
+    score_type: string | null;
+    played_at: string | null;
+  } | null;
 };
 
 type HoleDetail = {
@@ -51,14 +55,21 @@ function avg(values: number[]) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
+function median(values: number[]) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
+}
+
 function stdDev(values: number[]) {
   if (values.length < 2) return 4;
-
   const mean = avg(values) ?? 0;
   const variance =
     values.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) /
     (values.length - 1);
-
   return Math.sqrt(variance);
 }
 
@@ -182,11 +193,7 @@ function holeWinProbability(params: {
   }
 
   if (!total) {
-    return {
-      p1Win: 0.33,
-      p2Win: 0.33,
-      tie: 0.34,
-    };
+    return { p1Win: 0.33, p2Win: 0.33, tie: 0.34 };
   }
 
   return {
@@ -223,8 +230,10 @@ function estimateHoleByHoleMatchPlay(params: {
     const p2Scores = p2Dist.get(hole) ?? [];
 
     const strokeIndex =
-      params.p1HoleRows.find((row) => row.hole_number === hole)?.stroke_index ??
-      params.p2HoleRows.find((row) => row.hole_number === hole)?.stroke_index ??
+      params.p1HoleRows.find((row) => row.hole_number === hole)
+        ?.stroke_index ??
+      params.p2HoleRows.find((row) => row.hole_number === hole)
+        ?.stroke_index ??
       hole;
 
     const p1Stroke = p1GetsStrokes
@@ -282,6 +291,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
   const p1 = params.p1 ?? "";
   const p2 = params.p2 ?? "";
+  const holeMode: HoleMode = params.holes === "all" ? "all" : "competition";
 
   const supabase = createSupabaseServerClient();
 
@@ -310,8 +320,12 @@ export default async function ComparePage({ searchParams }: PageProps) {
     p2ActualHandicap: number;
     p1CompetitionDiff: number | null;
     p2CompetitionDiff: number | null;
+    p1CompetitionMedian: number | null;
+    p2CompetitionMedian: number | null;
     p1RecentDiff: number | null;
     p2RecentDiff: number | null;
+    p1CompVsHandicap: number | null;
+    p2CompVsHandicap: number | null;
     p1CompRounds: number;
     p2CompRounds: number;
     p1TotalRounds: number;
@@ -329,6 +343,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
     p2ExpectedHoles: number;
     expectedTies: number;
     holeDetails: HoleDetail[];
+    holeMode: HoleMode;
   } = null;
 
   if (p1 && p2 && p1 !== p2 && selectedPlayers.length === 2) {
@@ -343,9 +358,20 @@ export default async function ComparePage({ searchParams }: PageProps) {
 
         supabase
           .from("hole_scores")
-          .select("player_id, hole_number, gross_score, par, stroke_index")
+          .select(`
+            player_id,
+            hole_number,
+            gross_score,
+            par,
+            stroke_index,
+            rounds!inner(
+              score_type,
+              played_at
+            )
+          `)
           .in("player_id", [p1, p2])
-          .not("gross_score", "is", null),
+          .not("gross_score", "is", null)
+          .order("hole_number", { ascending: true }),
       ]);
 
     if (roundsError) {
@@ -401,6 +427,9 @@ export default async function ComparePage({ searchParams }: PageProps) {
     const p1CompetitionDiff = avg(p1CompetitionDiffs);
     const p2CompetitionDiff = avg(p2CompetitionDiffs);
 
+    const p1CompetitionMedian = median(p1CompetitionDiffs);
+    const p2CompetitionMedian = median(p2CompetitionDiffs);
+
     const p1ExpectedDiff = p1CompetitionDiff ?? avg(p1Diffs);
     const p2ExpectedDiff = p2CompetitionDiff ?? avg(p2Diffs);
 
@@ -427,18 +456,19 @@ export default async function ComparePage({ searchParams }: PageProps) {
             p2ActualHandicap,
           });
 
+    const allHoleRows = (holeRows ?? []) as HoleScoreRow[];
+
+    const filteredHoleRows =
+      holeMode === "competition"
+        ? allHoleRows.filter((row) => isCompetition(row.rounds?.score_type))
+        : allHoleRows;
+
     const matchEstimate = estimateHoleByHoleMatchPlay({
-      p1HoleRows: ((holeRows ?? []) as HoleScoreRow[]).filter(
-        (row) => row.player_id === p1
-      ),
-      p2HoleRows: ((holeRows ?? []) as HoleScoreRow[]).filter(
-        (row) => row.player_id === p2
-      ),
+      p1HoleRows: filteredHoleRows.filter((row) => row.player_id === p1),
+      p2HoleRows: filteredHoleRows.filter((row) => row.player_id === p2),
       p1ActualHandicap,
       p2ActualHandicap,
     });
-
-    const matchP1 = matchEstimate.p1MatchWinChance;
 
     const handicapDifference = Math.round(
       Math.abs(p1ActualHandicap - p2ActualHandicap)
@@ -451,8 +481,14 @@ export default async function ComparePage({ searchParams }: PageProps) {
       p2ActualHandicap,
       p1CompetitionDiff,
       p2CompetitionDiff,
+      p1CompetitionMedian,
+      p2CompetitionMedian,
       p1RecentDiff,
       p2RecentDiff,
+      p1CompVsHandicap:
+        p1CompetitionDiff == null ? null : p1CompetitionDiff - p1ActualHandicap,
+      p2CompVsHandicap:
+        p2CompetitionDiff == null ? null : p2CompetitionDiff - p2ActualHandicap,
       p1CompRounds: p1CompetitionDiffs.length,
       p2CompRounds: p2CompetitionDiffs.length,
       p1TotalRounds: p1Diffs.length,
@@ -461,8 +497,8 @@ export default async function ComparePage({ searchParams }: PageProps) {
       p2Volatility,
       strokeP1,
       strokeP2: 1 - strokeP1,
-      matchP1,
-      matchP2: 1 - matchP1,
+      matchP1: matchEstimate.p1MatchWinChance,
+      matchP2: matchEstimate.p2MatchWinChance,
       strokesGiven: handicapDifference,
       strokesReceiver:
         p1ActualHandicap > p2ActualHandicap
@@ -473,6 +509,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
       p2ExpectedHoles: matchEstimate.p2ExpectedHoles,
       expectedTies: matchEstimate.expectedTies,
       holeDetails: matchEstimate.holeDetails,
+      holeMode,
     };
   }
 
@@ -485,7 +522,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
         hole-by-hole scoring odds with actual Handicap Index strokes.
       </p>
 
-      <form className="mt-6 grid gap-4 rounded-xl border border-gray-300 bg-white p-4 shadow-sm md:grid-cols-[1fr_1fr_auto] md:items-end">
+      <form className="mt-6 grid gap-4 rounded-xl border border-gray-300 bg-white p-4 shadow-sm md:grid-cols-[1fr_1fr_220px_auto] md:items-end">
         <div>
           <label className="block text-sm font-bold text-gray-700">
             Player 1
@@ -522,6 +559,20 @@ export default async function ComparePage({ searchParams }: PageProps) {
           </select>
         </div>
 
+        <div>
+          <label className="block text-sm font-bold text-gray-700">
+            Match Play Holes
+          </label>
+          <select
+            name="holes"
+            defaultValue={holeMode}
+            className="mt-1 w-full rounded-md border border-gray-400 bg-white px-3 py-2 text-sm font-medium"
+          >
+            <option value="competition">Competition Holes</option>
+            <option value="all">All Holes</option>
+          </select>
+        </div>
+
         <button
           type="submit"
           className="rounded-md bg-slate-950 px-5 py-2 text-sm font-bold text-white"
@@ -548,7 +599,14 @@ export default async function ComparePage({ searchParams }: PageProps) {
               Match strokes use actual Handicap Index.{" "}
               <span className="font-bold">{analysis.strokesReceiver}</span>{" "}
               receives {analysis.strokesGiven} stroke
-              {analysis.strokesGiven === 1 ? "" : "s"}.
+              {analysis.strokesGiven === 1 ? "" : "s"}. Match play hole model
+              is using{" "}
+              <span className="font-bold">
+                {analysis.holeMode === "competition"
+                  ? "competition holes only"
+                  : "all holes"}
+              </span>
+              .
             </p>
           </div>
 
@@ -568,7 +626,11 @@ export default async function ComparePage({ searchParams }: PageProps) {
               p2Name={analysis.p2Name}
               p1Pct={analysis.matchP1}
               p2Pct={analysis.matchP2}
-              note="Uses actual Goodrich hole-by-hole score distributions and applies actual Handicap Index strokes by hole."
+              note={
+                analysis.holeMode === "competition"
+                  ? "Uses Goodrich competition hole-by-hole scoring only."
+                  : "Uses all available Goodrich hole-by-hole scoring."
+              }
             />
           </div>
 
@@ -577,6 +639,8 @@ export default async function ComparePage({ searchParams }: PageProps) {
               name={analysis.p1Name}
               actualHandicap={analysis.p1ActualHandicap}
               competitionDiff={analysis.p1CompetitionDiff}
+              competitionMedian={analysis.p1CompetitionMedian}
+              compVsHandicap={analysis.p1CompVsHandicap}
               recentDiff={analysis.p1RecentDiff}
               compRounds={analysis.p1CompRounds}
               totalRounds={analysis.p1TotalRounds}
@@ -587,6 +651,8 @@ export default async function ComparePage({ searchParams }: PageProps) {
               name={analysis.p2Name}
               actualHandicap={analysis.p2ActualHandicap}
               competitionDiff={analysis.p2CompetitionDiff}
+              competitionMedian={analysis.p2CompetitionMedian}
+              compVsHandicap={analysis.p2CompVsHandicap}
               recentDiff={analysis.p2RecentDiff}
               compRounds={analysis.p2CompRounds}
               totalRounds={analysis.p2TotalRounds}
@@ -661,21 +727,6 @@ export default async function ComparePage({ searchParams }: PageProps) {
               </table>
             </div>
           </div>
-
-          <div className="rounded-xl border border-gray-300 bg-white p-5 shadow-sm">
-            <h3 className="text-lg font-bold text-gray-950">
-              How this is calculated
-            </h3>
-
-            <p className="mt-2 text-sm leading-6 text-gray-700">
-              Stroke play estimates use each golfer&apos;s recent competition
-              differential as their expected performance, then compare that
-              against their official current Handicap Index. Match play uses
-              actual Goodrich hole-by-hole scoring distributions, applies the
-              official handicap strokes to the appropriate stroke-index holes,
-              and estimates each player&apos;s chance of winning each hole.
-            </p>
-          </div>
         </section>
       )}
     </main>
@@ -733,6 +784,8 @@ function PlayerCard({
   name,
   actualHandicap,
   competitionDiff,
+  competitionMedian,
+  compVsHandicap,
   recentDiff,
   compRounds,
   totalRounds,
@@ -741,6 +794,8 @@ function PlayerCard({
   name: string;
   actualHandicap: number;
   competitionDiff: number | null;
+  competitionMedian: number | null;
+  compVsHandicap: number | null;
   recentDiff: number | null;
   compRounds: number;
   totalRounds: number;
@@ -752,7 +807,9 @@ function PlayerCard({
 
       <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3">
         <MiniStat label="Actual HI" value={formatNumber(actualHandicap)} />
-        <MiniStat label="Competition Diff" value={formatNumber(competitionDiff)} />
+        <MiniStat label="Comp Avg Diff" value={formatNumber(competitionDiff)} />
+        <MiniStat label="Comp Median" value={formatNumber(competitionMedian)} />
+        <MiniStat label="Comp vs HI" value={formatNumber(compVsHandicap)} />
         <MiniStat label="Recent Diff" value={formatNumber(recentDiff)} />
         <MiniStat label="Comp Rounds" value={compRounds} />
         <MiniStat label="Total Rounds" value={totalRounds} />
