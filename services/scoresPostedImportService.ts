@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import type { ScoresPostedRound } from "@/utils/scoresPostedParser";
+import { updateImportJob } from "@/services/importJobService";
 
 const SOURCE = "SCORES_POSTED_REPORT";
 const HBH_SOURCE = "GHIN_HBH_PDF";
@@ -29,8 +30,11 @@ function splitName(fullName: string) {
   };
 }
 
-function normalizeName(value: string) {
-  return value.toLowerCase().replace(/\s+/g, "").trim();
+function normalizeName(value: string | null | undefined) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .trim();
 }
 
 function isTempGhin(value: string | null | undefined) {
@@ -45,13 +49,15 @@ async function findOrCreatePlayer(round: ScoresPostedRound) {
   const supabase = createSupabaseServerClient();
   const name = splitName(round.golferName);
 
-  const { data: ghinMatch, error: ghinError } = await supabase
+  const { data: ghinMatches, error: ghinError } = await supabase
     .from("players")
     .select("id, full_name, ghin_number")
     .eq("ghin_number", round.ghinNumber)
-    .maybeSingle();
+    .limit(1);
 
   if (ghinError) throw ghinError;
+
+  const ghinMatch = ghinMatches?.[0];
 
   if (ghinMatch) {
     const { error } = await supabase
@@ -81,7 +87,7 @@ async function findOrCreatePlayer(round: ScoresPostedRound) {
   if (playersError) throw playersError;
 
   const nameMatch = (players ?? []).find(
-    (player) => normalizeName(player.full_name ?? "") === normalizeName(round.golferName)
+    (player) => normalizeName(player.full_name) === normalizeName(round.golferName)
   );
 
   if (nameMatch && isTempGhin(nameMatch.ghin_number)) {
@@ -136,11 +142,11 @@ async function findExistingScoresPostedRound(externalKey: string) {
     .from("rounds")
     .select("id")
     .eq("external_round_key", externalKey)
-    .maybeSingle();
+    .limit(1);
 
   if (error) throw error;
 
-  return data;
+  return data?.[0] ?? null;
 }
 
 async function findMatchingGoodrichHbhRound(params: {
@@ -156,7 +162,8 @@ async function findMatchingGoodrichHbhRound(params: {
     .select("id")
     .eq("player_id", params.playerId)
     .eq("played_at", params.playedAt)
-    .eq("source", HBH_SOURCE);
+    .eq("source", HBH_SOURCE)
+    .limit(1);
 
   if (params.grossScore == null) {
     query = query.is("gross_score", null);
@@ -168,11 +175,11 @@ async function findMatchingGoodrichHbhRound(params: {
     query = query.eq("score_type", params.scoreType);
   }
 
-  const { data, error } = await query.maybeSingle();
+  const { data, error } = await query;
 
   if (error) throw error;
 
-  return data;
+  return data?.[0] ?? null;
 }
 
 async function updateGoodrichHbhRound(params: {
@@ -214,27 +221,36 @@ async function insertOrUpdateScoresPostedRound(params: {
 
   const existing = await findExistingScoresPostedRound(params.round.externalKey);
 
+  const payload = {
+    player_id: params.playerId,
+    played_at: params.round.playedAt,
+    posted_at: null,
+    gross_score: params.round.adjustedGrossScore,
+    adjusted_gross_score: params.round.adjustedGrossScore,
+    differential: params.round.differential,
+    course_rating: params.round.courseRating,
+    slope_rating: params.round.slopeRating,
+    pcc: params.round.pcc,
+    score_type: params.round.scoreType,
+    course_name: params.round.courseName,
+    score_handicap_index: params.round.scoreHandicapIndex,
+    net_score_differential: params.round.netScoreDifferential,
+    handicap_index_used: params.round.scoreHandicapIndex,
+    is_home: params.round.scoreType.includes("H"),
+    is_away: params.round.scoreType.includes("A"),
+    is_competition: params.round.scoreType.includes("C"),
+    ghin_number: params.round.ghinNumber,
+    golfer_status: params.round.golferStatus,
+    round_count: params.round.roundCount,
+    source: SOURCE,
+    external_round_key: params.round.externalKey,
+    import_batch_id: params.batchId,
+  };
+
   if (existing) {
     const { error } = await supabase
       .from("rounds")
-      .update({
-        adjusted_gross_score: params.round.adjustedGrossScore,
-        gross_score: params.round.adjustedGrossScore,
-        differential: params.round.differential,
-        course_rating: params.round.courseRating,
-        slope_rating: params.round.slopeRating,
-        pcc: params.round.pcc,
-        score_type: params.round.scoreType,
-        course_name: params.round.courseName,
-        score_handicap_index: params.round.scoreHandicapIndex,
-        net_score_differential: params.round.netScoreDifferential,
-        handicap_index_used: params.round.scoreHandicapIndex,
-        ghin_number: params.round.ghinNumber,
-        golfer_status: params.round.golferStatus,
-        round_count: params.round.roundCount,
-        source: SOURCE,
-        import_batch_id: params.batchId,
-      })
+      .update(payload)
       .eq("id", existing.id);
 
     if (error) throw error;
@@ -245,37 +261,7 @@ async function insertOrUpdateScoresPostedRound(params: {
     };
   }
 
-  const { error } = await supabase.from("rounds").insert({
-    player_id: params.playerId,
-    played_at: params.round.playedAt,
-    posted_at: null,
-
-    gross_score: params.round.adjustedGrossScore,
-    adjusted_gross_score: params.round.adjustedGrossScore,
-    differential: params.round.differential,
-
-    course_rating: params.round.courseRating,
-    slope_rating: params.round.slopeRating,
-    pcc: params.round.pcc,
-
-    score_type: params.round.scoreType,
-    course_name: params.round.courseName,
-    score_handicap_index: params.round.scoreHandicapIndex,
-    net_score_differential: params.round.netScoreDifferential,
-    handicap_index_used: params.round.scoreHandicapIndex,
-
-    is_home: params.round.scoreType.includes("H"),
-    is_away: params.round.scoreType.includes("A"),
-    is_competition: params.round.scoreType.includes("C"),
-
-    ghin_number: params.round.ghinNumber,
-    golfer_status: params.round.golferStatus,
-    round_count: params.round.roundCount,
-
-    source: SOURCE,
-    external_round_key: params.round.externalKey,
-    import_batch_id: params.batchId,
-  });
+  const { error } = await supabase.from("rounds").insert(payload);
 
   if (error) throw error;
 
@@ -338,14 +324,14 @@ async function createImportBatch(params: {
       rows_invalid: params.rowsInvalid,
     })
     .select("id")
-    .single();
+    .limit(1);
 
   if (error) {
     console.warn("Score import batch could not be created:", error.message);
     return null;
   }
 
-  return data.id as string;
+  return data?.[0]?.id as string | null;
 }
 
 async function updateImportBatch(params: {
@@ -365,6 +351,7 @@ async function updateImportBatch(params: {
     .update({
       rounds_imported: params.roundsImported,
       rounds_existing: params.roundsExisting,
+      goodrich_rounds_updated: params.goodrichRoundsUpdated,
       players_created: params.playersCreated,
       players_updated: params.playersUpdated,
     })
@@ -379,6 +366,7 @@ export async function importScoresPostedReport(params: {
   fileName: string;
   rounds: ScoresPostedRound[];
   rowsInvalid: number;
+  jobId?: string | null;
 }): Promise<ScoresPostedImportSummary> {
   let roundsImported = 0;
   let roundsExisting = 0;
@@ -392,7 +380,20 @@ export async function importScoresPostedReport(params: {
     rowsInvalid: params.rowsInvalid,
   });
 
-  for (const round of params.rounds) {
+  const total = params.rounds.length;
+
+  for (let index = 0; index < total; index++) {
+    const round = params.rounds[index];
+    const processed = index + 1;
+
+    await updateImportJob(params.jobId, {
+      status: "running",
+      progress: Math.min(95, 30 + Math.round((processed / total) * 65)),
+      stage: `Importing Scores Posted round ${processed} of ${total}`,
+      rowsTotal: total,
+      rowsProcessed: processed,
+    });
+
     const player = await findOrCreatePlayer(round);
 
     if (player.created) playersCreated++;

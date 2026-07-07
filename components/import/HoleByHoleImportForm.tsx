@@ -1,118 +1,158 @@
 "use client";
 
-import { useState } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseBrowser = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { useRef, useState } from "react";
 
 type ImportResult = {
-  fileName: string;
-  rowsFound: number;
-  validRounds: number;
-  invalidRows: number;
-  roundsImported: number;
-  holesImported: number;
-  rowsSkipped: number;
+  fileName?: string;
+  rowsFound?: number;
+  validRounds?: number;
+  invalidRows?: number;
+  roundsImported?: number;
+  holesImported?: number;
+  rowsSkipped?: number;
   error?: string;
 };
 
 export function HoleByHoleImportForm() {
-  const [file, setFile] = useState<File | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const [isImporting, setIsImporting] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [stage, setStage] = useState("Waiting for file");
   const [result, setResult] = useState<ImportResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState("");
 
-  async function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!file) return;
 
-    setLoading(true);
+    const file = inputRef.current?.files?.[0];
+
+    if (!file) {
+      setResult({ error: "Choose a hole-by-hole PDF first." });
+      return;
+    }
+
+    setIsImporting(true);
+    setProgress(5);
+    setStage("Preparing upload");
     setResult(null);
 
     try {
-      setStatus("Uploading PDF to storage...");
+      const formData = new FormData();
+      formData.append("file", file);
 
-      const storagePath = `hole-by-hole/${Date.now()}-${file.name}`;
-
-      const { error: uploadError } = await supabaseBrowser.storage
-        .from("imports")
-        .upload(storagePath, file, {
-          contentType: "application/pdf",
-          upsert: false,
-        });
-
-      if (uploadError) throw uploadError;
-
-      setStatus("Importing stored PDF...");
+      setProgress(20);
+      setStage("Uploading PDF");
 
       const response = await fetch("/api/import/hole-by-hole", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          fileName: file.name,
-          storagePath,
-        }),
+        body: formData,
       });
 
+      setProgress(70);
+      setStage("Parsing scorecards and importing holes");
+
       const json = await response.json();
+
+      if (!response.ok) {
+        throw new Error(json.error ?? "Hole-by-hole import failed.");
+      }
+
+      setProgress(100);
+      setStage("Import complete");
       setResult(json);
+      inputRef.current.value = "";
     } catch (error) {
+      setStage("Import failed");
       setResult({
-        fileName: file.name,
-        rowsFound: 0,
-        validRounds: 0,
-        invalidRows: 0,
-        roundsImported: 0,
-        holesImported: 0,
-        rowsSkipped: 0,
         error: error instanceof Error ? error.message : "Import failed.",
       });
     } finally {
-      setLoading(false);
-      setStatus("");
+      setIsImporting(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <input
-        type="file"
-        accept="application/pdf"
-        onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-        className="block w-full rounded-md border border-gray-300 bg-white p-2 text-sm"
-      />
+    <section className="rounded-xl border border-gray-300 bg-white p-5 shadow-sm">
+      <h2 className="text-xl font-bold text-gray-950">
+        Goodrich Hole-by-Hole Report
+      </h2>
 
-      <button
-        type="submit"
-        disabled={!file || loading}
-        className="rounded-md bg-slate-950 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
-      >
-        {loading ? "Importing..." : "Import Hole-by-Hole PDF"}
-      </button>
+      <p className="mt-1 text-sm text-gray-600">
+        Imports Goodrich tee boxes, hole scores, pars, stroke indexes, and
+        scorecard-level detail.
+      </p>
 
-      {status && <p className="text-sm font-medium text-gray-700">{status}</p>}
+      <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+        <input
+          ref={inputRef}
+          type="file"
+          accept="application/pdf,.pdf"
+          disabled={isImporting}
+          className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+        />
+
+        <button
+          type="submit"
+          disabled={isImporting}
+          className="rounded-md bg-slate-950 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isImporting ? "Importing..." : "Import Hole-by-Hole"}
+        </button>
+      </form>
+
+      {(isImporting || progress > 0) && (
+        <div className="mt-5">
+          <div className="flex items-center justify-between text-sm font-bold text-gray-700">
+            <span>{stage}</span>
+            <span>{progress}%</span>
+          </div>
+
+          <div className="mt-2 h-3 overflow-hidden rounded-full bg-gray-200">
+            <div
+              className="h-full rounded-full bg-blue-700 transition-all duration-500"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {result && (
-        <div className="rounded-lg border border-gray-300 bg-gray-50 p-4 text-sm">
+        <div
+          className={`mt-5 rounded-lg border p-4 text-sm ${
+            result.error
+              ? "border-red-300 bg-red-50 text-red-800"
+              : "border-green-300 bg-green-50 text-green-900"
+          }`}
+        >
           {result.error ? (
-            <p className="font-bold text-red-700">{result.error}</p>
+            <p className="font-bold">{result.error}</p>
           ) : (
-            <div className="space-y-1">
-              <p><span className="font-bold">File:</span> {result.fileName}</p>
-              <p><span className="font-bold">Rows found:</span> {result.rowsFound}</p>
-              <p><span className="font-bold">Valid rounds:</span> {result.validRounds}</p>
-              <p><span className="font-bold">Rounds imported:</span> {result.roundsImported}</p>
-              <p><span className="font-bold">Holes imported:</span> {result.holesImported}</p>
-              <p><span className="font-bold">Rows skipped:</span> {result.rowsSkipped}</p>
+            <div className="grid gap-2 md:grid-cols-2">
+              <ResultLine label="Rows found" value={result.rowsFound} />
+              <ResultLine label="Valid rounds" value={result.validRounds} />
+              <ResultLine label="Invalid rows" value={result.invalidRows} />
+              <ResultLine label="Rounds imported" value={result.roundsImported} />
+              <ResultLine label="Holes imported" value={result.holesImported} />
+              <ResultLine label="Rows skipped" value={result.rowsSkipped} />
             </div>
           )}
         </div>
       )}
-    </form>
+    </section>
+  );
+}
+
+function ResultLine({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number | undefined;
+}) {
+  return (
+    <div className="flex justify-between gap-3 rounded bg-white/70 px-3 py-2">
+      <span className="font-medium">{label}</span>
+      <span className="font-bold">{value ?? "-"}</span>
+    </div>
   );
 }
