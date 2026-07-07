@@ -3,11 +3,8 @@ import Link from "next/link";
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/players", label: "Players" },
-  { href: "/rounds", label: "Rounds" },
-  { href: "/events", label: "Events" },
   { href: "/import", label: "Import" },
   { href: "/audit", label: "Audit" },
-  { href: "/reports", label: "Reports" },
   { href: "/import/history", label: "Import History" },
   { href: "/compare", label: "Compare" },
   { href: "/holes", label: "Hole Stats" },
