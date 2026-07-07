@@ -749,7 +749,13 @@ function PlayerCard({
   );
 }
 
-function MiniStat({ label, value }: { label: string }) {
+function MiniStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
   return (
     <div className="rounded-lg bg-gray-50 p-3">
       <div className="text-xs font-bold text-gray-500">{label}</div>
