@@ -30,7 +30,6 @@ function confidenceClass(confidence: string) {
 export default async function AuditPage({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
   const period: Period = params.period ?? "last20";
-
   const rows = await auditService.getAuditRows(period);
 
   const tabs: { href: string; label: string; value: Period }[] = [
@@ -48,7 +47,8 @@ export default async function AuditPage({ searchParams }: PageProps) {
       </h1>
 
       <p className="mt-1 text-sm font-medium text-gray-700 lg:text-base">
-        GHIN-style Sandbag Index based on handicap differential gaps.
+        GHIN-centric audit showing Overall HI, Competition HI, General Play HI,
+        and competition scoring gaps.
       </p>
 
       <div className="mt-5 flex gap-2 overflow-x-auto pb-2 lg:flex-wrap">
@@ -88,7 +88,6 @@ export default async function AuditPage({ searchParams }: PageProps) {
                   <span className={`rounded-full px-3 py-1 text-xs font-bold ${flagClass(row.flag)}`}>
                     {row.flag}
                   </span>
-
                   <span className={`rounded-full px-3 py-1 text-xs font-bold ${confidenceClass(row.confidence)}`}>
                     {row.confidence} Confidence
                   </span>
@@ -96,36 +95,32 @@ export default async function AuditPage({ searchParams }: PageProps) {
               </div>
 
               <div className="text-right">
-                <div className="text-xs font-bold text-gray-500">
-                  Sandbag Index
-                </div>
+                <div className="text-xs font-bold text-gray-500">Sandbag Index</div>
                 <div className="text-4xl font-bold text-gray-950">
                   {row.sandbagIndex}
                 </div>
               </div>
             </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <MobileStat label="Rounds" value={row.totalRounds} />
-              <MobileStat label="Current HI" value={formatNumber(row.currentIndex)} />
-              <MobileStat label="Comp Rounds" value={row.compRounds} />
-              <MobileStat label="Casual Rounds" value={row.casualRounds} />
-              <MobileStat label="Goodrich Rounds" value={row.goodrichRounds} />
-              <MobileStat label="Other Rounds" value={row.otherRounds} />
-            </div>
-
-            <Section title="Competition vs Casual">
-              <MobileStat label="Comp Diff" value={formatNumber(row.compDiff)} />
-              <MobileStat label="Casual Diff" value={formatNumber(row.casualDiff)} />
-              <MobileStat label="Gap" value={formatNumber(row.compGap)} />
-              <MobileStat label="Index Pts" value={row.compPoints} />
+            <Section title="Handicap Index Comparison">
+              <MobileStat label="Overall HI" value={formatNumber(row.overallHi)} />
+              <MobileStat label="Competition HI" value={formatNumber(row.competitionHi)} />
+              <MobileStat label="General Play HI" value={formatNumber(row.generalPlayHi)} />
+              <MobileStat label="Comp vs Overall" value={formatNumber(row.competitionVsOverallGap)} />
             </Section>
 
-            <Section title="Goodrich vs Other">
-              <MobileStat label="Goodrich Diff" value={formatNumber(row.goodrichDiff)} />
-              <MobileStat label="Other Diff" value={formatNumber(row.otherDiff)} />
-              <MobileStat label="Gap" value={formatNumber(row.goodrichGap)} />
-              <MobileStat label="Index Pts" value={row.goodrichPoints} />
+            <Section title="Competition Detail">
+              <MobileStat label="Last 20 Comp HI" value={formatNumber(row.last20CompetitionHi)} />
+              <MobileStat label="Last 12 Mo Comp HI" value={formatNumber(row.last12MonthCompetitionHi)} />
+              <MobileStat label="Comp Rounds" value={row.competitionRounds} />
+              <MobileStat label="Casual Rounds" value={row.casualRounds} />
+            </Section>
+
+            <Section title="Scoring Average">
+              <MobileStat label="Comp Avg Score" value={formatNumber(row.competitionScoringAverage)} />
+              <MobileStat label="Casual Avg Score" value={formatNumber(row.casualScoringAverage)} />
+              <MobileStat label="Comp Avg Diff" value={formatNumber(row.competitionAvgDiff)} />
+              <MobileStat label="Casual Avg Diff" value={formatNumber(row.casualAvgDiff)} />
             </Section>
 
             <div className="mt-4 rounded-xl bg-slate-50 p-3">
@@ -141,21 +136,23 @@ export default async function AuditPage({ searchParams }: PageProps) {
       </div>
 
       <div className="mt-6 hidden overflow-x-auto rounded-xl border border-gray-300 bg-white shadow-sm lg:block">
-        <table className="w-full min-w-[1250px] text-left text-sm text-gray-900">
+        <table className="w-full min-w-[1500px] text-left text-sm text-gray-900">
           <thead className="border-b border-gray-300 bg-gray-200 text-gray-950">
             <tr>
               <th className="p-3 font-bold">Player</th>
-              <th className="p-3 text-right font-bold">Sandbag Index</th>
-              <th className="p-3 text-right font-bold">Rounds</th>
-              <th className="p-3 text-right font-bold">Current HI</th>
+              <th className="p-3 text-right font-bold">Sandbag</th>
+              <th className="p-3 text-right font-bold">Overall HI</th>
+              <th className="p-3 text-right font-bold">Comp HI</th>
+              <th className="p-3 text-right font-bold">General HI</th>
+              <th className="p-3 text-right font-bold">Gap</th>
+              <th className="p-3 text-right font-bold">Last 20 Comp</th>
+              <th className="p-3 text-right font-bold">Last 12 Mo Comp</th>
+              <th className="p-3 text-right font-bold">Comp Rds</th>
+              <th className="p-3 text-right font-bold">Casual Rds</th>
+              <th className="p-3 text-right font-bold">Comp Score</th>
+              <th className="p-3 text-right font-bold">Casual Score</th>
               <th className="p-3 font-bold">Confidence</th>
               <th className="p-3 font-bold">Flag</th>
-              <th className="p-3 text-right font-bold">Comp Diff</th>
-              <th className="p-3 text-right font-bold">Casual Diff</th>
-              <th className="p-3 text-right font-bold">Comp Pts</th>
-              <th className="p-3 text-right font-bold">Goodrich Diff</th>
-              <th className="p-3 text-right font-bold">Other Diff</th>
-              <th className="p-3 text-right font-bold">Goodrich Pts</th>
               <th className="p-3 font-bold">Reason</th>
             </tr>
           </thead>
@@ -170,8 +167,16 @@ export default async function AuditPage({ searchParams }: PageProps) {
                 </td>
 
                 <td className="p-3 text-right font-bold">{row.sandbagIndex}</td>
-                <td className="p-3 text-right">{row.totalRounds}</td>
-                <td className="p-3 text-right">{formatNumber(row.currentIndex)}</td>
+                <td className="p-3 text-right">{formatNumber(row.overallHi)}</td>
+                <td className="p-3 text-right font-bold">{formatNumber(row.competitionHi)}</td>
+                <td className="p-3 text-right">{formatNumber(row.generalPlayHi)}</td>
+                <td className="p-3 text-right font-bold">{formatNumber(row.competitionVsOverallGap)}</td>
+                <td className="p-3 text-right">{formatNumber(row.last20CompetitionHi)}</td>
+                <td className="p-3 text-right">{formatNumber(row.last12MonthCompetitionHi)}</td>
+                <td className="p-3 text-right">{row.competitionRounds}</td>
+                <td className="p-3 text-right">{row.casualRounds}</td>
+                <td className="p-3 text-right">{formatNumber(row.competitionScoringAverage)}</td>
+                <td className="p-3 text-right">{formatNumber(row.casualScoringAverage)}</td>
 
                 <td className="p-3 font-bold">
                   <span className={`rounded-full px-3 py-1 ${confidenceClass(row.confidence)}`}>
@@ -185,12 +190,6 @@ export default async function AuditPage({ searchParams }: PageProps) {
                   </span>
                 </td>
 
-                <td className="p-3 text-right">{formatNumber(row.compDiff)}</td>
-                <td className="p-3 text-right">{formatNumber(row.casualDiff)}</td>
-                <td className="p-3 text-right font-bold">{row.compPoints}</td>
-                <td className="p-3 text-right">{formatNumber(row.goodrichDiff)}</td>
-                <td className="p-3 text-right">{formatNumber(row.otherDiff)}</td>
-                <td className="p-3 text-right font-bold">{row.goodrichPoints}</td>
                 <td className="p-3 text-gray-800">{row.reasons.join(" ")}</td>
               </tr>
             ))}
