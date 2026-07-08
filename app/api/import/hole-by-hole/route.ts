@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import PDFParser from "pdf2json";
+import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import { parseHoleByHoleText } from "@/utils/holeByHoleParser";
 import { importHoleByHoleRounds } from "@/services/holeByHoleImportService";
 import { createImportJob, updateImportJob } from "@/services/importJobService";
+
+export const runtime = "nodejs";
+export const maxDuration = 300;
 
 function parsePdfBuffer(buffer: Buffer): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -32,29 +36,48 @@ function parsePdfBuffer(buffer: Buffer): Promise<string> {
   });
 }
 
+async function downloadImportFile(storagePath: string) {
+  const supabase = createSupabaseServerClient();
+
+  const { data, error } = await supabase.storage
+    .from("imports")
+    .download(storagePath);
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "Could not download import file.");
+  }
+
+  return Buffer.from(await data.arrayBuffer());
+}
+
 export async function POST(request: Request) {
   let jobId: string | null = null;
 
   try {
-    const formData = await request.formData();
-    const file = formData.get("file");
+    const body = await request.json();
 
-    if (!(file instanceof File) || file.size === 0) {
-      return NextResponse.json({ error: "No file uploaded." }, { status: 400 });
+    const fileName = String(body.fileName ?? "");
+    const storagePath = String(body.storagePath ?? "");
+
+    if (!fileName || !storagePath) {
+      return NextResponse.json(
+        { error: "Missing fileName or storagePath." },
+        { status: 400 }
+      );
     }
 
     jobId = await createImportJob({
       importType: "hole_by_hole",
-      fileName: file.name,
+      fileName,
     });
 
     await updateImportJob(jobId, {
       status: "running",
       progress: 5,
-      stage: "Reading hole-by-hole PDF",
+      stage: "Downloading hole-by-hole PDF from storage",
     });
 
-    const buffer = Buffer.from(await file.arrayBuffer());
+    const buffer = await downloadImportFile(storagePath);
 
     await updateImportJob(jobId, {
       progress: 15,
@@ -72,7 +95,7 @@ export async function POST(request: Request) {
     });
 
     const importResult = await importHoleByHoleRounds({
-      fileName: file.name,
+      fileName,
       rounds: parsed.validRounds,
       invalidRows: parsed.invalidRows.length,
       jobId,
@@ -80,7 +103,7 @@ export async function POST(request: Request) {
 
     const response = {
       jobId,
-      fileName: file.name,
+      fileName,
       rowsFound: parsed.rowsFound,
       validRounds: parsed.validRounds.length,
       ...importResult,
@@ -109,12 +132,6 @@ export async function POST(request: Request) {
       error: message,
     });
 
-    return NextResponse.json(
-      {
-        jobId,
-        error: message,
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ jobId, error: message }, { status: 500 });
   }
 }
