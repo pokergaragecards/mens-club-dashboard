@@ -16,8 +16,8 @@ type HandicapSummaryRow = {
   casual_avg_diff: number | string | null;
   competition_scoring_avg: number | string | null;
   casual_scoring_avg: number | string | null;
-  last20_comp_avg_diff: number | string | null;
-  last12mo_comp_avg_diff: number | string | null;
+  last20_competition_hi: number | string | null;
+  last20_general_play_hi: number | string | null;
 };
 
 function num(value: unknown) {
@@ -56,24 +56,22 @@ export const auditService = {
     return ((data ?? []) as HandicapSummaryRow[])
       .map((row) => {
         const overallHi = num(row.overall_hi);
-        const competitionHi = num(row.competition_avg_diff);
-        const generalPlayHi = num(row.casual_avg_diff);
-        const last20CompetitionHi = num(row.last20_comp_avg_diff);
-        const last12MonthCompetitionHi = num(row.last12mo_comp_avg_diff);
+        const competitionHi = num(row.last20_competition_hi);
+        const generalPlayHi = num(row.last20_general_play_hi);
 
         const competitionVsOverallGap =
           overallHi != null && competitionHi != null
             ? overallHi - competitionHi
             : null;
 
-        const competitionVsCasualGap =
+        const competitionVsGeneralGap =
           generalPlayHi != null && competitionHi != null
             ? generalPlayHi - competitionHi
             : null;
 
-        const compPoints = pointsFromGap(competitionVsOverallGap);
-        const casualGapPoints = pointsFromGap(competitionVsCasualGap);
-        const sandbagIndex = compPoints + casualGapPoints;
+        const sandbagIndex =
+          pointsFromGap(competitionVsOverallGap) +
+          pointsFromGap(competitionVsGeneralGap);
 
         const competitionRounds = Number(row.competition_rounds ?? 0);
         const casualRounds = Number(row.casual_rounds ?? 0);
@@ -83,17 +81,17 @@ export const auditService = {
 
         if (competitionVsOverallGap != null && competitionVsOverallGap > 0) {
           reasons.push(
-            `Competition HI is ${competitionVsOverallGap.toFixed(
+            `Last 20 Competition HI is ${competitionVsOverallGap.toFixed(
               1
             )} lower than Overall HI.`
           );
         }
 
-        if (competitionVsCasualGap != null && competitionVsCasualGap > 0) {
+        if (competitionVsGeneralGap != null && competitionVsGeneralGap > 0) {
           reasons.push(
-            `Competition HI is ${competitionVsCasualGap.toFixed(
+            `Last 20 Competition HI is ${competitionVsGeneralGap.toFixed(
               1
-            )} lower than General Play HI.`
+            )} lower than Last 20 General Play HI.`
           );
         }
 
@@ -108,8 +106,8 @@ export const auditService = {
           overallHi,
           competitionHi,
           generalPlayHi,
-          last20CompetitionHi,
-          last12MonthCompetitionHi,
+          last20CompetitionHi: competitionHi,
+          last20GeneralPlayHi: generalPlayHi,
           competitionVsOverallGap,
 
           competitionRounds,
