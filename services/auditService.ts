@@ -18,8 +18,6 @@ type HandicapSummaryRow = {
   casual_scoring_avg: number | string | null;
   last20_comp_avg_diff: number | string | null;
   last12mo_comp_avg_diff: number | string | null;
-  comp_vs_casual_gap: number | string | null;
-  comp_vs_overall_gap: number | string | null;
 };
 
 function num(value: unknown) {
@@ -63,8 +61,15 @@ export const auditService = {
         const last20CompetitionHi = num(row.last20_comp_avg_diff);
         const last12MonthCompetitionHi = num(row.last12mo_comp_avg_diff);
 
-        const competitionVsOverallGap = num(row.comp_vs_overall_gap);
-        const competitionVsCasualGap = num(row.comp_vs_casual_gap);
+        const competitionVsOverallGap =
+          overallHi != null && competitionHi != null
+            ? overallHi - competitionHi
+            : null;
+
+        const competitionVsCasualGap =
+          generalPlayHi != null && competitionHi != null
+            ? generalPlayHi - competitionHi
+            : null;
 
         const compPoints = pointsFromGap(competitionVsOverallGap);
         const casualGapPoints = pointsFromGap(competitionVsCasualGap);
@@ -76,24 +81,24 @@ export const auditService = {
 
         const reasons: string[] = [];
 
-        if (competitionVsOverallGap != null) {
+        if (competitionVsOverallGap != null && competitionVsOverallGap > 0) {
           reasons.push(
             `Competition HI is ${competitionVsOverallGap.toFixed(
               1
-            )} higher than Overall HI.`
+            )} lower than Overall HI.`
           );
         }
 
-        if (competitionVsCasualGap != null) {
+        if (competitionVsCasualGap != null && competitionVsCasualGap > 0) {
           reasons.push(
             `Competition HI is ${competitionVsCasualGap.toFixed(
               1
-            )} different from General Play HI.`
+            )} lower than General Play HI.`
           );
         }
 
         if (!reasons.length) {
-          reasons.push("Not enough competition and casual data to compare.");
+          reasons.push("No major competition-underperformance flag.");
         }
 
         return {
