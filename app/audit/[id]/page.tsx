@@ -17,11 +17,17 @@ type RoundRow = {
   counts_for_hi: boolean | null;
 };
 
+type RoundWithDiff = RoundRow & {
+  diff: number;
+  score: number | null;
+};
+
 type AuditGroup = {
   label: string;
-  rounds: RoundRow[];
+  rounds: RoundWithDiff[];
   hi: number | null;
   avgDiff: number | null;
+  usedCount: number;
 };
 
 function formatNumber(value: unknown, decimals = 1) {
@@ -40,77 +46,101 @@ function average(values: number[]) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-function whsHi(rounds: RoundRow[]) {
-  const diffs = rounds
-    .map((round) => Number(round.differential))
-    .filter(Number.isFinite)
-    .sort((a, b) => a - b);
+function whsUsedCount(roundCount: number) {
+  if (roundCount < 5) return 0;
+  if (roundCount === 5) return 1;
+  if (roundCount <= 8) return 2;
+  if (roundCount <= 11) return 3;
+  if (roundCount <= 14) return 4;
+  if (roundCount <= 16) return 5;
+  if (roundCount <= 18) return 6;
+  if (roundCount === 19) return 7;
+  return 8;
+}
 
-  const n = diffs.length;
-  if (n < 5) return null;
+function whsHi(rounds: RoundWithDiff[]) {
+  const n = rounds.length;
+  const usedCount = whsUsedCount(n);
 
-  let count = 8;
-  let adjustment = 0;
+  if (!usedCount) return null;
 
-  if (n === 5) count = 1;
-  else if (n === 6) {
-    count = 2;
-    adjustment = -1;
-  } else if (n <= 8) count = 2;
-  else if (n <= 11) count = 3;
-  else if (n <= 14) count = 4;
-  else if (n <= 16) count = 5;
-  else if (n <= 18) count = 6;
-  else if (n === 19) count = 7;
+  const usedDiffs = rounds.slice(0, usedCount).map((round) => round.diff);
+  const adjustment = n === 6 ? -1 : 0;
+  const hi = average(usedDiffs);
 
-  const selected = diffs.slice(0, count);
-  const selectedAverage = average(selected);
+  return hi == null ? null : hi + adjustment;
+}
 
-  return selectedAverage == null ? null : selectedAverage + adjustment;
+function buildGroup(label: string, rounds: RoundWithDiff[]): AuditGroup {
+  const sorted = rounds.slice().sort((a, b) => a.diff - b.diff);
+
+  return {
+    label,
+    rounds: sorted,
+    hi: whsHi(sorted),
+    avgDiff: average(sorted.map((round) => round.diff)),
+    usedCount: whsUsedCount(sorted.length),
+  };
 }
 
 function buildAuditGroups(rounds: RoundRow[]): AuditGroup[] {
-  const sorted = rounds
-    .filter((round) => round.counts_for_hi === true)
+  const eligible = rounds
+    .filter((round) => round.counts_for_hi === true && round.differential != null)
     .sort(
       (a, b) =>
         new Date(b.played_at).getTime() - new Date(a.played_at).getTime()
-    );
+    )
+    .map((round) => ({
+      ...round,
+      diff: Number(round.differential),
+      score:
+        round.adjusted_gross_score != null
+          ? Number(round.adjusted_gross_score)
+          : round.gross_score != null
+            ? Number(round.gross_score)
+            : null,
+    }));
 
-  const overall = sorted.slice(0, 20);
-  const competition = sorted
+  const overall = eligible.slice(0, 20);
+  const competition = eligible
     .filter((round) => isCompetition(round.score_type))
     .slice(0, 20);
-  const general = sorted
+  const general = eligible
     .filter((round) => !isCompetition(round.score_type))
     .slice(0, 20);
 
   return [
-    {
-      label: "Overall",
-      rounds: overall,
-      hi: whsHi(overall),
-      avgDiff: average(overall.map((round) => Number(round.differential))),
-    },
-    {
-      label: "Competition",
-      rounds: competition,
-      hi: whsHi(competition),
-      avgDiff: average(competition.map((round) => Number(round.differential))),
-    },
-    {
-      label: "General Play",
-      rounds: general,
-      hi: whsHi(general),
-      avgDiff: average(general.map((round) => Number(round.differential))),
-    },
+    buildGroup("Overall", overall),
+    buildGroup("Competition", competition),
+    buildGroup("General Play", general),
   ];
 }
 
-function scoresList(rounds: RoundRow[]) {
-  return rounds
-    .map((round) => round.adjusted_gross_score ?? round.gross_score ?? "-")
-    .join(", ");
+function NumberList({
+  group,
+  field,
+}: {
+  group: AuditGroup;
+  field: "score" | "diff";
+}) {
+  return (
+    <div className="flex flex-wrap gap-x-2 gap-y-1">
+      {group.rounds.map((round, index) => {
+        const isUsed = index < group.usedCount;
+        const value =
+          field === "score" ? round.score ?? "-" : formatNumber(round.diff);
+
+        return (
+          <span
+            key={`${field}-${round.id}`}
+            className={isUsed ? "font-black text-gray-950" : "text-gray-700"}
+          >
+            {value}
+          </span>
+        );
+      })}
+    </div>
+  );
 }
 
 export default async function PlayerAuditPage({ params }: PageProps) {
@@ -194,30 +224,43 @@ export default async function PlayerAuditPage({ params }: PageProps) {
           Last 20 Handicap Breakdown
         </h2>
 
+        <p className="mt-1 text-sm text-gray-600">
+          Scores and differentials are sorted from lowest differential to
+          highest. Bold values are the differentials used in the HI calculation.
+        </p>
+
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[850px] text-left text-sm">
+          <table className="w-full min-w-[1100px] text-left text-sm">
             <thead className="border-b bg-gray-200 text-gray-950">
               <tr>
                 <th className="p-3">Group</th>
                 <th className="p-3 text-right"># Rounds</th>
+                <th className="p-3 text-right">Used</th>
                 <th className="p-3 text-right">Calculated HI</th>
                 <th className="p-3 text-right">Avg Differential</th>
-                <th className="p-3">Scores Used</th>
+                <th className="p-3">Scores</th>
+                <th className="p-3">Differentials</th>
               </tr>
             </thead>
 
             <tbody>
               {groups.map((group) => (
-                <tr key={group.label} className="border-b hover:bg-blue-50">
+                <tr key={group.label} className="border-b align-top hover:bg-blue-50">
                   <td className="p-3 font-bold">{group.label}</td>
                   <td className="p-3 text-right">{group.rounds.length}</td>
+                  <td className="p-3 text-right">{group.usedCount || "-"}</td>
                   <td className="p-3 text-right font-bold">
                     {formatNumber(group.hi)}
                   </td>
                   <td className="p-3 text-right">
                     {formatNumber(group.avgDiff)}
                   </td>
-                  <td className="p-3">{scoresList(group.rounds)}</td>
+                  <td className="p-3">
+                    <NumberList group={group} field="score" />
+                  </td>
+                  <td className="p-3">
+                    <NumberList group={group} field="diff" />
+                  </td>
                 </tr>
               ))}
             </tbody>
