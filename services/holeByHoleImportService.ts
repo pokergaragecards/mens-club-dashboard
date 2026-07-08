@@ -18,10 +18,7 @@ function splitName(fullName: string) {
   const parts = fullName.trim().split(/\s+/);
 
   if (parts.length === 1) {
-    return {
-      first_name: parts[0],
-      last_name: "",
-    };
+    return { first_name: parts[0], last_name: "" };
   }
 
   return {
@@ -31,14 +28,15 @@ function splitName(fullName: string) {
 }
 
 function normalizeName(value: string | null | undefined) {
-  return String(value ?? "")
-    .toLowerCase()
-    .replace(/\s+/g, "")
-    .trim();
+  return String(value ?? "").toLowerCase().replace(/\s+/g, "").trim();
 }
 
 function isTempGhin(value: string | null | undefined) {
   return !value || value.startsWith("TEMP-");
+}
+
+function getRoundTotal(round: HoleByHoleRound) {
+  return round.holes.reduce((sum, score) => sum + Number(score || 0), 0);
 }
 
 async function findOrCreatePlayer(round: HoleByHoleRound) {
@@ -67,10 +65,7 @@ async function findOrCreatePlayer(round: HoleByHoleRound) {
 
     if (error) throw error;
 
-    return {
-      id: ghinMatch.id as string,
-      created: false,
-    };
+    return { id: ghinMatch.id as string, created: false };
   }
 
   const { data: players, error: playersError } = await supabase
@@ -80,7 +75,8 @@ async function findOrCreatePlayer(round: HoleByHoleRound) {
   if (playersError) throw playersError;
 
   const nameMatch = (players ?? []).find(
-    (player) => normalizeName(player.full_name) === normalizeName(round.golferName)
+    (player) =>
+      normalizeName(player.full_name) === normalizeName(round.golferName)
   );
 
   if (nameMatch && isTempGhin(nameMatch.ghin_number)) {
@@ -96,10 +92,7 @@ async function findOrCreatePlayer(round: HoleByHoleRound) {
 
     if (error) throw error;
 
-    return {
-      id: nameMatch.id as string,
-      created: false,
-    };
+    return { id: nameMatch.id as string, created: false };
   }
 
   const { data: created, error: createError } = await supabase
@@ -116,10 +109,7 @@ async function findOrCreatePlayer(round: HoleByHoleRound) {
 
   if (createError) throw createError;
 
-  return {
-    id: created.id as string,
-    created: true,
-  };
+  return { id: created.id as string, created: true };
 }
 
 function buildExternalRoundKey(playerId: string, round: HoleByHoleRound) {
@@ -130,7 +120,7 @@ function buildExternalRoundKey(playerId: string, round: HoleByHoleRound) {
     round.teeName,
     round.courseRating,
     round.slopeRating,
-    round.total,
+    getRoundTotal(round),
     round.holes.join("-"),
   ].join("|");
 }
@@ -149,7 +139,6 @@ async function findExistingRound(params: {
     .limit(1);
 
   if (keyError) throw keyError;
-
   if (byKey?.[0]) return byKey[0];
 
   const { data: byNaturalKey, error: naturalError } = await supabase
@@ -157,7 +146,7 @@ async function findExistingRound(params: {
     .select("id")
     .eq("player_id", params.playerId)
     .eq("played_at", params.round.playedAt)
-    .eq("gross_score", params.round.total)
+    .eq("gross_score", getRoundTotal(params.round))
     .eq("tee_name", params.round.teeName)
     .eq("source", SOURCE)
     .limit(1);
@@ -173,6 +162,7 @@ async function upsertRound(params: {
   batchId: string | null;
 }) {
   const supabase = createSupabaseServerClient();
+  const total = getRoundTotal(params.round);
   const externalRoundKey = buildExternalRoundKey(params.playerId, params.round);
 
   const existing = await findExistingRound({
@@ -184,8 +174,8 @@ async function upsertRound(params: {
   const payload = {
     player_id: params.playerId,
     played_at: params.round.playedAt,
-    gross_score: params.round.total,
-    adjusted_gross_score: params.round.total,
+    gross_score: total,
+    adjusted_gross_score: total,
     differential: params.round.differential ?? null,
     course_rating: params.round.courseRating,
     slope_rating: params.round.slopeRating,
@@ -286,7 +276,7 @@ async function insertHoleScores(params: {
       hole_number: holeNumber,
       gross_score: score,
       par,
-      score_to_par: par == null ? null : score - par,
+      score_to_par: par == null ? null : Number(score) - par,
       stroke_index: courseHole?.handicap ?? null,
       tee_name: params.round.teeName,
       course_name: "Goodrich",
