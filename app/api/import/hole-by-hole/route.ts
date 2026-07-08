@@ -83,7 +83,6 @@ export async function POST(request: Request) {
       fileName: file.name,
       rowsFound: parsed.rowsFound,
       validRounds: parsed.validRounds.length,
-      invalidRows: parsed.invalidRows.length,
       ...importResult,
     };
 
