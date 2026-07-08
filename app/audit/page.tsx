@@ -42,14 +42,25 @@ export default async function AuditPage({ searchParams }: PageProps) {
 
   return (
     <main className="p-4 text-gray-900 lg:p-8">
-      <h1 className="text-2xl font-bold text-gray-950 lg:text-3xl">
-        Handicap Audit
-      </h1>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-950 lg:text-3xl">
+            Handicap Audit
+          </h1>
 
-      <p className="mt-1 text-sm font-medium text-gray-700 lg:text-base">
-        Audit view comparing Overall HI, Last 20 Competition HI, Last 20 General
-        Play HI, and scoring gaps.
-      </p>
+          <p className="mt-1 text-sm font-medium text-gray-700 lg:text-base">
+            Audit view comparing Overall HI, Last 20 Competition HI, Last 20
+            General Play HI, and scoring gaps.
+          </p>
+        </div>
+
+        <Link
+          href="/audit/committee"
+          className="w-fit rounded-md bg-slate-950 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800"
+        >
+          Committee Audit
+        </Link>
+      </div>
 
       <div className="mt-5 flex gap-2 overflow-x-auto pb-2 lg:flex-wrap">
         {tabs.map((tab) => (
@@ -64,115 +75,6 @@ export default async function AuditPage({ searchParams }: PageProps) {
           >
             {tab.label}
           </Link>
-        ))}
-      </div>
-
-      <div className="mt-5 space-y-5 lg:hidden">
-        {rows.map((row, index) => (
-          <article
-            key={row.id}
-            className="rounded-2xl border border-gray-300 bg-white p-4 shadow-sm"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-xs font-bold text-gray-500">
-                  #{index + 1}
-                </div>
-
-                <Link
-                  href={`/players/${row.id}`}
-                  className="text-xl font-bold text-blue-800 hover:underline"
-                >
-                  {row.full_name}
-                </Link>
-
-                <div className="mt-2">
-                  <Link
-                    href={`/audit/${row.id}`}
-                    className="inline-block rounded-md border border-gray-300 bg-white px-3 py-1 text-xs font-bold text-gray-800 hover:bg-gray-100"
-                  >
-                    Audit Player
-                  </Link>
-                </div>
-
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-bold ${flagClass(
-                      row.flag
-                    )}`}
-                  >
-                    {row.flag}
-                  </span>
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-bold ${confidenceClass(
-                      row.confidence
-                    )}`}
-                  >
-                    {row.confidence} Confidence
-                  </span>
-                </div>
-              </div>
-
-              <div className="text-right">
-                <div className="text-xs font-bold text-gray-500">
-                  Sandbag Index
-                </div>
-                <div className="text-4xl font-bold text-gray-950">
-                  {row.sandbagIndex}
-                </div>
-              </div>
-            </div>
-
-            <Section title="Handicap Index Comparison">
-              <MobileStat label="Overall HI" value={formatNumber(row.overallHi)} />
-              <MobileStat
-                label="Last 20 Comp HI"
-                value={formatNumber(row.last20CompetitionHi)}
-              />
-              <MobileStat
-                label="Last 20 GP HI"
-                value={formatNumber(row.last20GeneralPlayHi)}
-              />
-              <MobileStat
-                label="Comp vs Overall"
-                value={formatNumber(row.competitionVsOverallGap)}
-              />
-            </Section>
-
-            <Section title="Round Counts">
-              <MobileStat label="Comp Rounds" value={row.competitionRounds} />
-              <MobileStat label="Casual Rounds" value={row.casualRounds} />
-              <MobileStat label="Total Rounds" value={row.totalRounds} />
-              <MobileStat
-                label="Comp Avg Diff"
-                value={formatNumber(row.competitionAvgDiff)}
-              />
-            </Section>
-
-            <Section title="Scoring Average">
-              <MobileStat
-                label="Comp Avg Score"
-                value={formatNumber(row.competitionScoringAverage)}
-              />
-              <MobileStat
-                label="Casual Avg Score"
-                value={formatNumber(row.casualScoringAverage)}
-              />
-              <MobileStat
-                label="Casual Avg Diff"
-                value={formatNumber(row.casualAvgDiff)}
-              />
-            </Section>
-
-            <div className="mt-4 rounded-xl bg-slate-50 p-3">
-              <div className="text-xs font-bold uppercase text-gray-500">
-                Reason
-              </div>
-              <p className="mt-1 text-sm font-medium text-gray-800">
-                {row.reasons.join(" ")}
-              </p>
-            </div>
-          </article>
         ))}
       </div>
 
@@ -207,11 +109,13 @@ export default async function AuditPage({ searchParams }: PageProps) {
               >
                 <td className="p-3 font-bold">
                   <div className="flex items-center gap-2">
+                    <span>{row.full_name}</span>
+
                     <Link
                       href={`/players/${row.id}`}
-                      className="text-blue-800 hover:underline"
+                      className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-bold text-gray-800 hover:bg-gray-100"
                     >
-                      {row.full_name}
+                      Player
                     </Link>
 
                     <Link
@@ -274,6 +178,104 @@ export default async function AuditPage({ searchParams }: PageProps) {
           </tbody>
         </table>
       </div>
+
+      <div className="mt-5 space-y-5 lg:hidden">
+        {rows.map((row, index) => (
+          <article
+            key={row.id}
+            className="rounded-2xl border border-gray-300 bg-white p-4 shadow-sm"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-xs font-bold text-gray-500">
+                  #{index + 1}
+                </div>
+
+                <div className="text-xl font-bold text-gray-950">
+                  {row.full_name}
+                </div>
+
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Link
+                    href={`/players/${row.id}`}
+                    className="rounded-md border border-gray-300 bg-white px-3 py-1 text-xs font-bold text-gray-800 hover:bg-gray-100"
+                  >
+                    Player
+                  </Link>
+
+                  <Link
+                    href={`/audit/${row.id}`}
+                    className="rounded-md border border-gray-300 bg-white px-3 py-1 text-xs font-bold text-gray-800 hover:bg-gray-100"
+                  >
+                    Audit
+                  </Link>
+                </div>
+
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-bold ${flagClass(
+                      row.flag
+                    )}`}
+                  >
+                    {row.flag}
+                  </span>
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-bold ${confidenceClass(
+                      row.confidence
+                    )}`}
+                  >
+                    {row.confidence} Confidence
+                  </span>
+                </div>
+              </div>
+
+              <div className="text-right">
+                <div className="text-xs font-bold text-gray-500">
+                  Sandbag Index
+                </div>
+                <div className="text-4xl font-bold text-gray-950">
+                  {row.sandbagIndex}
+                </div>
+              </div>
+            </div>
+
+            <Section title="Handicap Index Comparison">
+              <MobileStat label="Overall HI" value={formatNumber(row.overallHi)} />
+              <MobileStat
+                label="Last 20 Comp HI"
+                value={formatNumber(row.last20CompetitionHi)}
+              />
+              <MobileStat
+                label="Last 20 GP HI"
+                value={formatNumber(row.last20GeneralPlayHi)}
+              />
+              <MobileStat
+                label="Comp vs Overall"
+                value={formatNumber(row.competitionVsOverallGap)}
+              />
+            </Section>
+
+            <Section title="Round Counts">
+              <MobileStat label="Comp Rounds" value={row.competitionRounds} />
+              <MobileStat label="Casual Rounds" value={row.casualRounds} />
+              <MobileStat label="Total Rounds" value={row.totalRounds} />
+              <MobileStat
+                label="Comp Avg Diff"
+                value={formatNumber(row.competitionAvgDiff)}
+              />
+            </Section>
+
+            <div className="mt-4 rounded-xl bg-slate-50 p-3">
+              <div className="text-xs font-bold uppercase text-gray-500">
+                Reason
+              </div>
+              <p className="mt-1 text-sm font-medium text-gray-800">
+                {row.reasons.join(" ")}
+              </p>
+            </div>
+          </article>
+        ))}
+      </div>
     </main>
   );
 }
@@ -306,5 +308,4 @@ function MobileStat({
       <div className="mt-1 text-lg font-bold text-gray-950">{value}</div>
     </div>
   );
-  
 }
