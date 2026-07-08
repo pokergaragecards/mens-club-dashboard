@@ -16,6 +16,13 @@ type RoundRow = {
   tee_name: string | null;
 };
 
+type AuditGroup = {
+  label: string;
+  rounds: RoundRow[];
+  hi: number | null;
+  avgDiff: number | null;
+};
+
 function formatNumber(value: unknown, decimals = 1) {
   if (value === null || value === undefined) return "-";
   const number = Number(value);
@@ -32,42 +39,75 @@ function average(values: number[]) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-function buildGroups(rounds: RoundRow[]) {
-  const rows = rounds
+function whsHi(rounds: RoundRow[]) {
+  const diffs = rounds
+    .map((round) => Number(round.differential))
+    .filter(Number.isFinite)
+    .sort((a, b) => a - b);
+
+  const n = diffs.length;
+  if (n < 5) return null;
+
+  let count = 8;
+  let adjustment = 0;
+
+  if (n === 5) count = 1;
+  else if (n === 6) {
+    count = 2;
+    adjustment = -1;
+  } else if (n <= 8) count = 2;
+  else if (n <= 11) count = 3;
+  else if (n <= 14) count = 4;
+  else if (n <= 16) count = 5;
+  else if (n <= 18) count = 6;
+  else if (n === 19) count = 7;
+
+  const selected = diffs.slice(0, count);
+  return average(selected) == null ? null : average(selected)! + adjustment;
+}
+
+function buildAuditGroups(rounds: RoundRow[]): AuditGroup[] {
+  const sorted = rounds
     .filter((round) => round.differential != null)
-    .map((round) => ({
-      ...round,
-      diff: Number(round.differential),
-      score: Number(round.adjusted_gross_score ?? round.gross_score),
-      isCompetition: isCompetition(round.score_type),
-    }));
+    .sort(
+      (a, b) =>
+        new Date(b.played_at).getTime() - new Date(a.played_at).getTime()
+    );
 
-  const comp = rows.filter((row) => row.isCompetition);
-  const general = rows.filter((row) => !row.isCompetition);
+  const overall = sorted.slice(0, 20);
+  const competition = sorted
+    .filter((round) => isCompetition(round.score_type))
+    .slice(0, 20);
+  const general = sorted
+    .filter((round) => !isCompetition(round.score_type))
+    .slice(0, 20);
 
-  return {
-    overall: {
+  return [
+    {
       label: "Overall",
-      rounds: rows.length,
-      avgDiff: average(rows.map((row) => row.diff)),
-      bestDiff: rows.length ? Math.min(...rows.map((row) => row.diff)) : null,
-      avgScore: average(rows.map((row) => row.score).filter(Number.isFinite)),
+      rounds: overall,
+      hi: whsHi(overall),
+      avgDiff: average(overall.map((round) => Number(round.differential))),
     },
-    competition: {
+    {
       label: "Competition",
-      rounds: comp.length,
-      avgDiff: average(comp.map((row) => row.diff)),
-      bestDiff: comp.length ? Math.min(...comp.map((row) => row.diff)) : null,
-      avgScore: average(comp.map((row) => row.score).filter(Number.isFinite)),
+      rounds: competition,
+      hi: whsHi(competition),
+      avgDiff: average(competition.map((round) => Number(round.differential))),
     },
-    general: {
+    {
       label: "General Play",
-      rounds: general.length,
-      avgDiff: average(general.map((row) => row.diff)),
-      bestDiff: general.length ? Math.min(...general.map((row) => row.diff)) : null,
-      avgScore: average(general.map((row) => row.score).filter(Number.isFinite)),
+      rounds: general,
+      hi: whsHi(general),
+      avgDiff: average(general.map((round) => Number(round.differential))),
     },
-  };
+  ];
+}
+
+function scoresList(rounds: RoundRow[]) {
+  return rounds
+    .map((round) => round.adjusted_gross_score ?? round.gross_score ?? "-")
+    .join(", ");
 }
 
 export default async function PlayerAuditPage({ params }: PageProps) {
@@ -98,7 +138,7 @@ export default async function PlayerAuditPage({ params }: PageProps) {
         )
         .eq("player_id", id)
         .not("played_at", "is", null)
-        .order("played_at", { ascending: true }),
+        .order("played_at", { ascending: false }),
     ]);
 
   if (playerError || roundsError) {
@@ -123,7 +163,7 @@ export default async function PlayerAuditPage({ params }: PageProps) {
   }
 
   const roundRows = (rounds ?? []) as RoundRow[];
-  const groups = buildGroups(roundRows);
+  const groups = buildAuditGroups(roundRows);
 
   return (
     <main className="space-y-6 p-4 text-gray-900 md:p-8">
@@ -138,14 +178,46 @@ export default async function PlayerAuditPage({ params }: PageProps) {
 
         <p className="mt-1 text-sm text-gray-700">
           GHIN #{playerRow.ghin_number ?? "-"} • Current HI{" "}
-          <span className="font-bold">{formatNumber(playerRow.current_index)}</span>
+          <span className="font-bold">
+            {formatNumber(playerRow.current_index)}
+          </span>
         </p>
       </div>
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <AuditSummaryCard {...groups.overall} />
-        <AuditSummaryCard {...groups.competition} />
-        <AuditSummaryCard {...groups.general} />
+      <section className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
+        <h2 className="text-xl font-bold text-gray-950">
+          Last 20 Handicap Breakdown
+        </h2>
+
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[850px] text-left text-sm">
+            <thead className="border-b bg-gray-200 text-gray-950">
+              <tr>
+                <th className="p-3">Group</th>
+                <th className="p-3 text-right"># Rounds</th>
+                <th className="p-3 text-right">Calculated HI</th>
+                <th className="p-3 text-right">Avg Differential</th>
+                <th className="p-3">Scores Used</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {groups.map((group) => (
+                <tr key={group.label} className="border-b hover:bg-blue-50">
+                  <td className="p-3 font-bold">{group.label}</td>
+                  <td className="p-3 text-right">{group.rounds.length}</td>
+                  <td className="p-3 text-right font-bold">
+                    {formatNumber(group.hi)}
+                  </td>
+                  <td className="p-3 text-right">
+                    {formatNumber(group.avgDiff)}
+                  </td>
+                  <td className="p-3">{scoresList(group.rounds)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
@@ -168,68 +240,29 @@ export default async function PlayerAuditPage({ params }: PageProps) {
             </thead>
 
             <tbody>
-              {roundRows
-                .slice()
-                .reverse()
-                .map((round) => (
-                  <tr key={round.id} className="border-b hover:bg-blue-50">
-                    <td className="p-3">{round.played_at}</td>
-                    <td className="p-3">{round.score_type ?? "-"}</td>
-                    <td className="p-3">{round.course_name ?? "-"}</td>
-                    <td className="p-3">{round.tee_name ?? "-"}</td>
-                    <td className="p-3 text-right">
-                      {round.adjusted_gross_score ?? round.gross_score ?? "-"}
-                    </td>
-                    <td className="p-3 text-right font-bold">
-                      {formatNumber(round.differential)}
-                    </td>
-                    <td className="p-3">
-                      {isCompetition(round.score_type)
-                        ? "Competition"
-                        : "General Play"}
-                    </td>
-                  </tr>
-                ))}
+              {roundRows.map((round) => (
+                <tr key={round.id} className="border-b hover:bg-blue-50">
+                  <td className="p-3">{round.played_at}</td>
+                  <td className="p-3">{round.score_type ?? "-"}</td>
+                  <td className="p-3">{round.course_name ?? "-"}</td>
+                  <td className="p-3">{round.tee_name ?? "-"}</td>
+                  <td className="p-3 text-right">
+                    {round.adjusted_gross_score ?? round.gross_score ?? "-"}
+                  </td>
+                  <td className="p-3 text-right font-bold">
+                    {formatNumber(round.differential)}
+                  </td>
+                  <td className="p-3">
+                    {isCompetition(round.score_type)
+                      ? "Competition"
+                      : "General Play"}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       </section>
     </main>
-  );
-}
-
-function AuditSummaryCard({
-  label,
-  rounds,
-  avgDiff,
-  bestDiff,
-  avgScore,
-}: {
-  label: string;
-  rounds: number;
-  avgDiff: number | null;
-  bestDiff: number | null;
-  avgScore: number | null;
-}) {
-  return (
-    <div className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
-      <h2 className="text-lg font-bold text-gray-950">{label}</h2>
-
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <MiniStat label="# Rounds" value={rounds} />
-        <MiniStat label="Avg Diff" value={formatNumber(avgDiff)} />
-        <MiniStat label="Best Diff" value={formatNumber(bestDiff)} />
-        <MiniStat label="Avg Score" value={formatNumber(avgScore)} />
-      </div>
-    </div>
-  );
-}
-
-function MiniStat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-      <div className="text-xs font-bold text-gray-500">{label}</div>
-      <div className="mt-1 text-lg font-bold text-gray-950">{value}</div>
-    </div>
   );
 }
