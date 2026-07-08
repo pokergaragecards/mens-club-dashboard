@@ -16,11 +16,11 @@ export async function createImportJob(params: {
       stage: "Starting import",
     })
     .select("id")
-    .single();
+    .limit(1)
 
   if (error) throw error;
 
-  return data.id as string;
+  return data?.[0]?.id as string;
 }
 
 export async function updateImportJob(
