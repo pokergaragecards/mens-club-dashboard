@@ -1,6 +1,12 @@
 "use client";
 
+import { createClient } from "@supabase/supabase-js";
 import { useRef, useState } from "react";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 type ImportResult = {
   fileName?: string;
@@ -15,6 +21,31 @@ type ImportResult = {
   error?: string;
 };
 
+type ImportJob = {
+  id: string;
+  status: string;
+  progress: number;
+  stage: string | null;
+  rows_total: number;
+  rows_processed: number;
+  result: ImportResult | null;
+  error: string | null;
+};
+
+function safeFileName(name: string) {
+  return name.replace(/[^a-zA-Z0-9.-]/g, "_");
+}
+
+async function readJsonSafely(response: Response) {
+  const text = await response.text();
+
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(text.slice(0, 300) || "Server returned a non-JSON error.");
+  }
+}
+
 export function ScoresPostedImportForm() {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -22,6 +53,41 @@ export function ScoresPostedImportForm() {
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState("Waiting for file");
   const [result, setResult] = useState<ImportResult | null>(null);
+
+  async function pollJob(jobId: string) {
+    const timer = window.setInterval(async () => {
+      try {
+        const response = await fetch(`/api/import/status/${jobId}`);
+        const job = (await readJsonSafely(response)) as ImportJob;
+
+        setProgress(job.progress ?? 0);
+        setStage(job.stage ?? "Processing import");
+
+        if (job.status === "complete") {
+          window.clearInterval(timer);
+          setProgress(100);
+          setStage("Import complete");
+          setResult(job.result ?? {});
+          setIsImporting(false);
+
+          if (inputRef.current) {
+            inputRef.current.value = "";
+          }
+        }
+
+        if (job.status === "failed") {
+          window.clearInterval(timer);
+          setStage("Import failed");
+          setResult({ error: job.error ?? "Import failed." });
+          setIsImporting(false);
+        }
+      } catch {
+        // Keep polling unless the API marks failed.
+      }
+    }, 1000);
+
+    return timer;
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -39,38 +105,62 @@ export function ScoresPostedImportForm() {
     setResult(null);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
+      const storagePath = `scores-posted/${Date.now()}-${safeFileName(
+        file.name
+      )}`;
 
-      setProgress(20);
-      setStage("Uploading PDF");
+      setProgress(15);
+      setStage("Uploading PDF to storage");
+
+      const { error: uploadError } = await supabase.storage
+        .from("imports")
+        .upload(storagePath, file, {
+          contentType: "application/pdf",
+          upsert: true,
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      setProgress(25);
+      setStage("Starting server import");
 
       const response = await fetch("/api/import/scores-posted", {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fileName: file.name,
+          storagePath,
+        }),
       });
 
-      setProgress(75);
-      setStage("Parsing and importing rounds");
-
-      const json = await response.json();
+      const json = await readJsonSafely(response);
 
       if (!response.ok) {
         throw new Error(json.error ?? "Scores Posted import failed.");
       }
 
-      setProgress(100);
-      setStage("Import complete");
-      setResult(json);
-      if (inputRef.current) {
-        inputRef.current.value = "";
+      if (json.jobId) {
+        setStage("Import running");
+        pollJob(json.jobId);
+      } else {
+        setProgress(100);
+        setStage("Import complete");
+        setResult(json);
+        setIsImporting(false);
+
+        if (inputRef.current) {
+          inputRef.current.value = "";
+        }
       }
     } catch (error) {
       setStage("Import failed");
       setResult({
         error: error instanceof Error ? error.message : "Import failed.",
       });
-    } finally {
       setIsImporting(false);
     }
   }
