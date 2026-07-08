@@ -115,14 +115,32 @@ async function findOrCreatePlayer(round: ScoresPostedRound) {
   const { data: createdRows, error: createError } = await supabase
   .from("players")
   .insert({
-    ...
+    ...name,
+    ghin_number: round.ghinNumber,
+    current_index: round.handicapIndex,
+    golfer_status: round.golferStatus,
+    last_round_count: round.roundCount,
+    last_scores_posted_import: new Date().toISOString(),
+    is_active: round.golferStatus === "Active",
+    sync_enabled: true,
   })
   .select("id")
   .limit(1);
 
-if (createError) throw createError;
+if (createError) {
+  throw createError;
+}
 
 const created = createdRows?.[0];
+
+if (!created) {
+  throw new Error("Player insert returned no rows.");
+}
+
+return {
+  id: created.id as string,
+  created: true,
+};
 
 if (!created) {
   throw new Error("Player insert returned no rows.");
