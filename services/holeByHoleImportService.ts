@@ -14,8 +14,8 @@ export type HoleByHoleImportSummary = {
   invalidRows: number;
 };
 
-function splitName(fullName: string) {
-  const parts = fullName.trim().split(/\s+/);
+function splitName(fullName: string | null | undefined) {
+  const parts = String(fullName ?? "Unknown").trim().split(/\s+/);
 
   if (parts.length === 1) {
     return { first_name: parts[0], last_name: "" };
@@ -37,6 +37,10 @@ function isTempGhin(value: string | null | undefined) {
 
 function getRoundTotal(round: HoleByHoleRound) {
   return round.holes.reduce((sum, score) => sum + Number(score || 0), 0);
+}
+
+function getScoreType(round: HoleByHoleRound) {
+  return round.scoreType ?? "";
 }
 
 async function findOrCreatePlayer(round: HoleByHoleRound) {
@@ -116,7 +120,7 @@ function buildExternalRoundKey(playerId: string, round: HoleByHoleRound) {
   return [
     playerId,
     round.playedAt,
-    round.scoreType,
+    getScoreType(round),
     round.teeName,
     round.courseRating,
     round.slopeRating,
@@ -131,6 +135,7 @@ async function findExistingRound(params: {
   externalRoundKey: string;
 }) {
   const supabase = createSupabaseServerClient();
+  const scoreType = getScoreType(params.round);
 
   const { data: byKey, error: keyError } = await supabase
     .from("rounds")
@@ -141,7 +146,7 @@ async function findExistingRound(params: {
   if (keyError) throw keyError;
   if (byKey?.[0]) return byKey[0];
 
-  const { data: byNaturalKey, error: naturalError } = await supabase
+  let query = supabase
     .from("rounds")
     .select("id")
     .eq("player_id", params.playerId)
@@ -150,6 +155,12 @@ async function findExistingRound(params: {
     .eq("tee_name", params.round.teeName)
     .eq("source", SOURCE)
     .limit(1);
+
+  if (scoreType) {
+    query = query.eq("score_type", scoreType);
+  }
+
+  const { data: byNaturalKey, error: naturalError } = await query;
 
   if (naturalError) throw naturalError;
 
@@ -163,6 +174,7 @@ async function upsertRound(params: {
 }) {
   const supabase = createSupabaseServerClient();
   const total = getRoundTotal(params.round);
+  const scoreType = getScoreType(params.round);
   const externalRoundKey = buildExternalRoundKey(params.playerId, params.round);
 
   const existing = await findExistingRound({
@@ -176,17 +188,17 @@ async function upsertRound(params: {
     played_at: params.round.playedAt,
     gross_score: total,
     adjusted_gross_score: total,
-    differential: null,    
+    differential: null,
     course_rating: params.round.courseRating,
     slope_rating: params.round.slopeRating,
-    score_type: params.round.scoreType,
+    score_type: scoreType || null,
     tee_name: params.round.teeName,
     course_name: "Goodrich",
     handicap_index_used: params.round.handicapIndex,
     score_handicap_index: params.round.handicapIndex,
-    is_home: params.round.scoreType.includes("H"),
-    is_away: params.round.scoreType.includes("A"),
-    is_competition: params.round.scoreType.includes("C"),
+    is_home: scoreType.includes("H"),
+    is_away: scoreType.includes("A"),
+    is_competition: scoreType.includes("C"),
     ghin_number: params.round.ghinNumber,
     source: SOURCE,
     external_round_key: externalRoundKey,
@@ -223,14 +235,14 @@ async function upsertRound(params: {
   };
 }
 
-async function getCourseHoles(teeName: string) {
+async function getCourseHoles(teeName: string | null | undefined) {
   const supabase = createSupabaseServerClient();
 
   const { data, error } = await supabase
     .from("course_holes")
     .select("hole_number, par, handicap")
     .eq("course_name", "Goodrich")
-    .eq("tee_name", teeName);
+    .eq("tee_name", teeName ?? "");
 
   if (error) throw error;
 
@@ -274,7 +286,7 @@ async function insertHoleScores(params: {
       round_id: params.roundId,
       player_id: params.playerId,
       hole_number: holeNumber,
-      gross_score: score,
+      gross_score: Number(score),
       par,
       score_to_par: par == null ? null : Number(score) - par,
       stroke_index: courseHole?.handicap ?? null,
