@@ -127,13 +127,28 @@ function NumberList({
     <div className="flex flex-wrap gap-x-2 gap-y-1">
       {group.rounds.map((round, index) => {
         const isUsed = index < group.usedCount;
+
         const value =
-          field === "score" ? round.score ?? "-" : formatNumber(round.diff);
+          field === "score"
+            ? round.score ?? "-"
+            : formatNumber(round.diff);
+
+        let className = "";
+
+        if (field === "score") {
+          className = isCompetition(round.score_type)
+            ? "font-bold text-green-700"
+            : "font-medium text-gray-900";
+        } else {
+          className = isUsed
+            ? "font-black text-gray-950"
+            : "text-gray-700";
+        }
 
         return (
           <span
             key={`${field}-${round.id}`}
-            className={isUsed ? "font-black text-gray-950" : "text-gray-700"}
+            className={className}
           >
             {value}
           </span>
