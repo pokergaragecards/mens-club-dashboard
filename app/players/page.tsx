@@ -12,6 +12,14 @@ type PageProps = {
   }>;
 };
 
+type PlayerSummaryRow = {
+  player_id: string;
+  all_rounds: number | string | null;
+  avg_diff: number | string | null;
+  best_diff: number | string | null;
+  last_round: string | null;
+};
+
 function formatNumber(value: unknown, decimals = 1) {
   if (value === null || value === undefined) return "-";
   const number = Number(value);
@@ -76,46 +84,38 @@ export default async function PlayersPage({ searchParams }: PageProps) {
 
   const playerIds = (players ?? []).map((player) => player.id);
 
-  const { data: rounds, error: roundsError } = playerIds.length
+  const { data: summaries, error: summariesError } = playerIds.length
     ? await supabase
-        .from("player_display_rounds")
-        .select("player_id, played_at, differential")
+        .from("player_round_summary")
+        .select("player_id, all_rounds, avg_diff, best_diff, last_round")
         .in("player_id", playerIds)
-        .not("played_at", "is", null)
-        .order("played_at", { ascending: false })
     : { data: [], error: null };
 
-  if (roundsError) {
+  if (summariesError) {
     return (
       <div className="p-8 font-bold text-red-700">
-        {roundsError.message}
+        {summariesError.message}
       </div>
     );
   }
 
+  const summaryByPlayerId = new Map<string, PlayerSummaryRow>(
+    ((summaries ?? []) as PlayerSummaryRow[]).map((summary) => [
+      summary.player_id,
+      summary,
+    ])
+  );
+
   const rows = (players ?? [])
     .map((player) => {
-      const playerRounds = (rounds ?? []).filter(
-        (round) => round.player_id === player.id
-      );
-
-      const diffs = playerRounds
-        .map((round) =>
-          round.differential == null ? null : Number(round.differential)
-        )
-        .filter(
-          (value): value is number =>
-            value !== null && Number.isFinite(value)
-        );
+      const summary = summaryByPlayerId.get(player.id);
 
       return {
         ...player,
-        totalRounds: playerRounds.length,
-        averageDifferential: diffs.length
-          ? diffs.reduce((sum, value) => sum + value, 0) / diffs.length
-          : null,
-        bestDifferential: diffs.length ? Math.min(...diffs) : null,
-        lastRound: playerRounds[0]?.played_at ?? null,
+        totalRounds: Number(summary?.all_rounds ?? 0),
+        averageDifferential: summary?.avg_diff ?? null,
+        bestDifferential: summary?.best_diff ?? null,
+        lastRound: summary?.last_round ?? null,
       };
     })
     .sort((a, b) => {
