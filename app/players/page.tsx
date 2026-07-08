@@ -67,7 +67,11 @@ export default async function PlayersPage({ searchParams }: PageProps) {
   const { data: players, error: playersError } = await playerQuery;
 
   if (playersError) {
-    return <div className="p-8 font-bold text-red-700">{playersError.message}</div>;
+    return (
+      <div className="p-8 font-bold text-red-700">
+        {playersError.message}
+      </div>
+    );
   }
 
   const playerIds = (players ?? []).map((player) => player.id);
@@ -82,7 +86,11 @@ export default async function PlayersPage({ searchParams }: PageProps) {
     : { data: [], error: null };
 
   if (roundsError) {
-    return <div className="p-8 font-bold text-red-700">{roundsError.message}</div>;
+    return (
+      <div className="p-8 font-bold text-red-700">
+        {roundsError.message}
+      </div>
+    );
   }
 
   const rows = (players ?? [])
@@ -95,7 +103,10 @@ export default async function PlayersPage({ searchParams }: PageProps) {
         .map((round) =>
           round.differential == null ? null : Number(round.differential)
         )
-        .filter((value): value is number => value !== null && Number.isFinite(value));
+        .filter(
+          (value): value is number =>
+            value !== null && Number.isFinite(value)
+        );
 
       return {
         ...player,
@@ -124,7 +135,7 @@ export default async function PlayersPage({ searchParams }: PageProps) {
       <h1 className="text-3xl font-bold text-gray-950">Players</h1>
 
       <p className="mt-1 text-base font-medium text-gray-700">
-        Club roster and latest GHIN score summary.
+        Club roster and deduped All Rounds summary.
       </p>
 
       <form className="mt-6 flex flex-col gap-3 rounded-xl border border-gray-300 bg-white p-4 shadow-sm md:flex-row md:items-end">
@@ -170,7 +181,7 @@ export default async function PlayersPage({ searchParams }: PageProps) {
               <th className="p-3 text-right font-bold">
                 {sortLink("Current HI", "index", sort, dir, q)}
               </th>
-              <th className="p-3 text-right font-bold">Rounds</th>
+              <th className="p-3 text-right font-bold">All Rounds</th>
               <th className="p-3 text-right font-bold">Avg Diff</th>
               <th className="p-3 text-right font-bold">Best Diff</th>
               <th className="p-3 font-bold">Last Round</th>
@@ -191,20 +202,30 @@ export default async function PlayersPage({ searchParams }: PageProps) {
                     {player.full_name}
                   </Link>
                 </td>
-                <td className="p-3 font-medium">{player.ghin_number ?? "-"}</td>
+
+                <td className="p-3 font-medium">
+                  {player.ghin_number ?? "-"}
+                </td>
+
                 <td className="p-3 text-right font-medium">
                   {formatNumber(player.current_index)}
                 </td>
+
                 <td className="p-3 text-right font-medium">
                   {player.totalRounds}
                 </td>
+
                 <td className="p-3 text-right font-medium">
                   {formatNumber(player.averageDifferential)}
                 </td>
+
                 <td className="p-3 text-right font-medium">
                   {formatNumber(player.bestDifferential)}
                 </td>
-                <td className="p-3 font-medium">{player.lastRound ?? "-"}</td>
+
+                <td className="p-3 font-medium">
+                  {player.lastRound ?? "-"}
+                </td>
               </tr>
             ))}
           </tbody>
