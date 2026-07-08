@@ -111,7 +111,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
 
             <Section title="Competition Detail">
               <MobileStat label="Last 20 Comp HI" value={formatNumber(row.last20CompetitionHi)} />
-              <MobileStat label="Last 12 Mo Comp HI" value={formatNumber(row.last12MonthCompetitionHi)} />
+              <MobileStat label="Last 20 GP HI" value={formatNumber(row.last20GeneralPlayHi)} />
               <MobileStat label="Comp Rounds" value={row.competitionRounds} />
               <MobileStat label="Casual Rounds" value={row.casualRounds} />
             </Section>
@@ -172,7 +172,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
                 <td className="p-3 text-right">{formatNumber(row.generalPlayHi)}</td>
                 <td className="p-3 text-right font-bold">{formatNumber(row.competitionVsOverallGap)}</td>
                 <td className="p-3 text-right">{formatNumber(row.last20CompetitionHi)}</td>
-                <td className="p-3 text-right">{formatNumber(row.last12MonthCompetitionHi)}</td>
+                <td className="p-3 text-right">{formatNumber(row.last20GeneralPlayHi)}</td>
                 <td className="p-3 text-right">{row.competitionRounds}</td>
                 <td className="p-3 text-right">{row.casualRounds}</td>
                 <td className="p-3 text-right">{formatNumber(row.competitionScoringAverage)}</td>
