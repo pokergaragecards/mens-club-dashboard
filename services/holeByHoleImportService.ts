@@ -176,7 +176,7 @@ async function upsertRound(params: {
     played_at: params.round.playedAt,
     gross_score: total,
     adjusted_gross_score: total,
-    differential: params.round.differential ?? null,
+    differential: null,    
     course_rating: params.round.courseRating,
     slope_rating: params.round.slopeRating,
     score_type: params.round.scoreType,
