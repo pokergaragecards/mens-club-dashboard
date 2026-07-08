@@ -86,8 +86,7 @@ function getDiff(round: RoundLike) {
 
 function buildStatSet(label: string, rounds: RoundLike[]): StatSet {
   const scoredRounds = rounds.filter(
-    (round) =>
-      round.gross_score != null || round.adjusted_gross_score != null
+    (round) => round.gross_score != null || round.adjusted_gross_score != null
   );
 
   const scores = scoredRounds
@@ -95,29 +94,10 @@ function buildStatSet(label: string, rounds: RoundLike[]): StatSet {
     .filter(Number.isFinite);
 
   const diffRows = scoredRounds
-    .map((round) => ({
-      round,
-      diff: getDiff(round),
-    }))
+    .map((round) => ({ round, diff: getDiff(round) }))
     .filter((row): row is { round: RoundLike; diff: number } => row.diff != null);
 
   const diffs = diffRows.map((row) => row.diff);
-
-  const compDiffs = diffRows
-    .filter(({ round }) => isCompetition(round.score_type))
-    .map((row) => row.diff);
-
-  const casualDiffs = diffRows
-    .filter(({ round }) => !isCompetition(round.score_type))
-    .map((row) => row.diff);
-
-  const goodrichDiffs = diffRows
-    .filter(({ round }) => isGoodrich(round))
-    .map((row) => row.diff);
-
-  const otherDiffs = diffRows
-    .filter(({ round }) => !isGoodrich(round))
-    .map((row) => row.diff);
 
   return {
     label,
@@ -126,20 +106,22 @@ function buildStatSet(label: string, rounds: RoundLike[]): StatSet {
     avgDiff: average(diffs),
     bestDiff: diffs.length ? Math.min(...diffs) : null,
     worstDiff: diffs.length ? Math.max(...diffs) : null,
-    compDiff: average(compDiffs),
-    casualDiff: average(casualDiffs),
-    goodrichDiff: average(goodrichDiffs),
-    otherDiff: average(otherDiffs),
+    compDiff: average(
+      diffRows.filter(({ round }) => isCompetition(round.score_type)).map((r) => r.diff)
+    ),
+    casualDiff: average(
+      diffRows.filter(({ round }) => !isCompetition(round.score_type)).map((r) => r.diff)
+    ),
+    goodrichDiff: average(
+      diffRows.filter(({ round }) => isGoodrich(round)).map((r) => r.diff)
+    ),
+    otherDiff: average(
+      diffRows.filter(({ round }) => !isGoodrich(round)).map((r) => r.diff)
+    ),
   };
 }
 
-function StatCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number;
-}) {
+function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-xl border border-gray-300 bg-white p-3 shadow-sm">
       <div className="text-xs font-bold text-gray-600">{label}</div>
@@ -177,7 +159,7 @@ export default async function PlayerDetailPage({ params }: PageProps) {
   const [summary, rounds, seasonHoles, thirtyDayHoles, scoring] =
     await Promise.all([
       playerStatsService.getSummary(id),
-      playerStatsService.getRoundHistory(id, 500, "GHIN"),
+      playerStatsService.getRoundHistory(id, 500, "DISPLAY"),
       playerStatsService.getHoleStats(id, getSeasonStart()),
       playerStatsService.getHoleStats(id, getThirtyDaysAgo()),
       playerStatsService.getScoringBreakdown(id),
@@ -195,20 +177,10 @@ export default async function PlayerDetailPage({ params }: PageProps) {
   }
 
   const sortedRounds = [...(rounds as RoundLike[])].sort(
-    (a, b) =>
-      new Date(b.played_at).getTime() - new Date(a.played_at).getTime()
+    (a, b) => new Date(b.played_at).getTime() - new Date(a.played_at).getTime()
   );
 
   const seasonStart = getSeasonStart();
-
-  const last20Stats = buildStatSet("Last 20 Rounds", sortedRounds.slice(0, 20));
-
-  const seasonStats = buildStatSet(
-    "This Season",
-    sortedRounds.filter((round) => round.played_at >= seasonStart)
-  );
-
-  const allStats = buildStatSet("All Rounds", sortedRounds);
 
   return (
     <main className="space-y-5 p-4 text-gray-900 md:space-y-6 md:p-8">
@@ -230,9 +202,14 @@ export default async function PlayerDetailPage({ params }: PageProps) {
       </div>
 
       <div className="grid grid-cols-1 gap-4">
-        <StatSection stat={last20Stats} />
-        <StatSection stat={seasonStats} />
-        <StatSection stat={allStats} />
+        <StatSection stat={buildStatSet("Last 20 Rounds", sortedRounds.slice(0, 20))} />
+        <StatSection
+          stat={buildStatSet(
+            "This Season",
+            sortedRounds.filter((round) => round.played_at >= seasonStart)
+          )}
+        />
+        <StatSection stat={buildStatSet("All Rounds", sortedRounds)} />
       </div>
 
       <section className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm md:p-5">

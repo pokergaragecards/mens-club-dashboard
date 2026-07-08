@@ -67,18 +67,14 @@ export default async function PlayersPage({ searchParams }: PageProps) {
   const { data: players, error: playersError } = await playerQuery;
 
   if (playersError) {
-    return (
-      <div className="p-8 font-bold text-red-700">
-        {playersError.message}
-      </div>
-    );
+    return <div className="p-8 font-bold text-red-700">{playersError.message}</div>;
   }
 
   const playerIds = (players ?? []).map((player) => player.id);
 
   const { data: rounds, error: roundsError } = playerIds.length
     ? await supabase
-        .from("rounds")
+        .from("player_display_rounds")
         .select("player_id, played_at, differential")
         .in("player_id", playerIds)
         .not("played_at", "is", null)
@@ -86,11 +82,7 @@ export default async function PlayersPage({ searchParams }: PageProps) {
     : { data: [], error: null };
 
   if (roundsError) {
-    return (
-      <div className="p-8 font-bold text-red-700">
-        {roundsError.message}
-      </div>
-    );
+    return <div className="p-8 font-bold text-red-700">{roundsError.message}</div>;
   }
 
   const rows = (players ?? [])
@@ -199,30 +191,20 @@ export default async function PlayersPage({ searchParams }: PageProps) {
                     {player.full_name}
                   </Link>
                 </td>
-
-                <td className="p-3 font-medium">
-                  {player.ghin_number ?? "-"}
-                </td>
-
+                <td className="p-3 font-medium">{player.ghin_number ?? "-"}</td>
                 <td className="p-3 text-right font-medium">
                   {formatNumber(player.current_index)}
                 </td>
-
                 <td className="p-3 text-right font-medium">
                   {player.totalRounds}
                 </td>
-
                 <td className="p-3 text-right font-medium">
                   {formatNumber(player.averageDifferential)}
                 </td>
-
                 <td className="p-3 text-right font-medium">
                   {formatNumber(player.bestDifferential)}
                 </td>
-
-                <td className="p-3 font-medium">
-                  {player.lastRound ?? "-"}
-                </td>
+                <td className="p-3 font-medium">{player.lastRound ?? "-"}</td>
               </tr>
             ))}
           </tbody>

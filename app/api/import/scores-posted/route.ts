@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import PDFParser from "pdf2json";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import { parseScoresPostedText } from "@/utils/scoresPostedParser";
-import { importScoresPostedReport } from "@/services/scoresPostedImportService";
-import { createImportJob, updateImportJob } from "@/services/importJobService";
+import {
+  createImportJob,
+  markImportJobFailed,
+  updateImportJob,
+} from "@/services/importJobService";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -80,57 +83,60 @@ export async function POST(request: Request) {
     const buffer = await downloadImportFile(storagePath);
 
     await updateImportJob(jobId, {
-      progress: 15,
-      stage: "Parsing PDF text",
+      progress: 20,
+      stage: "Extracting PDF text",
     });
 
     const text = await parsePdfBuffer(buffer);
-    const parsed = parseScoresPostedText(text);
 
     await updateImportJob(jobId, {
-      progress: 30,
-      stage: "Scores Posted report parsed",
+      progress: 35,
+      stage: "Parsing Scores Posted rows",
+    });
+
+    const parsed = parseScoresPostedText(text);
+
+    const jobResult = {
+      fileName,
+      storagePath,
+      rowsFound: parsed.rowsFound,
+      validRounds: parsed.validRounds.length,
+      rowsInvalid: parsed.invalidRows.length,
+      parsedRows: parsed.validRounds,
+      summary: {
+        roundsImported: 0,
+        roundsExisting: 0,
+        goodrichRoundsUpdated: 0,
+        playersCreated: 0,
+        playersUpdated: 0,
+        rowsInvalid: parsed.invalidRows.length,
+      },
+    };
+
+    await updateImportJob(jobId, {
+      status: "processing",
+      progress: 40,
+      stage: `Ready to import ${parsed.validRounds.length} Scores Posted rows`,
       rowsTotal: parsed.validRounds.length,
       rowsProcessed: 0,
+      result: jobResult,
     });
 
-    const importResult = await importScoresPostedReport({
-      fileName,
-      rounds: parsed.validRounds,
-      rowsInvalid: parsed.invalidRows.length,
-      jobId,
-    });
-
-    const response = {
+    return NextResponse.json({
       jobId,
       fileName,
       rowsFound: parsed.rowsFound,
       validRounds: parsed.validRounds.length,
-      ...importResult,
-    };
-
-    await updateImportJob(jobId, {
-      status: "complete",
-      progress: 100,
-      stage: "Scores Posted import complete",
-      rowsTotal: parsed.validRounds.length,
-      rowsProcessed: parsed.validRounds.length,
-      result: response,
+      rowsInvalid: parsed.invalidRows.length,
+      status: "processing",
     });
-
-    return NextResponse.json(response);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Scores Posted import failed.";
 
     console.error("Scores Posted import error:", error);
 
-    await updateImportJob(jobId, {
-      status: "failed",
-      progress: 100,
-      stage: "Scores Posted import failed",
-      error: message,
-    });
+    await markImportJobFailed(jobId, message);
 
     return NextResponse.json({ jobId, error: message }, { status: 500 });
   }
