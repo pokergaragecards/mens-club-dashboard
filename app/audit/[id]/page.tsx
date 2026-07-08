@@ -14,6 +14,7 @@ type RoundRow = {
   score_type: string | null;
   course_name: string | null;
   tee_name: string | null;
+  counts_for_hi: boolean | null;
 };
 
 type AuditGroup = {
@@ -63,12 +64,14 @@ function whsHi(rounds: RoundRow[]) {
   else if (n === 19) count = 7;
 
   const selected = diffs.slice(0, count);
-  return average(selected) == null ? null : average(selected)! + adjustment;
+  const selectedAverage = average(selected);
+
+  return selectedAverage == null ? null : selectedAverage + adjustment;
 }
 
 function buildAuditGroups(rounds: RoundRow[]): AuditGroup[] {
   const sorted = rounds
-    .filter((round) => round.differential != null)
+    .filter((round) => round.counts_for_hi === true)
     .sort(
       (a, b) =>
         new Date(b.played_at).getTime() - new Date(a.played_at).getTime()
@@ -133,7 +136,8 @@ export default async function PlayerAuditPage({ params }: PageProps) {
           differential,
           score_type,
           course_name,
-          tee_name
+          tee_name,
+          counts_for_hi
         `
         )
         .eq("player_id", id)
@@ -164,6 +168,7 @@ export default async function PlayerAuditPage({ params }: PageProps) {
 
   const roundRows = (rounds ?? []) as RoundRow[];
   const groups = buildAuditGroups(roundRows);
+  const hiRoundRows = roundRows.filter((round) => round.counts_for_hi === true);
 
   return (
     <main className="space-y-6 p-4 text-gray-900 md:p-8">
@@ -222,7 +227,7 @@ export default async function PlayerAuditPage({ params }: PageProps) {
 
       <section className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
         <h2 className="text-xl font-bold text-gray-950">
-          Differentials Over Time
+          Handicap-Eligible Differentials Over Time
         </h2>
 
         <div className="mt-4 overflow-x-auto">
@@ -240,7 +245,7 @@ export default async function PlayerAuditPage({ params }: PageProps) {
             </thead>
 
             <tbody>
-              {roundRows.map((round) => (
+              {hiRoundRows.map((round) => (
                 <tr key={round.id} className="border-b hover:bg-blue-50">
                   <td className="p-3">{round.played_at}</td>
                   <td className="p-3">{round.score_type ?? "-"}</td>
