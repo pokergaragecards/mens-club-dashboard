@@ -62,7 +62,9 @@ export function ScoresPostedImportForm() {
       setProgress(100);
       setStage("Import complete");
       setResult(json);
-      inputRef.current.value = "";
+      if (inputRef.current) {
+        inputRef.current.value = "";
+      }
     } catch (error) {
       setStage("Import failed");
       setResult({
