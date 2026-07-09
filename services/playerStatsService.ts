@@ -1,5 +1,4 @@
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
-import { roundDisplayService } from "@/services/roundDisplayService";
 
 const supabase = createSupabaseServerClient();
 
@@ -28,6 +27,7 @@ export interface RoundHistoryRow {
   tee_name: string | null;
   course_name: string | null;
   source: string | null;
+  counts_for_hi: boolean | null;
 }
 
 export interface HoleStatRow {
@@ -45,13 +45,13 @@ export interface HoleStatRow {
   doubles: number;
 }
 
-function normalizeTee(value: string | null | undefined) {
-  return (value ?? "Unknown").trim();
-}
-
 function average(values: number[]) {
   if (!values.length) return null;
   return Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1));
+}
+
+function normalizeTee(value: string | null | undefined) {
+  return (value ?? "Unknown").trim();
 }
 
 function isReal18HoleScore(score: unknown) {
@@ -70,8 +70,10 @@ export const playerStatsService = {
     if (error) throw error;
     if (!player) return null;
 
-    const rounds = await roundDisplayService.getPlayerDisplayRounds(playerId);
-    const scores = rounds.map((round) => Number(round.gross_score));
+    const rounds = await this.getRoundHistory(playerId, 500);
+    const scores = rounds
+      .map((round) => Number(round.adjusted_gross_score ?? round.gross_score))
+      .filter(Number.isFinite);
 
     return {
       id: player.id,
@@ -87,13 +89,12 @@ export const playerStatsService = {
   },
 
   async getRoundHistory(
-  playerId: string,
-  limit = 20,
-  sourceMode: "DISPLAY" | "GHIN" = "DISPLAY"
-): Promise<RoundHistoryRow[]> {
-  if (sourceMode === "GHIN") {
-    const { data, error } = await supabase
-      .from("rounds")
+    playerId: string,
+    limit = 20,
+    sourceMode: "DISPLAY" | "GHIN" = "DISPLAY"
+  ): Promise<RoundHistoryRow[]> {
+    let query = supabase
+      .from("player_display_rounds")
       .select(`
         id,
         player_id,
@@ -106,21 +107,24 @@ export const playerStatsService = {
         slope_rating,
         tee_name,
         course_name,
-        source
+        source,
+        counts_for_hi
       `)
       .eq("player_id", playerId)
-      .neq("source", "GHIN_HBH_PDF")
-      .not("gross_score", "is", null)
+      .eq("counts_for_hi", true)
+      .not("played_at", "is", null)
       .order("played_at", { ascending: false })
       .limit(limit);
 
+    if (sourceMode === "GHIN") {
+      query = query.neq("source", "GHIN_HBH_PDF");
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
 
     return data ?? [];
-  }
-
-  return roundDisplayService.getPlayerDisplayRounds(playerId, limit);
-},
+  },
 
   async getHoleStats(
     playerId: string,
@@ -157,23 +161,7 @@ export const playerStatsService = {
     const { data, error } = await query;
     if (error) throw error;
 
-    const stats = new Map<
-      string,
-      {
-        teeName: string;
-        holeNumber: number;
-        par: number;
-        handicap: number;
-        rounds: number;
-        total: number;
-        best: number;
-        worst: number;
-        birdies: number;
-        pars: number;
-        bogeys: number;
-        doubles: number;
-      }
-    >();
+    const stats = new Map<string, any>();
 
     for (const row of data ?? []) {
       const round = Array.isArray((row as any).rounds)
@@ -187,7 +175,6 @@ export const playerStatsService = {
       const par = Number(row.par ?? 0);
       const handicap = Number(row.stroke_index ?? 0);
       const teeName = normalizeTee(round.tee_name);
-
       const key = `${teeName}|${holeNumber}`;
 
       if (!stats.has(key)) {
@@ -207,8 +194,7 @@ export const playerStatsService = {
         });
       }
 
-      const stat = stats.get(key)!;
-
+      const stat = stats.get(key);
       stat.rounds++;
       stat.total += grossScore;
       stat.best = Math.min(stat.best, grossScore);
@@ -262,17 +248,12 @@ export const playerStatsService = {
         total.doubles += hole.doubles;
         return total;
       },
-      {
-        birdies: 0,
-        pars: 0,
-        bogeys: 0,
-        doubles: 0,
-      }
+      { birdies: 0, pars: 0, bogeys: 0, doubles: 0 }
     );
   },
 
   async getHandicapTrend(playerId: string) {
-    const rounds = await roundDisplayService.getPlayerDisplayRounds(playerId);
+    const rounds = await this.getRoundHistory(playerId, 500);
 
     return rounds
       .filter((round) => round.differential != null)

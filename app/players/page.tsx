@@ -135,7 +135,7 @@ export default async function PlayersPage({ searchParams }: PageProps) {
       <h1 className="text-3xl font-bold text-gray-950">Players</h1>
 
       <p className="mt-1 text-base font-medium text-gray-700">
-        Club roster and deduped All Rounds summary.
+        Club roster and official GHIN handicap-round summary.
       </p>
 
       <form className="mt-6 flex flex-col gap-3 rounded-xl border border-gray-300 bg-white p-4 shadow-sm md:flex-row md:items-end">
@@ -171,7 +171,7 @@ export default async function PlayersPage({ searchParams }: PageProps) {
       </form>
 
       <div className="mt-6 overflow-x-auto rounded-xl border border-gray-300 bg-white shadow-sm">
-        <table className="w-full min-w-[850px] text-left text-sm text-gray-900">
+        <table className="w-full min-w-[900px] text-left text-sm text-gray-900">
           <thead className="border-b border-gray-300 bg-gray-200 text-gray-950">
             <tr>
               <th className="p-3 font-bold">
@@ -179,12 +179,12 @@ export default async function PlayersPage({ searchParams }: PageProps) {
               </th>
               <th className="p-3 font-bold">GHIN</th>
               <th className="p-3 text-right font-bold">
-                {sortLink("Current HI", "index", sort, dir, q)}
+                {sortLink("Current Handicap Index", "index", sort, dir, q)}
               </th>
-              <th className="p-3 text-right font-bold">All Rounds</th>
-              <th className="p-3 text-right font-bold">Avg Diff</th>
-              <th className="p-3 text-right font-bold">Best Diff</th>
-              <th className="p-3 font-bold">Last Round</th>
+              <th className="p-3 text-right font-bold">Handicap Rounds</th>
+              <th className="p-3 text-right font-bold">Average Differential</th>
+              <th className="p-3 text-right font-bold">Best Differential</th>
+              <th className="p-3 font-bold">Last Handicap Round</th>
             </tr>
           </thead>
 

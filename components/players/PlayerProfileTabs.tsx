@@ -101,7 +101,7 @@ export function PlayerProfileTabs({
               : "bg-white text-gray-800 ring-1 ring-gray-300"
           }`}
         >
-          Recent Rounds
+          Handicap Rounds
         </button>
 
         <button
@@ -146,7 +146,7 @@ export function PlayerProfileTabs({
       </div>
 
       {tab === "rounds" ? (
-        <RecentRounds rounds={rounds} />
+        <HandicapRounds rounds={rounds} />
       ) : (
         <Scorecard holes={holes} range={range} />
       )}
@@ -154,9 +154,13 @@ export function PlayerProfileTabs({
   );
 }
 
-function RecentRounds({ rounds }: { rounds: RoundRow[] }) {
+function HandicapRounds({ rounds }: { rounds: RoundRow[] }) {
   return (
     <div className="mt-4 overflow-x-auto">
+      <p className="mb-3 text-sm text-gray-600">
+        Showing official GHIN handicap-counting rounds only.
+      </p>
+
       <table className="w-full min-w-[850px] text-sm">
         <thead className="border-b bg-gray-100 text-gray-950">
           <tr>
@@ -188,7 +192,7 @@ function RecentRounds({ rounds }: { rounds: RoundRow[] }) {
           ) : (
             <tr>
               <td className="p-3 text-gray-600" colSpan={6}>
-                No rounds imported yet.
+                No handicap-counting rounds imported yet.
               </td>
             </tr>
           )}
@@ -210,7 +214,8 @@ function Scorecard({
   if (!byTee.length) {
     return (
       <div className="mt-4 text-sm text-gray-600">
-        No hole data found for {range === "30" ? "the last 30 days" : "this season"}.
+        No hole data found for{" "}
+        {range === "30" ? "the last 30 days" : "this season"}.
       </div>
     );
   }
@@ -218,22 +223,58 @@ function Scorecard({
   return (
     <div className="mt-4 space-y-4">
       {byTee.map(([teeName, rows]) => (
-        <div key={teeName} className="overflow-x-auto rounded-lg border border-gray-300">
+        <div
+          key={teeName}
+          className="overflow-x-auto rounded-lg border border-gray-300"
+        >
           <div className="border-b bg-gray-50 px-3 py-2 font-bold">
             {teeName} Tee · {range === "30" ? "Last 30 Days" : "Season"}
           </div>
 
           <table className="w-full min-w-[1100px] text-xs">
             <tbody>
-              <ScorecardRow label="Hole" rows={rows} value={(h) => h.holeNumber} />
+              <ScorecardRow
+                label="Hole"
+                rows={rows}
+                value={(h) => h.holeNumber}
+              />
               <ScorecardRow label="Par" rows={rows} value={(h) => h.par} />
-              <ScorecardRow label="HCP" rows={rows} value={(h) => h.handicap} />
-              <ScorecardRow label="Rounds" rows={rows} value={(h) => h.rounds} />
-              <ScorecardRow label="Avg" rows={rows} value={(h) => formatNumber(h.average)} bold />
-              <ScorecardRow label="Birdie %" rows={rows} value={(h) => formatPercent(h.birdies, h.rounds)} />
-              <ScorecardRow label="Par %" rows={rows} value={(h) => formatPercent(h.pars, h.rounds)} />
-              <ScorecardRow label="Bogey %" rows={rows} value={(h) => formatPercent(h.bogeys, h.rounds)} />
-              <ScorecardRow label="Double+ %" rows={rows} value={(h) => formatPercent(h.doubles, h.rounds)} />
+              <ScorecardRow
+                label="HCP"
+                rows={rows}
+                value={(h) => h.handicap}
+              />
+              <ScorecardRow
+                label="Rounds"
+                rows={rows}
+                value={(h) => h.rounds}
+              />
+              <ScorecardRow
+                label="Avg"
+                rows={rows}
+                value={(h) => formatNumber(h.average)}
+                bold
+              />
+              <ScorecardRow
+                label="Birdie %"
+                rows={rows}
+                value={(h) => formatPercent(h.birdies, h.rounds)}
+              />
+              <ScorecardRow
+                label="Par %"
+                rows={rows}
+                value={(h) => formatPercent(h.pars, h.rounds)}
+              />
+              <ScorecardRow
+                label="Bogey %"
+                rows={rows}
+                value={(h) => formatPercent(h.bogeys, h.rounds)}
+              />
+              <ScorecardRow
+                label="Double+ %"
+                rows={rows}
+                value={(h) => formatPercent(h.doubles, h.rounds)}
+              />
             </tbody>
           </table>
         </div>
