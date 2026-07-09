@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { auditService } from "@/services/auditService";
 
+const ACTION_BUTTON =
+  "rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700";
+
 function formatNumber(value: unknown, decimals = 1) {
   if (value === null || value === undefined) return "-";
   const number = Number(value);
@@ -34,37 +37,37 @@ export default async function CommitteeAuditPage() {
 
   return (
     <main className="p-4 text-gray-900 lg:p-8">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <Link href="/audit" className="font-bold text-blue-800 hover:underline">
-            ← Back to Audit
-          </Link>
+      <div>
+        <Link href="/audit" className="font-bold text-blue-800 hover:underline">
+          ← Back to Audit
+        </Link>
 
-          <h1 className="mt-4 text-3xl font-bold text-gray-950">
-            Committee Handicap Audit
-          </h1>
+        <h1 className="mt-4 text-3xl font-bold text-gray-950">
+          Committee Handicap Audit
+        </h1>
 
-          <p className="mt-1 text-sm font-medium text-gray-700">
-            Starting recommendations for players flagged as Investigate or
-            Review. Suggested HI starts with the player’s Last 20 Competition HI.
-          </p>
-        </div>
+        <p className="mt-2 text-sm text-gray-600 lg:text-base">
+          Starting recommendations for players flagged as Investigate or Review.
+          Suggestions are based on official GHIN handicap-counting rounds only,
+          with the Suggested HI starting from the player’s Last 20 Competition
+          Handicap Index.
+        </p>
       </div>
 
-      <div className="mt-6 overflow-x-auto rounded-xl border border-gray-300 bg-white shadow-sm">
-        <table className="w-full min-w-[1300px] text-left text-sm text-gray-900">
-          <thead className="border-b border-gray-300 bg-gray-200 text-gray-950">
+      <div className="mt-6 max-h-[75vh] overflow-auto rounded-xl border border-gray-300 bg-white shadow-sm">
+        <table className="w-full min-w-[1450px] text-left text-sm text-gray-900">
+          <thead className="sticky top-0 z-20 border-b border-gray-300 bg-gray-200 text-gray-950 shadow-sm">
             <tr>
               <th className="p-3 font-bold">Player</th>
-              <th className="p-3 text-right font-bold">Current HI</th>
-              <th className="p-3 text-right font-bold">Last 20 Comp HI</th>
-              <th className="p-3 text-right font-bold">Last 20 GP HI</th>
-              <th className="p-3 text-right font-bold">Suggested HI</th>
-              <th className="p-3 text-right font-bold">Change</th>
-              <th className="p-3 text-right font-bold">Sandbag</th>
-              <th className="p-3 text-right font-bold">Comp Rds</th>
-              <th className="p-3 text-right font-bold">Casual Rds</th>
-              <th className="p-3 font-bold">Flag</th>
+              <th className="p-3 text-right font-bold">Current Handicap Index</th>
+              <th className="p-3 text-right font-bold">Last 20 Competition HI</th>
+              <th className="p-3 text-right font-bold">Last 20 General Play HI</th>
+              <th className="p-3 text-right font-bold">Suggested Committee HI</th>
+              <th className="p-3 text-right font-bold">Suggested Change</th>
+              <th className="p-3 text-right font-bold">Sandbag Score</th>
+              <th className="p-3 text-right font-bold">Competition Rounds</th>
+              <th className="p-3 text-right font-bold">General Play Rounds</th>
+              <th className="p-3 font-bold">Status</th>
               <th className="p-3 font-bold">Reason</th>
             </tr>
           </thead>
@@ -83,17 +86,11 @@ export default async function CommitteeAuditPage() {
                     <div className="flex items-center gap-2">
                       <span>{row.full_name}</span>
 
-                      <Link
-                        href={`/players/${row.id}`}
-                        className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-bold text-gray-800 hover:bg-gray-100"
-                      >
+                      <Link href={`/players/${row.id}`} className={ACTION_BUTTON}>
                         Player
                       </Link>
 
-                      <Link
-                        href={`/audit/${row.id}`}
-                        className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-bold text-gray-800 hover:bg-gray-100"
-                      >
+                      <Link href={`/audit/${row.id}`} className={ACTION_BUTTON}>
                         Audit
                       </Link>
                     </div>
