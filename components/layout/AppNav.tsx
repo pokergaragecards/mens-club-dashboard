@@ -4,7 +4,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/players", label: "Players" },
   { href: "/import", label: "Import" },
-  { href: "/audit", label: "Audit" },
+  { href: "/audit", label: " Handicap Audit" },
   { href: "/compare", label: "Compare" },
   { href: "/holes", label: "Hole Stats" },
 ];
