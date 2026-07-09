@@ -471,12 +471,13 @@ def upsert_round(player_id, row):
 
     score_type = row["scoreType"] or ""
 
-    payload = {
-        "player_id": player_id,
-        "played_at": row["playedAt"],
+    # Hole-by-hole reports do NOT contain the official GHIN differential.
+    # Do not include differential, PCC, ESR, or net score differential in the
+    # update payload, or a re-import will wipe values previously loaded from
+    # the Scores Posted report.
+    update_payload = {
         "gross_score": to_int(row["totalScore"]),
         "adjusted_gross_score": to_int(row["totalScore"]),
-        "differential": None,
         "course_rating": row["courseRating"],
         "slope_rating": to_int(row["slopeRating"]),
         "score_type": score_type or None,
@@ -492,14 +493,22 @@ def upsert_round(player_id, row):
         "external_round_key": external_key,
     }
 
+    insert_payload = {
+        "player_id": player_id,
+        "played_at": row["playedAt"],
+        **update_payload,
+        # New HBH-only rounds start without an official differential. The
+        # Scores Posted importer will fill this later when available.
+        "differential": None,
+    }
+
     if existing:
         round_id = existing[0]["id"]
-        supabase.table("rounds").update(payload).eq("id", round_id).execute()
+        supabase.table("rounds").update(update_payload).eq("id", round_id).execute()
         return round_id, False
 
-    created = supabase.table("rounds").insert(payload).execute().data
+    created = supabase.table("rounds").insert(insert_payload).execute().data
     return created[0]["id"], True
-
 
 def replace_hole_scores(round_id, player_id, row):
     global supabase

@@ -6,7 +6,10 @@ type RoundRow = {
   id: string;
   played_at: string;
   tee_name: string | null;
+  course_name: string | null;
+  score_type: string | null;
   gross_score: number | null;
+  adjusted_gross_score?: number | null;
   differential: number | null;
 };
 
@@ -35,6 +38,29 @@ function formatNumber(value: unknown, decimals = 1) {
 function formatPercent(count: number, total: number) {
   if (!total) return "-";
   return `${Math.round((count / total) * 100)}%`;
+}
+
+function scoreTypeLabel(type: string | null | undefined) {
+  switch (type) {
+    case "H":
+      return "Home";
+    case "A":
+      return "Away";
+    case "C":
+      return "Competition";
+    case "CH":
+      return "Competition Home";
+    case "CA":
+      return "Competition Away";
+    case "ECH":
+      return "Exceptional Competition Home";
+    case "EA":
+      return "Exceptional Away";
+    case "EH":
+      return "Exceptional Home";
+    default:
+      return type ?? "-";
+  }
 }
 
 function groupByTee(holes: HoleRow[]) {
@@ -130,38 +156,45 @@ export function PlayerProfileTabs({
 
 function RecentRounds({ rounds }: { rounds: RoundRow[] }) {
   return (
-    <table className="mt-4 w-full text-sm">
-      <thead className="border-b bg-gray-100 text-gray-950">
-        <tr>
-          <th className="p-2 text-left">Date</th>
-          <th className="p-2 text-left">Tee</th>
-          <th className="p-2 text-right">Score</th>
-          <th className="p-2 text-right">Diff</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rounds.length ? (
-          rounds.map((round) => (
-            <tr key={round.id} className="border-b">
-              <td className="p-2">{round.played_at}</td>
-              <td className="p-2">{round.tee_name ?? "-"}</td>
-              <td className="p-2 text-right font-bold">
-                {round.gross_score ?? "-"}
-              </td>
-              <td className="p-2 text-right">
-                {formatNumber(round.differential)}
+    <div className="mt-4 overflow-x-auto">
+      <table className="w-full min-w-[850px] text-sm">
+        <thead className="border-b bg-gray-100 text-gray-950">
+          <tr>
+            <th className="p-2 text-left">Date</th>
+            <th className="p-2 text-left">Course Name</th>
+            <th className="p-2 text-left">Score Type</th>
+            <th className="p-2 text-left">Tee</th>
+            <th className="p-2 text-right">Score</th>
+            <th className="p-2 text-right">Differential</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {rounds.length ? (
+            rounds.map((round) => (
+              <tr key={round.id} className="border-b hover:bg-blue-50">
+                <td className="p-2">{round.played_at}</td>
+                <td className="p-2">{round.course_name ?? "-"}</td>
+                <td className="p-2">{scoreTypeLabel(round.score_type)}</td>
+                <td className="p-2">{round.tee_name ?? "-"}</td>
+                <td className="p-2 text-right font-bold">
+                  {round.adjusted_gross_score ?? round.gross_score ?? "-"}
+                </td>
+                <td className="p-2 text-right">
+                  {formatNumber(round.differential)}
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td className="p-3 text-gray-600" colSpan={6}>
+                No rounds imported yet.
               </td>
             </tr>
-          ))
-        ) : (
-          <tr>
-            <td className="p-3 text-gray-600" colSpan={4}>
-              No rounds imported yet.
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
