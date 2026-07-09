@@ -59,13 +59,11 @@ function whsUsedCount(roundCount: number) {
 }
 
 function whsHi(rounds: RoundWithDiff[]) {
-  const n = rounds.length;
-  const usedCount = whsUsedCount(n);
-
+  const usedCount = whsUsedCount(rounds.length);
   if (!usedCount) return null;
 
   const usedDiffs = rounds.slice(0, usedCount).map((round) => round.diff);
-  const adjustment = n === 6 ? -1 : 0;
+  const adjustment = rounds.length === 6 ? -1 : 0;
   const hi = average(usedDiffs);
 
   return hi == null ? null : hi + adjustment;
@@ -110,9 +108,9 @@ function buildAuditGroups(rounds: RoundRow[]): AuditGroup[] {
     .slice(0, 20);
 
   return [
-    buildGroup("Overall", overall),
-    buildGroup("Competition", competition),
-    buildGroup("General Play", general),
+    buildGroup("Overall Handicap Rounds", overall),
+    buildGroup("Competition Handicap Rounds", competition),
+    buildGroup("General Play Handicap Rounds", general),
   ];
 }
 
@@ -127,11 +125,8 @@ function NumberList({
     <div className="flex flex-wrap gap-x-2 gap-y-1">
       {group.rounds.map((round, index) => {
         const isUsed = index < group.usedCount;
-
         const value =
-          field === "score"
-            ? round.score ?? "-"
-            : formatNumber(round.diff);
+          field === "score" ? round.score ?? "-" : formatNumber(round.diff);
 
         let className = "";
 
@@ -140,16 +135,11 @@ function NumberList({
             ? "font-bold text-green-700"
             : "font-medium text-gray-900";
         } else {
-          className = isUsed
-            ? "font-black text-gray-950"
-            : "text-gray-700";
+          className = isUsed ? "font-black text-gray-950" : "text-gray-700";
         }
 
         return (
-          <span
-            key={`${field}-${round.id}`}
-            className={className}
-          >
+          <span key={`${field}-${round.id}`} className={className}>
             {value}
           </span>
         );
@@ -186,6 +176,7 @@ export default async function PlayerAuditPage({ params }: PageProps) {
         `
         )
         .eq("player_id", id)
+        .eq("counts_for_hi", true)
         .not("played_at", "is", null)
         .order("played_at", { ascending: false }),
     ]);
@@ -211,9 +202,8 @@ export default async function PlayerAuditPage({ params }: PageProps) {
     );
   }
 
-  const roundRows = (rounds ?? []) as RoundRow[];
-  const groups = buildAuditGroups(roundRows);
-  const hiRoundRows = roundRows.filter((round) => round.counts_for_hi === true);
+  const hiRoundRows = (rounds ?? []) as RoundRow[];
+  const groups = buildAuditGroups(hiRoundRows);
 
   return (
     <main className="space-y-6 p-4 text-gray-900 md:p-8">
@@ -227,7 +217,7 @@ export default async function PlayerAuditPage({ params }: PageProps) {
         </h1>
 
         <p className="mt-1 text-sm text-gray-700">
-          GHIN #{playerRow.ghin_number ?? "-"} • Current HI{" "}
+          GHIN #{playerRow.ghin_number ?? "-"} • Current Handicap Index{" "}
           <span className="font-bold">
             {formatNumber(playerRow.current_index)}
           </span>
@@ -236,12 +226,13 @@ export default async function PlayerAuditPage({ params }: PageProps) {
 
       <section className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
         <h2 className="text-xl font-bold text-gray-950">
-          Last 20 Handicap Breakdown
+          Last 20 Official Handicap Round Breakdown
         </h2>
 
         <p className="mt-1 text-sm text-gray-600">
-          Scores and differentials are sorted from lowest differential to
-          highest. Bold values are the differentials used in the HI calculation.
+          Scores and differentials are sorted from lowest differential to highest.
+          Bold differentials are the values used in the Handicap Index calculation.
+          Competition scores are shown in green.
         </p>
 
         <div className="mt-4 overflow-x-auto">
@@ -249,10 +240,10 @@ export default async function PlayerAuditPage({ params }: PageProps) {
             <thead className="border-b bg-gray-200 text-gray-950">
               <tr>
                 <th className="p-3">Group</th>
-                <th className="p-3 text-right"># Rounds</th>
+                <th className="p-3 text-right">Rounds</th>
                 <th className="p-3 text-right">Used</th>
                 <th className="p-3 text-right">Calculated HI</th>
-                <th className="p-3 text-right">Avg Differential</th>
+                <th className="p-3 text-right">Average Differential</th>
                 <th className="p-3">Scores</th>
                 <th className="p-3">Differentials</th>
               </tr>
@@ -285,7 +276,7 @@ export default async function PlayerAuditPage({ params }: PageProps) {
 
       <section className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
         <h2 className="text-xl font-bold text-gray-950">
-          Handicap-Eligible Differentials Over Time
+          Official Handicap Differentials Over Time
         </h2>
 
         <div className="mt-4 overflow-x-auto">
