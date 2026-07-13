@@ -5,6 +5,7 @@ import time
 import pdfplumber
 from dotenv import load_dotenv
 from supabase import create_client
+from utils.parser_utils import clean_course_name, normalize_course_name
 
 load_dotenv(".env.local")
 
@@ -344,6 +345,8 @@ def find_or_create_player(row):
         .data
     )
 
+    # HBH is not the source of truth for current Handicap Index. It should keep
+    # player identity current, but Scores Posted should set players.current_index.
     if match:
         player_id = match[0]["id"]
 
@@ -351,7 +354,6 @@ def find_or_create_player(row):
             {
                 "first_name": first,
                 "last_name": last,
-                "current_index": row["handicapIndex"],
                 "is_active": True,
             }
         ).eq("id", player_id).execute()
@@ -377,7 +379,6 @@ def find_or_create_player(row):
                 "first_name": first,
                 "last_name": last,
                 "ghin_number": row["ghinNumber"],
-                "current_index": row["handicapIndex"],
                 "is_active": True,
             }
         ).eq("id", player_id).execute()
@@ -441,8 +442,57 @@ def build_external_key(player_id, row):
     )
 
 
+def find_scores_posted_round(player_id, row):
+    """
+    Find the official Scores Posted round that this HBH row should attach to.
+
+    HBH is supplemental. When a Scores Posted round exists, we attach tee,
+    front/back, and hole_scores to that official round rather than creating a
+    second GHIN_HBH_PDF round.
+    """
+    candidates = (
+        supabase.table("rounds")
+        .select("id, course_name, tee_name, tee_gender")
+        .eq("player_id", player_id)
+        .eq("played_at", row["playedAt"])
+        .eq("source", "SCORES_POSTED_REPORT")
+        .eq("score_type", row["scoreType"] or "")
+        .eq("adjusted_gross_score", to_int(row["totalScore"]))
+        .execute()
+        .data
+        or []
+    )
+
+    if not candidates:
+        return None
+
+    goodrich_candidates = [
+        candidate
+        for candidate in candidates
+        if normalize_course_name(candidate.get("course_name")) == "goodrich"
+    ]
+
+    return goodrich_candidates[0] if goodrich_candidates else candidates[0]
+
+
 def upsert_round(player_id, row):
     global supabase
+
+    posted = find_scores_posted_round(player_id, row)
+
+    if posted:
+        # Keep the official posted score/diff/NSD/rating values intact. Only add
+        # HBH-specific details to the official round.
+        supabase.table("rounds").update(
+            {
+                "tee_name": row["teeName"],
+                "tee_gender": row["teeGender"],
+                "front9_score": row["outScore"],
+                "back9_score": row["inScore"],
+            }
+        ).eq("id", posted["id"]).execute()
+
+        return posted["id"], False
 
     external_key = build_external_key(player_id, row)
 
@@ -471,10 +521,8 @@ def upsert_round(player_id, row):
 
     score_type = row["scoreType"] or ""
 
-    # Hole-by-hole reports do NOT contain the official GHIN differential.
-    # Do not include differential, PCC, ESR, or net score differential in the
-    # update payload, or a re-import will wipe values previously loaded from
-    # the Scores Posted report.
+    # Standalone HBH rows are only created when no official Scores Posted round
+    # exists. HBH does not contain the official differential/NSD/PCC/ESR.
     update_payload = {
         "gross_score": to_int(row["totalScore"]),
         "adjusted_gross_score": to_int(row["totalScore"]),
@@ -482,9 +530,12 @@ def upsert_round(player_id, row):
         "slope_rating": to_int(row["slopeRating"]),
         "score_type": score_type or None,
         "tee_name": row["teeName"],
-        "course_name": "Goodrich",
+        "tee_gender": row["teeGender"],
+        "course_name": clean_course_name("Goodrich"),
         "handicap_index_used": row["handicapIndex"],
         "score_handicap_index": row["handicapIndex"],
+        "front9_score": row["outScore"],
+        "back9_score": row["inScore"],
         "is_home": "H" in score_type,
         "is_away": "A" in score_type,
         "is_competition": "C" in score_type,
@@ -497,9 +548,10 @@ def upsert_round(player_id, row):
         "player_id": player_id,
         "played_at": row["playedAt"],
         **update_payload,
-        # New HBH-only rounds start without an official differential. The
-        # Scores Posted importer will fill this later when available.
         "differential": None,
+        "net_score_differential": None,
+        "pcc": None,
+        "esr": None,
     }
 
     if existing:
@@ -509,6 +561,7 @@ def upsert_round(player_id, row):
 
     created = supabase.table("rounds").insert(insert_payload).execute().data
     return created[0]["id"], True
+
 
 def replace_hole_scores(round_id, player_id, row):
     global supabase

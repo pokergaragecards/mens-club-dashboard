@@ -5,6 +5,7 @@ import time
 import pdfplumber
 from dotenv import load_dotenv
 from supabase import create_client
+from utils.parser_utils import clean_course_name, normalize_course_name
 
 load_dotenv(".env.local")
 
@@ -106,9 +107,11 @@ def parse_course_name(tokens):
     last = tokens[-1]
 
     if re.match(r"^[+-]\d+$", last):
-        return " ".join(tokens[:-1]).strip(), int(last)
+        course_name = " ".join(tokens[:-1]).strip()
+        return clean_course_name(course_name), int(last)
 
-    return " ".join(tokens).strip(), None
+    course_name = " ".join(tokens).strip()
+    return clean_course_name(course_name), None
 
 
 def is_player_start(tokens, index):
@@ -380,6 +383,18 @@ def find_or_create_player(round_row):
     return created[0]["id"], True
 
 
+def update_player_handicap_index(player_id, round_row):
+    """Refresh current HI immediately from the Scores Posted player header."""
+    supabase.table("players").update(
+        {
+            "current_index": round_row["handicapIndex"],
+            "golfer_status": round_row["golferStatus"],
+            "last_round_count": round_row["roundCount"],
+            "is_active": round_row["golferStatus"] == "Active",
+        }
+    ).eq("id", player_id).execute()
+
+
 def is_goodrich(course_name):
     return "goodrich" in (course_name or "").lower()
 
@@ -472,8 +487,10 @@ def find_existing_scores_posted_round(player_id, round_row):
         .select("id")
         .eq("player_id", player_id)
         .eq("played_at", round_row["playedAt"])
-        .eq("gross_score", round_row["adjustedGrossScore"])
         .eq("source", SOURCE)
+        .eq("score_type", round_row["scoreType"] or "")
+        .eq("adjusted_gross_score", round_row["adjustedGrossScore"])
+        .eq("differential", round_row["differential"])
         .limit(1)
         .execute()
         .data
@@ -574,15 +591,20 @@ def import_file(path):
             try:
                 player_id, created = find_or_create_player(row)
 
+                # Update the player's current HI as soon as we see the
+                # Scores Posted player header, regardless of what happens
+                # later with Goodrich/HBH matching or round upserts.
+                update_player_handicap_index(player_id, row)
+
                 players_created += int(created)
                 players_updated += int(not created)
 
+                # Enrich matching Goodrich hole-by-hole rows, but still
+                # insert/update the official Scores Posted round below.
                 if is_goodrich(row["courseName"]) and update_goodrich_hbh(
                     player_id, row
                 ):
                     goodrich_updated += 1
-                    existing += 1
-                    continue
 
                 if insert_or_update_scores_posted(player_id, row):
                     imported += 1
