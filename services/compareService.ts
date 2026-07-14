@@ -19,13 +19,11 @@ type RoundRow = {
 type HoleScoreRow = {
   player_id: string;
   hole_number: number;
-  gross_score: number | null;
+  gross_score: number;
   stroke_index: number | null;
   tee_name: string | null;
-  rounds: {
-    score_type: string | null;
-    played_at: string | null;
-  } | null;
+  score_type: string | null;
+  sample_count: number;
 };
 
 export type HoleDetail = {
@@ -173,7 +171,7 @@ function mostCommonTee(rows: HoleScoreRow[]) {
 
   for (const row of rows) {
     const tee = (row.tee_name ?? "Unknown").trim();
-    counts.set(tee, (counts.get(tee) ?? 0) + 1);
+    counts.set(tee, (counts.get(tee) ?? 0) + row.sample_count);
   }
 
   return (
@@ -185,15 +183,20 @@ function buildHoleDistributions(rows: HoleScoreRow[]) {
   const map = new Map<number, number[]>();
 
   for (const row of rows) {
-    if (row.gross_score == null) continue;
-
     const hole = Number(row.hole_number);
     const score = Number(row.gross_score);
+    const sampleCount = Math.max(0, Number(row.sample_count) || 0);
 
-    if (!Number.isFinite(hole) || !Number.isFinite(score)) continue;
+    if (!Number.isFinite(hole) || !Number.isFinite(score) || !sampleCount) {
+      continue;
+    }
 
     const existing = map.get(hole) ?? [];
-    existing.push(score);
+
+    for (let index = 0; index < sampleCount; index++) {
+      existing.push(score);
+    }
+
     map.set(hole, existing);
   }
 
@@ -378,32 +381,21 @@ export const compareService = {
       return null;
     }
 
-    const [{ data: rounds, error: roundsError }, { data: holeRows, error: holeError }] =
-      await Promise.all([
-        supabase
-          .from("rounds")
-          .select("player_id, played_at, differential, score_type")
-          .in("player_id", [params.p1, params.p2])
-          .not("differential", "is", null)
-          .order("played_at", { ascending: false }),
+    const [
+      { data: rounds, error: roundsError },
+      { data: groupedHoleRows, error: holeError },
+    ] = await Promise.all([
+      supabase
+        .from("rounds")
+        .select("player_id, played_at, differential, score_type")
+        .in("player_id", [params.p1, params.p2])
+        .not("differential", "is", null)
+        .order("played_at", { ascending: false }),
 
-        supabase
-          .from("hole_scores")
-          .select(`
-            player_id,
-            hole_number,
-            gross_score,
-            stroke_index,
-            tee_name,
-            rounds!inner(
-              score_type,
-              played_at
-            )
-          `)
-          .in("player_id", [params.p1, params.p2])
-          .not("gross_score", "is", null)
-          .order("hole_number", { ascending: true }),
-      ]);
+      supabase.rpc("get_compare_hole_score_counts", {
+        p_player_ids: [params.p1, params.p2],
+      }),
+    ]);
 
     if (roundsError) throw roundsError;
     if (holeError) throw holeError;
@@ -474,18 +466,22 @@ export const compareService = {
             p2ActualHandicap,
           });
 
-    const allHoleRows: HoleScoreRow[] = (holeRows ?? []).map((row: any) => ({
-      player_id: row.player_id,
-      hole_number: row.hole_number,
-      gross_score: row.gross_score,
-      stroke_index: row.stroke_index,
-      tee_name: row.tee_name,
-      rounds: Array.isArray(row.rounds) ? row.rounds[0] ?? null : row.rounds,
-    }));
+    const allHoleRows: HoleScoreRow[] = (groupedHoleRows ?? []).map(
+      (row: any) => ({
+        player_id: String(row.player_id),
+        hole_number: Number(row.hole_number),
+        gross_score: Number(row.gross_score),
+        stroke_index:
+          row.stroke_index == null ? null : Number(row.stroke_index),
+        tee_name: row.tee_name ?? null,
+        score_type: row.score_type ?? null,
+        sample_count: Number(row.sample_count ?? 0),
+      })
+    );
 
     const holeModeRows =
       params.holeMode === "competition"
-        ? allHoleRows.filter((row) => isCompetition(row.rounds?.score_type))
+        ? allHoleRows.filter((row) => isCompetition(row.score_type))
         : allHoleRows;
 
     const p1HolePool = holeModeRows.filter(
