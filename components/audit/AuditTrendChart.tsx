@@ -152,11 +152,11 @@ export function AuditTrendChart({
 
   const yForValue = (value: number) =>
     padding.top +
-    ((value - minValue) / valueRange) *
+    ((maxValue - value) / valueRange) *
       (height - padding.top - padding.bottom);
 
   const yTicks = Array.from({ length: 6 }, (_, index) => {
-    const value = minValue + (index / 5) * valueRange;
+    const value = maxValue - (index / 5) * valueRange;
     return Number(value.toFixed(1));
   });
 
@@ -182,7 +182,8 @@ export function AuditTrendChart({
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-gray-600">
             Up to the last 10 rounds from each category plotted on their actual
-            calendar dates. Lower differentials appear higher on the chart.
+            calendar dates. Higher differentials are at the top and lower
+            differentials are at the bottom.
           </p>
         </div>
 
@@ -227,6 +228,28 @@ export function AuditTrendChart({
           </span>
         )}
       </div>
+
+      {stats.gap != null && (
+        <div
+          className={`mt-4 rounded-lg border px-4 py-3 text-sm font-bold ${
+            stats.gap > 0
+              ? "border-green-200 bg-green-50 text-green-900"
+              : stats.gap < 0
+                ? "border-red-200 bg-red-50 text-red-900"
+                : "border-gray-300 bg-gray-50 text-gray-900"
+          }`}
+        >
+          {stats.gap > 0
+            ? `Competition rounds average ${stats.gap.toFixed(
+                1
+              )} differential strokes lower than general play.`
+            : stats.gap < 0
+              ? `Competition rounds average ${Math.abs(stats.gap).toFixed(
+                  1
+                )} differential strokes higher than general play.`
+              : "Competition and general-play averages are equal."}
+        </div>
+      )}
 
       <div className="mt-4 overflow-x-auto">
         <svg
@@ -283,6 +306,66 @@ export function AuditTrendChart({
               </g>
             );
           })}
+
+          {stats.competitionAverage != null &&
+            stats.generalAverage != null && (
+              <>
+                <rect
+                  x={padding.left}
+                  y={Math.min(
+                    yForValue(stats.competitionAverage),
+                    yForValue(stats.generalAverage)
+                  )}
+                  width={width - padding.left - padding.right}
+                  height={Math.abs(
+                    yForValue(stats.competitionAverage) -
+                      yForValue(stats.generalAverage)
+                  )}
+                  fill={
+                    stats.competitionAverage < stats.generalAverage
+                      ? "#dcfce7"
+                      : "#fee2e2"
+                  }
+                  opacity="0.45"
+                />
+
+                <line
+                  x1={padding.left}
+                  x2={width - padding.right}
+                  y1={yForValue(stats.competitionAverage)}
+                  y2={yForValue(stats.competitionAverage)}
+                  stroke="#15803d"
+                  strokeWidth="2"
+                  strokeDasharray="5 5"
+                />
+
+                <line
+                  x1={padding.left}
+                  x2={width - padding.right}
+                  y1={yForValue(stats.generalAverage)}
+                  y2={yForValue(stats.generalAverage)}
+                  stroke="#6b7280"
+                  strokeWidth="2"
+                  strokeDasharray="5 5"
+                />
+
+                <text
+                  x={padding.left + 8}
+                  y={yForValue(stats.competitionAverage) - 7}
+                  className="fill-green-800 text-[12px] font-bold"
+                >
+                  Competition avg {stats.competitionAverage.toFixed(1)}
+                </text>
+
+                <text
+                  x={padding.left + 8}
+                  y={yForValue(stats.generalAverage) - 7}
+                  className="fill-gray-700 text-[12px] font-bold"
+                >
+                  General avg {stats.generalAverage.toFixed(1)}
+                </text>
+              </>
+            )}
 
           {currentHandicap != null && Number.isFinite(currentHandicap) && (
             <>
