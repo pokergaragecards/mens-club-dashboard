@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
-import { AuditTrendChart, type AuditTrendPoint } from "@/components/audit/AuditTrendChart";
+import {
+  AuditTrendChart,
+  type AuditTrendPoint,
+} from "@/components/audit/AuditTrendChart";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -33,13 +36,40 @@ type AuditGroup = {
 
 function formatNumber(value: unknown, decimals = 1) {
   if (value === null || value === undefined) return "-";
+
   const number = Number(value);
-  if (Number.isNaN(number)) return "-";
-  return number.toFixed(decimals);
+  return Number.isNaN(number) ? "-" : number.toFixed(decimals);
 }
 
 function isCompetition(scoreType: string | null | undefined) {
   return ["C", "CH", "CA", "ECH"].includes(scoreType ?? "");
+}
+
+function scoreTypeLabel(scoreType: string | null | undefined) {
+  switch (scoreType) {
+    case "H":
+      return "Home";
+    case "A":
+      return "Away";
+    case "C":
+      return "Competition";
+    case "CH":
+      return "Competition Home";
+    case "CA":
+      return "Competition Away";
+    case "ECH":
+      return "Exceptional Competition Home";
+    case "EA":
+      return "Exceptional Away";
+    case "EH":
+      return "Exceptional Home";
+    case "NA":
+      return "Nine-Hole Away";
+    case "NH":
+      return "Nine-Hole Home";
+    default:
+      return scoreType ?? "-";
+  }
 }
 
 function average(values: number[]) {
@@ -61,9 +91,13 @@ function whsUsedCount(roundCount: number) {
 
 function whsHi(rounds: RoundWithDiff[]) {
   const usedCount = whsUsedCount(rounds.length);
+
   if (!usedCount) return null;
 
-  const usedDiffs = rounds.slice(0, usedCount).map((round) => round.diff);
+  const usedDiffs = rounds
+    .slice(0, usedCount)
+    .map((round) => round.diff);
+
   const adjustment = rounds.length === 6 ? -1 : 0;
   const hi = average(usedDiffs);
 
@@ -71,7 +105,7 @@ function whsHi(rounds: RoundWithDiff[]) {
 }
 
 function buildGroup(label: string, rounds: RoundWithDiff[]): AuditGroup {
-  const sorted = rounds.slice().sort((a, b) => a.diff - b.diff);
+  const sorted = [...rounds].sort((a, b) => a.diff - b.diff);
 
   return {
     label,
@@ -84,10 +118,15 @@ function buildGroup(label: string, rounds: RoundWithDiff[]): AuditGroup {
 
 function buildAuditGroups(rounds: RoundRow[]): AuditGroup[] {
   const eligible = rounds
-    .filter((round) => round.counts_for_hi === true && round.differential != null)
+    .filter(
+      (round) =>
+        round.counts_for_hi === true &&
+        round.differential != null
+    )
     .sort(
       (a, b) =>
-        new Date(b.played_at).getTime() - new Date(a.played_at).getTime()
+        new Date(b.played_at).getTime() -
+        new Date(a.played_at).getTime()
     )
     .map((round) => ({
       ...round,
@@ -101,9 +140,11 @@ function buildAuditGroups(rounds: RoundRow[]): AuditGroup[] {
     }));
 
   const overall = eligible.slice(0, 20);
+
   const competition = eligible
     .filter((round) => isCompetition(round.score_type))
     .slice(0, 20);
+
   const general = eligible
     .filter((round) => !isCompetition(round.score_type))
     .slice(0, 20);
@@ -115,98 +156,7 @@ function buildAuditGroups(rounds: RoundRow[]): AuditGroup[] {
   ];
 }
 
-function NumberList({
-  group,
-  field,
-}: {
-  group: AuditGroup;
-  field: "score" | "diff";
-}) {
-  return (
-    <div className="flex flex-wrap gap-x-2 gap-y-1">
-      {group.rounds.map((round, index) => {
-        const isUsed = index < group.usedCount;
-        const value =
-          field === "score" ? round.score ?? "-" : formatNumber(round.diff);
-
-        let className = "";
-
-        if (field === "score") {
-          className = isCompetition(round.score_type)
-            ? "font-bold text-green-700"
-            : "font-medium text-gray-900";
-        } else {
-          className = isUsed ? "font-black text-gray-950" : "text-gray-700";
-        }
-
-        return (
-          <span key={`${field}-${round.id}`} className={className}>
-            {value}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
-export default async function PlayerAuditPage({ params }: PageProps) {
-  const { id } = await params;
-  const supabase = createSupabaseServerClient();
-
-  const [{ data: player, error: playerError }, { data: rounds, error: roundsError }] =
-    await Promise.all([
-      supabase
-        .from("players")
-        .select("id, full_name, ghin_number, current_index")
-        .eq("id", id)
-        .limit(1),
-
-      supabase
-        .from("player_display_rounds")
-        .select(
-          `
-          id,
-          played_at,
-          gross_score,
-          adjusted_gross_score,
-          differential,
-          score_type,
-          course_name,
-          tee_name,
-          counts_for_hi
-        `
-        )
-        .eq("player_id", id)
-        .eq("counts_for_hi", true)
-        .not("played_at", "is", null)
-        .order("played_at", { ascending: false }),
-    ]);
-
-  if (playerError || roundsError) {
-    return (
-      <main className="p-8 font-bold text-red-700">
-        {playerError?.message ?? roundsError?.message}
-      </main>
-    );
-  }
-
-  const playerRow = player?.[0];
-
-  if (!playerRow) {
-    return (
-      <main className="p-8">
-        <Link href="/audit" className="font-bold text-blue-800 hover:underline">
-          ← Back to Audit
-        </Link>
-        <p className="mt-4 font-bold text-red-700">Player not found.</p>
-      </main>
-    );
-  }
-
-  const hiRoundRows = (rounds ?? []) as RoundRow[];
-  const groups = buildAuditGroups(hiRoundRows);
-
-  function toTrendPoint(round: RoundRow): AuditTrendPoint {
+function toTrendPoint(round: RoundRow): AuditTrendPoint {
   return {
     id: round.id,
     date: round.played_at,
@@ -224,30 +174,130 @@ export default async function PlayerAuditPage({ params }: PageProps) {
   };
 }
 
-const competitionTrendPoints = hiRoundRows
-  .filter(
-    (round) =>
-      round.differential != null &&
-      isCompetition(round.score_type)
-  )
-  .slice(0, 10)
-  .reverse()
-  .map(toTrendPoint);
+function NumberList({
+  group,
+  field,
+}: {
+  group: AuditGroup;
+  field: "score" | "diff";
+}) {
+  return (
+    <div className="flex flex-wrap gap-x-2 gap-y-1">
+      {group.rounds.map((round, index) => {
+        const isUsed = index < group.usedCount;
 
-const generalTrendPoints = hiRoundRows
-  .filter(
-    (round) =>
-      round.differential != null &&
-      !isCompetition(round.score_type)
-  )
-  .slice(0, 10)
-  .reverse()
-  .map(toTrendPoint);
+        const value =
+          field === "score"
+            ? round.score ?? "-"
+            : formatNumber(round.diff);
+
+        const className =
+          field === "score"
+            ? isCompetition(round.score_type)
+              ? "font-bold text-green-700"
+              : "font-medium text-gray-900"
+            : isUsed
+              ? "font-black text-gray-950"
+              : "text-gray-700";
+
+        return (
+          <span
+            key={`${field}-${round.id}`}
+            className={className}
+          >
+            {value}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+export default async function PlayerAuditPage({
+  params,
+}: PageProps) {
+  const { id } = await params;
+  const supabase = createSupabaseServerClient();
+
+  const [
+    { data: player, error: playerError },
+    { data: rounds, error: roundsError },
+  ] = await Promise.all([
+    supabase
+      .from("players")
+      .select("id, full_name, ghin_number, current_index")
+      .eq("id", id)
+      .limit(1),
+
+    supabase
+      .from("player_display_rounds")
+      .select(
+        `
+          id,
+          played_at,
+          gross_score,
+          adjusted_gross_score,
+          differential,
+          score_type,
+          course_name,
+          tee_name,
+          counts_for_hi
+        `
+      )
+      .eq("player_id", id)
+      .eq("counts_for_hi", true)
+      .not("played_at", "is", null)
+      .not("differential", "is", null)
+      .order("played_at", { ascending: false }),
+  ]);
+
+  if (playerError || roundsError) {
+    return (
+      <main className="p-8 font-bold text-red-700">
+        {playerError?.message ?? roundsError?.message}
+      </main>
+    );
+  }
+
+  const playerRow = player?.[0];
+
+  if (!playerRow) {
+    return (
+      <main className="p-4 text-gray-900 md:p-8">
+        <Link
+          href="/audit"
+          className="font-bold text-blue-800 hover:underline"
+        >
+          ← Back to Audit
+        </Link>
+
+        <p className="mt-4 font-bold text-red-700">
+          Player not found.
+        </p>
+      </main>
+    );
+  }
+
+  const hiRoundRows = (rounds ?? []) as RoundRow[];
+  const groups = buildAuditGroups(hiRoundRows);
+
+  const competitionTrendPoints = hiRoundRows
+    .filter((round) => isCompetition(round.score_type))
+    .slice(0, 10)
+    .map(toTrendPoint);
+
+  const generalTrendPoints = hiRoundRows
+    .filter((round) => !isCompetition(round.score_type))
+    .slice(0, 10)
+    .map(toTrendPoint);
 
   return (
     <main className="space-y-6 p-4 text-gray-900 md:p-8">
-      <div>
-        <Link href="/audit" className="font-bold text-blue-800 hover:underline">
+      <header>
+        <Link
+          href="/audit"
+          className="font-bold text-blue-800 hover:underline"
+        >
           ← Back to Audit
         </Link>
 
@@ -256,14 +306,23 @@ const generalTrendPoints = hiRoundRows
         </h1>
 
         <p className="mt-1 text-sm text-gray-700">
-          GHIN #{playerRow.ghin_number ?? "-"} • Current Handicap Index{" "}
+          GHIN #{playerRow.ghin_number ?? "-"} • Current Handicap
+          Index{" "}
           <span className="font-bold">
             {formatNumber(playerRow.current_index)}
           </span>
         </p>
-      </div>
+      </header>
 
-      <AuditTrendChart points={trendPoints} />
+      <AuditTrendChart
+        competitionPoints={competitionTrendPoints}
+        generalPoints={generalTrendPoints}
+        currentHandicap={
+          playerRow.current_index == null
+            ? null
+            : Number(playerRow.current_index)
+        }
+      />
 
       <section className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
         <h2 className="text-xl font-bold text-gray-950">
@@ -271,9 +330,10 @@ const generalTrendPoints = hiRoundRows
         </h2>
 
         <p className="mt-1 text-sm text-gray-600">
-          Scores and differentials are sorted from lowest differential to highest.
-          Bold differentials are the values used in the Handicap Index calculation.
-          Competition scores are shown in green.
+          Scores and differentials are sorted from lowest
+          differential to highest. Bold differentials are used in
+          the Handicap Index calculation. Competition scores are
+          shown in green.
         </p>
 
         <div className="mt-4 overflow-x-auto">
@@ -283,8 +343,12 @@ const generalTrendPoints = hiRoundRows
                 <th className="p-3">Group</th>
                 <th className="p-3 text-right">Rounds</th>
                 <th className="p-3 text-right">Used</th>
-                <th className="p-3 text-right">Calculated HI</th>
-                <th className="p-3 text-right">Average Differential</th>
+                <th className="p-3 text-right">
+                  Calculated HI
+                </th>
+                <th className="p-3 text-right">
+                  Average Differential
+                </th>
                 <th className="p-3">Scores</th>
                 <th className="p-3">Differentials</th>
               </tr>
@@ -292,10 +356,19 @@ const generalTrendPoints = hiRoundRows
 
             <tbody>
               {groups.map((group) => (
-                <tr key={group.label} className="border-b align-top hover:bg-blue-50">
-                  <td className="p-3 font-bold">{group.label}</td>
-                  <td className="p-3 text-right">{group.rounds.length}</td>
-                  <td className="p-3 text-right">{group.usedCount || "-"}</td>
+                <tr
+                  key={group.label}
+                  className="border-b align-top hover:bg-blue-50"
+                >
+                  <td className="p-3 font-bold">
+                    {group.label}
+                  </td>
+                  <td className="p-3 text-right">
+                    {group.rounds.length}
+                  </td>
+                  <td className="p-3 text-right">
+                    {group.usedCount || "-"}
+                  </td>
                   <td className="p-3 text-right font-bold">
                     {formatNumber(group.hi)}
                   </td>
@@ -321,39 +394,72 @@ const generalTrendPoints = hiRoundRows
         </h2>
 
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[900px] text-left text-sm">
+          <table className="w-full min-w-[950px] text-left text-sm">
             <thead className="border-b bg-gray-200 text-gray-950">
               <tr>
                 <th className="p-3">Date</th>
-                <th className="p-3">Type</th>
+                <th className="p-3">Score Type</th>
                 <th className="p-3">Course</th>
                 <th className="p-3">Tee</th>
                 <th className="p-3 text-right">Score</th>
-                <th className="p-3 text-right">Differential</th>
+                <th className="p-3 text-right">
+                  Differential
+                </th>
                 <th className="p-3">Category</th>
               </tr>
             </thead>
 
             <tbody>
-              {hiRoundRows.map((round) => (
-                <tr key={round.id} className="border-b hover:bg-blue-50">
-                  <td className="p-3">{round.played_at}</td>
-                  <td className="p-3">{round.score_type ?? "-"}</td>
-                  <td className="p-3">{round.course_name ?? "-"}</td>
-                  <td className="p-3">{round.tee_name ?? "-"}</td>
-                  <td className="p-3 text-right">
-                    {round.adjusted_gross_score ?? round.gross_score ?? "-"}
-                  </td>
-                  <td className="p-3 text-right font-bold">
-                    {formatNumber(round.differential)}
-                  </td>
-                  <td className="p-3">
-                    {isCompetition(round.score_type)
-                      ? "Competition"
-                      : "General Play"}
-                  </td>
-                </tr>
-              ))}
+              {hiRoundRows.map((round) => {
+                const competition = isCompetition(
+                  round.score_type
+                );
+
+                return (
+                  <tr
+                    key={round.id}
+                    className="border-b hover:bg-blue-50"
+                  >
+                    <td className="p-3">
+                      {round.played_at}
+                    </td>
+                    <td className="p-3">
+                      {scoreTypeLabel(round.score_type)}
+                    </td>
+                    <td className="p-3">
+                      {round.course_name ?? "-"}
+                    </td>
+                    <td className="p-3">
+                      {round.tee_name ?? "-"}
+                    </td>
+                    <td
+                      className={`p-3 text-right ${
+                        competition
+                          ? "font-bold text-green-700"
+                          : "font-medium text-gray-900"
+                      }`}
+                    >
+                      {round.adjusted_gross_score ??
+                        round.gross_score ??
+                        "-"}
+                    </td>
+                    <td className="p-3 text-right font-bold">
+                      {formatNumber(round.differential)}
+                    </td>
+                    <td
+                      className={
+                        competition
+                          ? "p-3 font-bold text-green-700"
+                          : "p-3 text-gray-900"
+                      }
+                    >
+                      {competition
+                        ? "Competition"
+                        : "General Play"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
