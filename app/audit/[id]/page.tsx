@@ -206,25 +206,43 @@ export default async function PlayerAuditPage({ params }: PageProps) {
   const hiRoundRows = (rounds ?? []) as RoundRow[];
   const groups = buildAuditGroups(hiRoundRows);
 
-  const trendPoints: AuditTrendPoint[] = hiRoundRows
-    .filter((round) => round.differential != null)
-    .slice(0, 10)
-    .reverse()
-    .map((round) => ({
-      id: round.id,
-      date: round.played_at,
-      course: round.course_name,
-      score:
-        round.adjusted_gross_score != null
-          ? Number(round.adjusted_gross_score)
-          : round.gross_score != null
-            ? Number(round.gross_score)
-            : null,
-      differential: Number(round.differential),
-      category: isCompetition(round.score_type)
-        ? "Competition"
-        : "General Play",
-    }));
+  function toTrendPoint(round: RoundRow): AuditTrendPoint {
+  return {
+    id: round.id,
+    date: round.played_at,
+    course: round.course_name,
+    score:
+      round.adjusted_gross_score != null
+        ? Number(round.adjusted_gross_score)
+        : round.gross_score != null
+          ? Number(round.gross_score)
+          : null,
+    differential: Number(round.differential),
+    category: isCompetition(round.score_type)
+      ? "Competition"
+      : "General Play",
+  };
+}
+
+const competitionTrendPoints = hiRoundRows
+  .filter(
+    (round) =>
+      round.differential != null &&
+      isCompetition(round.score_type)
+  )
+  .slice(0, 10)
+  .reverse()
+  .map(toTrendPoint);
+
+const generalTrendPoints = hiRoundRows
+  .filter(
+    (round) =>
+      round.differential != null &&
+      !isCompetition(round.score_type)
+  )
+  .slice(0, 10)
+  .reverse()
+  .map(toTrendPoint);
 
   return (
     <main className="space-y-6 p-4 text-gray-900 md:p-8">
