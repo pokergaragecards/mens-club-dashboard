@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
+import { AuditTrendChart, type AuditTrendPoint } from "@/components/audit/AuditTrendChart";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -205,6 +206,26 @@ export default async function PlayerAuditPage({ params }: PageProps) {
   const hiRoundRows = (rounds ?? []) as RoundRow[];
   const groups = buildAuditGroups(hiRoundRows);
 
+  const trendPoints: AuditTrendPoint[] = hiRoundRows
+    .filter((round) => round.differential != null)
+    .slice(0, 10)
+    .reverse()
+    .map((round) => ({
+      id: round.id,
+      date: round.played_at,
+      course: round.course_name,
+      score:
+        round.adjusted_gross_score != null
+          ? Number(round.adjusted_gross_score)
+          : round.gross_score != null
+            ? Number(round.gross_score)
+            : null,
+      differential: Number(round.differential),
+      category: isCompetition(round.score_type)
+        ? "Competition"
+        : "General Play",
+    }));
+
   return (
     <main className="space-y-6 p-4 text-gray-900 md:p-8">
       <div>
@@ -223,6 +244,8 @@ export default async function PlayerAuditPage({ params }: PageProps) {
           </span>
         </p>
       </div>
+
+      <AuditTrendChart points={trendPoints} />
 
       <section className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
         <h2 className="text-xl font-bold text-gray-950">
