@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { auditService } from "@/services/auditService";
+import { ExportAuditPdfButton } from "@/components/audit/ExportAuditPdfButton";
 
 type Period = "last20" | "30" | "60" | "90" | "season";
 
@@ -58,12 +59,16 @@ export default async function AuditPage({ searchParams }: PageProps) {
           </p>
         </div>
 
-        <Link
-          href="/audit/committee"
-          className="inline-flex w-fit items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-        >
-          Committee Audit
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <ExportAuditPdfButton />
+
+          <Link
+            href="/audit/committee"
+            className="inline-flex w-fit items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+          >
+            Committee Audit
+          </Link>
+        </div>
       </div>
 
       <div className="mt-6 flex flex-wrap gap-2">
