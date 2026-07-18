@@ -7,6 +7,7 @@ import {
 import { AuditBook } from "@/components/pdf/AuditBook";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import type {
+  AuditBreakdownRow,
   AuditPlayerReport,
   AuditReport,
   AuditRound,
@@ -44,14 +45,14 @@ type RoundRow = {
 
 function toNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
-
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
 
 function average(values: number[]): number | null {
-  if (!values.length) return null;
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
+  return values.length
+    ? values.reduce((sum, value) => sum + value, 0) / values.length
+    : null;
 }
 
 function isCompetition(scoreType: string | null | undefined): boolean {
@@ -70,8 +71,8 @@ function whsUsedCount(roundCount: number): number {
   return 8;
 }
 
-function calculateCategoryHi(rounds: RoundRow[]): number | null {
-  const last20 = [...rounds]
+function last20(rounds: RoundRow[]): RoundRow[] {
+  return [...rounds]
     .filter(
       (round) =>
         round.counts_for_hi === true &&
@@ -84,25 +85,24 @@ function calculateCategoryHi(rounds: RoundRow[]): number | null {
         new Date(a.played_at).getTime()
     )
     .slice(0, 20);
+}
 
-  const differentials = last20
+function calculateCategoryHi(rounds: RoundRow[]): number | null {
+  const selected = last20(rounds);
+  const differentials = selected
     .map((round) => Number(round.differential))
     .sort((a, b) => a - b);
 
-  const usedCount = whsUsedCount(differentials.length);
-  if (!usedCount) return null;
+  const used = whsUsedCount(differentials.length);
+  if (!used) return null;
 
-  const base = average(differentials.slice(0, usedCount));
+  const base = average(differentials.slice(0, used));
   if (base === null) return null;
 
-  const adjustment = differentials.length === 6 ? -1 : 0;
-  return Number((base + adjustment).toFixed(1));
+  return Number((base + (differentials.length === 6 ? -1 : 0)).toFixed(1));
 }
 
-function buildTrend(
-  rounds: RoundRow[],
-  category: "Competition" | "General Play"
-): AuditTrendPoint[] {
+function buildTrend(rounds: RoundRow[]): AuditTrendPoint[] {
   const chronological = [...rounds]
     .filter(
       (round) =>
@@ -122,44 +122,72 @@ function buildTrend(
     const history = chronological.slice(Math.max(0, index - 19), index + 1);
     const handicapIndex = calculateCategoryHi(history);
 
-    if (handicapIndex === null) return;
-
-    points.push({
-      date: round.played_at,
-      handicapIndex,
-    });
+    if (handicapIndex !== null) {
+      points.push({ date: round.played_at, handicapIndex });
+    }
   });
 
-  // Matches the player audit page: display the most recent 10 calculated points.
   return points.slice(-10);
 }
 
 function normalizeFlag(value: unknown): AuditPlayerReport["flag"] {
   const flag = String(value ?? "").trim().toLowerCase();
-
   if (flag === "investigate") return "INVESTIGATE";
   if (flag === "review") return "REVIEW";
   if (flag === "watch" || flag === "monitor") return "MONITOR";
-
   return "NO ACTION";
 }
 
-function mapRound(round: RoundRow): AuditRound {
+function scoreOf(round: RoundRow): number | null {
+  if (round.adjusted_gross_score !== null) {
+    return Number(round.adjusted_gross_score);
+  }
+  if (round.gross_score !== null) {
+    return Number(round.gross_score);
+  }
+  return null;
+}
+
+function mapRound(round: RoundRow, usedDiffs: number[]): AuditRound {
+  const differential = Number(round.differential);
+
   return {
     id: round.id,
     playedAt: round.played_at,
     courseName: round.course_name ?? "Unknown course",
     teeName: round.tee_name ?? "-",
-    score:
-      round.adjusted_gross_score !== null
-        ? Number(round.adjusted_gross_score)
-        : round.gross_score !== null
-          ? Number(round.gross_score)
-          : null,
-    differential: Number(round.differential),
+    score: scoreOf(round),
+    differential,
     category: isCompetition(round.score_type)
       ? "Competition"
       : "General Play",
+    usedInCalculation: usedDiffs.includes(differential),
+  };
+}
+
+function buildBreakdownRow(
+  label: string,
+  rounds: RoundRow[]
+): AuditBreakdownRow {
+  const selected = last20(rounds);
+  const sortedDiffs = selected
+    .map((round) => Number(round.differential))
+    .sort((a, b) => a - b);
+
+  const used = whsUsedCount(sortedDiffs.length);
+  const usedDifferentials = sortedDiffs.slice(0, used);
+
+  return {
+    label,
+    rounds: selected.length,
+    used,
+    calculatedHi: calculateCategoryHi(selected),
+    averageDifferential: average(sortedDiffs),
+    scores: selected
+      .map(scoreOf)
+      .filter((value): value is number => value !== null),
+    differentials: sortedDiffs,
+    usedDifferentials,
   };
 }
 
@@ -172,18 +200,7 @@ async function getAllOfficialRounds(): Promise<RoundRow[]> {
     const { data, error } = await supabase
       .from("player_display_rounds")
       .select(
-        `
-          id,
-          player_id,
-          played_at,
-          gross_score,
-          adjusted_gross_score,
-          differential,
-          score_type,
-          course_name,
-          tee_name,
-          counts_for_hi
-        `
+        "id, player_id, played_at, gross_score, adjusted_gross_score, differential, score_type, course_name, tee_name, counts_for_hi"
       )
       .eq("counts_for_hi", true)
       .not("played_at", "is", null)
@@ -214,12 +231,10 @@ export async function GET() {
       allRounds,
     ] = await Promise.all([
       auditService.getAuditRows("last20"),
-
       supabase
         .from("players")
         .select("id, full_name, ghin_number, current_index")
         .order("full_name"),
-
       getAllOfficialRounds(),
     ]);
 
@@ -232,15 +247,10 @@ export async function GET() {
     );
 
     const roundsByPlayer = new Map<string, RoundRow[]>();
-
     for (const round of allRounds) {
-      const existing = roundsByPlayer.get(round.player_id);
-
-      if (existing) {
-        existing.push(round);
-      } else {
-        roundsByPlayer.set(round.player_id, [round]);
-      }
+      const existing = roundsByPlayer.get(round.player_id) ?? [];
+      existing.push(round);
+      roundsByPlayer.set(round.player_id, existing);
     }
 
     const reportPlayers: AuditPlayerReport[] = (
@@ -257,6 +267,15 @@ export async function GET() {
         (round) => !isCompetition(round.score_type)
       );
 
+      const overallSelected = last20(playerRounds);
+      const overallSortedDiffs = overallSelected
+        .map((round) => Number(round.differential))
+        .sort((a, b) => a - b);
+      const overallUsedDiffs = overallSortedDiffs.slice(
+        0,
+        whsUsedCount(overallSortedDiffs.length)
+      );
+
       const competitionIndex =
         toNumber(summary.last20CompetitionHi) ??
         calculateCategoryHi(competitionRounds);
@@ -270,62 +289,44 @@ export async function GET() {
           ? Number((generalIndex - competitionIndex).toFixed(1))
           : null;
 
-      const competitionDifferentials = competitionRounds
-        .map((round) => Number(round.differential))
-        .filter(Number.isFinite);
-
-      const generalDifferentials = generalRounds
-        .map((round) => Number(round.differential))
-        .filter(Number.isFinite);
-
-      const last20Rounds = [...playerRounds]
-        .sort(
-          (a, b) =>
-            new Date(b.played_at).getTime() -
-            new Date(a.played_at).getTime()
-        )
-        .slice(0, 20)
-        .map(mapRound);
-
       return {
         id: String(summary.id),
         name: player?.full_name ?? summary.full_name,
         ghinNumber: player?.ghin_number ?? null,
-
         currentIndex:
           toNumber(player?.current_index) ?? toNumber(summary.overallHi),
-
         competitionIndex,
         generalIndex,
-
         difference:
           calculatedDifference ??
           toNumber(summary.competitionVsOverallGap),
-
         flag: normalizeFlag(summary.flag),
-
         competitionRounds: competitionRounds.length,
         generalRounds: generalRounds.length,
-
         competitionAverage:
           toNumber(summary.competitionAvgDiff) ??
-          average(competitionDifferentials),
-
+          average(
+            competitionRounds.map((round) => Number(round.differential))
+          ),
         generalAverage:
           toNumber(summary.casualAvgDiff) ??
-          average(generalDifferentials),
-
-        competitionTrend: buildTrend(
-          competitionRounds,
-          "Competition"
+          average(generalRounds.map((round) => Number(round.differential))),
+        competitionTrend: buildTrend(competitionRounds),
+        generalTrend: buildTrend(generalRounds),
+        rounds: overallSelected.map((round) =>
+          mapRound(round, overallUsedDiffs)
         ),
-
-        generalTrend: buildTrend(
-          generalRounds,
-          "General Play"
-        ),
-
-        rounds: last20Rounds,
+        breakdown: [
+          buildBreakdownRow("Overall Handicap Rounds", playerRounds),
+          buildBreakdownRow(
+            "Competition Handicap Rounds",
+            competitionRounds
+          ),
+          buildBreakdownRow(
+            "General Play Handicap Rounds",
+            generalRounds
+          ),
+        ],
       };
     });
 
@@ -366,12 +367,7 @@ export async function GET() {
             ? error.message
             : "An unknown error occurred.",
       },
-      {
-        status: 500,
-        headers: {
-          "Cache-Control": "no-store",
-        },
-      }
+      { status: 500 }
     );
   }
 }
