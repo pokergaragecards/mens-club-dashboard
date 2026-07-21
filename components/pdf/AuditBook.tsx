@@ -77,6 +77,49 @@ const s = StyleSheet.create({
   },
   cardLabel: { fontSize: 6, color: "#52605a", marginBottom: 2 },
   cardValue: { fontSize: 15, fontFamily: "Helvetica-Bold" },
+  advantageRed: {
+    color: "#b91c1c",
+    fontSize: 17,
+    fontFamily: "Helvetica-Bold",
+  },
+  advantageOrange: {
+    color: "#c2410c",
+    fontSize: 17,
+    fontFamily: "Helvetica-Bold",
+  },
+  advantageNormal: {
+    color: "#111827",
+    fontSize: 17,
+    fontFamily: "Helvetica-Bold",
+  },
+  rankBadge: {
+    marginRight: 8,
+    minWidth: 30,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderWidth: 1,
+    borderColor: "#166534",
+    backgroundColor: "#e8f1eb",
+    color: "#14532d",
+    fontFamily: "Helvetica-Bold",
+    fontSize: 10,
+    textAlign: "center",
+  },
+  investigateFlag: {
+    color: "#991b1b",
+    borderColor: "#b91c1c",
+    backgroundColor: "#fee2e2",
+  },
+  reviewFlag: {
+    color: "#9a3412",
+    borderColor: "#c2410c",
+    backgroundColor: "#ffedd5",
+  },
+  noActionFlag: {
+    color: "#166534",
+    borderColor: "#15803d",
+    backgroundColor: "#dcfce7",
+  },
   chart: {
     height: 100,
     borderWidth: 1,
@@ -300,13 +343,33 @@ function Chart({ player }: { player: AuditPlayerReport }) {
   );
 }
 
-function Card({ label, value }: { label: string; value: string }) {
+function Card({
+  label,
+  value,
+  valueStyle,
+}: {
+  label: string;
+  value: string;
+  valueStyle?: object;
+}) {
   return (
     <View style={s.card}>
       <Text style={s.cardLabel}>{label}</Text>
-      <Text style={s.cardValue}>{value}</Text>
+      <Text style={[s.cardValue, valueStyle]}>{value}</Text>
     </View>
   );
+}
+
+function advantageStyle(difference: number | null) {
+  if (difference !== null && difference >= 1.5) return s.advantageRed;
+  if (difference !== null && difference >= 1.0) return s.advantageOrange;
+  return s.advantageNormal;
+}
+
+function flagStyle(flag: AuditPlayerReport["flag"]) {
+  if (flag === "INVESTIGATE") return s.investigateFlag;
+  if (flag === "REVIEW") return s.reviewFlag;
+  return s.noActionFlag;
 }
 
 function NumberList({
@@ -393,22 +456,27 @@ function BreakdownTable({
 function PlayerPage({
   player,
   generatedAt,
+  rank,
 }: {
   player: AuditPlayerReport;
   generatedAt: string;
+  rank: number;
 }) {
   return (
     <Page size="LETTER" style={s.page} wrap={false}>
       <View style={s.header}>
-        <View>
-          <Text style={s.name}>{player.name}</Text>
-          <Text style={s.muted}>
-            GHIN #{player.ghinNumber ?? "-"} · {player.competitionRounds}{" "}
-            competition · {player.generalRounds} general play
-          </Text>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <Text style={s.rankBadge}>#{rank}</Text>
+          <View>
+            <Text style={s.name}>{player.name}</Text>
+            <Text style={s.muted}>
+              GHIN #{player.ghinNumber ?? "-"} · {player.competitionRounds}{" "}
+              competition · {player.generalRounds} general play
+            </Text>
+          </View>
         </View>
 
-        <Text style={s.flag}>{player.flag}</Text>
+        <Text style={[s.flag, flagStyle(player.flag)]}>{player.flag}</Text>
       </View>
 
       <View style={s.cards}>
@@ -416,14 +484,13 @@ function PlayerPage({
         <Card label="COMPETITION HI" value={n(player.competitionIndex)} />
         <Card label="GENERAL PLAY HI" value={n(player.generalIndex)} />
         <Card
-          label="CURRENT GHIN − COMPETITION"
+          label="COMPETITION ADVANTAGE VS GHIN"
           value={
             player.difference === null
               ? "-"
-              : `${player.difference >= 0 ? "+" : ""}${player.difference.toFixed(
-                  1
-                )}`
+              : `${Math.max(0, player.difference).toFixed(1)} STROKES`
           }
+          valueStyle={advantageStyle(player.difference)}
         />
       </View>
 
@@ -505,7 +572,7 @@ function Summary({
         <Text style={s.summaryNum}>Current</Text>
         <Text style={s.summaryNum}>Comp</Text>
         <Text style={s.summaryNum}>General</Text>
-        <Text style={s.summaryNum}>Difference</Text>
+        <Text style={s.summaryNum}>Comp Advantage</Text>
         <Text style={s.summaryFlag}>Flag</Text>
       </View>
 
@@ -515,8 +582,14 @@ function Summary({
           <Text style={s.summaryNum}>{n(player.currentIndex)}</Text>
           <Text style={s.summaryNum}>{n(player.competitionIndex)}</Text>
           <Text style={s.summaryNum}>{n(player.generalIndex)}</Text>
-          <Text style={s.summaryNum}>{n(player.difference)}</Text>
-          <Text style={s.summaryFlag}>{player.flag}</Text>
+          <Text style={[s.summaryNum, advantageStyle(player.difference)]}>
+            {player.difference === null
+              ? "-"
+              : Math.max(0, player.difference).toFixed(1)}
+          </Text>
+          <Text style={[s.summaryFlag, flagStyle(player.flag)]}>
+            {player.flag}
+          </Text>
         </View>
       ))}
 
@@ -547,11 +620,12 @@ export function AuditBook({ report }: { report: AuditReport }) {
 
       <Summary report={report} title="Competition Handicap Audit Ranking" />
 
-      {report.players.map((player) => (
+      {report.players.map((player, index) => (
         <PlayerPage
           key={player.id}
           player={player}
           generatedAt={report.generatedAt}
+          rank={index + 1}
         />
       ))}
 
@@ -559,4 +633,3 @@ export function AuditBook({ report }: { report: AuditReport }) {
     </Document>
   );
 }
-
