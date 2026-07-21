@@ -416,7 +416,7 @@ function PlayerPage({
         <Card label="COMPETITION HI" value={n(player.competitionIndex)} />
         <Card label="GENERAL PLAY HI" value={n(player.generalIndex)} />
         <Card
-          label="GENERAL − COMPETITION"
+          label="CURRENT GHIN − COMPETITION"
           value={
             player.difference === null
               ? "-"
@@ -540,12 +540,12 @@ export function AuditBook({ report }: { report: AuditReport }) {
             Players reviewed: {report.players.length}
           </Text>
           <Text style={s.metaText}>
-            Ranked by general-play minus competition-only Handicap Index.
+            Includes players with at least 5 competition scores. Ranked by Current GHIN HI minus Competition HI.
           </Text>
         </View>
       </Page>
 
-      <Summary report={report} title="Players Requiring Review" />
+      <Summary report={report} title="Competition Handicap Audit Ranking" />
 
       {report.players.map((player) => (
         <PlayerPage
@@ -559,3 +559,4 @@ export function AuditBook({ report }: { report: AuditReport }) {
     </Document>
   );
 }
+

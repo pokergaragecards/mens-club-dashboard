@@ -130,11 +130,11 @@ function buildTrend(rounds: RoundRow[]): AuditTrendPoint[] {
   return points.slice(-10);
 }
 
-function normalizeFlag(value: unknown): AuditPlayerReport["flag"] {
-  const flag = String(value ?? "").trim().toLowerCase();
-  if (flag === "investigate") return "INVESTIGATE";
-  if (flag === "review") return "REVIEW";
-  if (flag === "watch" || flag === "monitor") return "MONITOR";
+function flagForDifference(
+  difference: number | null
+): AuditPlayerReport["flag"] {
+  if (difference !== null && difference >= 1.5) return "INVESTIGATE";
+  if (difference !== null && difference >= 1.0) return "REVIEW";
   return "NO ACTION";
 }
 
@@ -242,8 +242,11 @@ export async function GET() {
       throw new Error(`Unable to load players: ${playerError.message}`);
     }
 
-    const playersById = new Map(
-      ((playerData ?? []) as PlayerRow[]).map((player) => [player.id, player])
+    const summaryById = new Map(
+      (summaryRows as AuditSummaryRow[]).map((summary) => [
+        String(summary.id),
+        summary,
+      ])
     );
 
     const roundsByPlayer = new Map<string, RoundRow[]>();
@@ -254,81 +257,91 @@ export async function GET() {
     }
 
     const reportPlayers: AuditPlayerReport[] = (
-      summaryRows as AuditSummaryRow[]
-    ).map((summary) => {
-      const player = playersById.get(String(summary.id));
-      const playerRounds = roundsByPlayer.get(String(summary.id)) ?? [];
+      (playerData ?? []) as PlayerRow[]
+    )
+      .map((player): AuditPlayerReport | null => {
+        const summary = summaryById.get(player.id);
+        const playerRounds = roundsByPlayer.get(player.id) ?? [];
 
-      const competitionRounds = playerRounds.filter((round) =>
-        isCompetition(round.score_type)
-      );
+        const competitionRounds = playerRounds.filter((round) =>
+          isCompetition(round.score_type)
+        );
 
-      const generalRounds = playerRounds.filter(
-        (round) => !isCompetition(round.score_type)
-      );
+        // The export includes every player with at least five official
+        // competition scores, regardless of their review status.
+        if (competitionRounds.length < 5) return null;
 
-      const overallSelected = last20(playerRounds);
-      const overallSortedDiffs = overallSelected
-        .map((round) => Number(round.differential))
-        .sort((a, b) => a - b);
-      const overallUsedDiffs = overallSortedDiffs.slice(
-        0,
-        whsUsedCount(overallSortedDiffs.length)
-      );
+        const generalRounds = playerRounds.filter(
+          (round) => !isCompetition(round.score_type)
+        );
 
-      const competitionIndex =
-        toNumber(summary.last20CompetitionHi) ??
-        calculateCategoryHi(competitionRounds);
+        const overallSelected = last20(playerRounds);
+        const overallSortedDiffs = overallSelected
+          .map((round) => Number(round.differential))
+          .sort((a, b) => a - b);
+        const overallUsedDiffs = overallSortedDiffs.slice(
+          0,
+          whsUsedCount(overallSortedDiffs.length)
+        );
 
-      const generalIndex =
-        toNumber(summary.last20GeneralPlayHi) ??
-        calculateCategoryHi(generalRounds);
+        const currentIndex =
+          toNumber(player.current_index) ??
+          toNumber(summary?.overallHi);
 
-      const calculatedDifference =
-        competitionIndex !== null && generalIndex !== null
-          ? Number((generalIndex - competitionIndex).toFixed(1))
-          : null;
+        const competitionIndex =
+          toNumber(summary?.last20CompetitionHi) ??
+          calculateCategoryHi(competitionRounds);
 
-      return {
-        id: String(summary.id),
-        name: player?.full_name ?? summary.full_name,
-        ghinNumber: player?.ghin_number ?? null,
-        currentIndex:
-          toNumber(player?.current_index) ?? toNumber(summary.overallHi),
-        competitionIndex,
-        generalIndex,
-        difference:
-          calculatedDifference ??
-          toNumber(summary.competitionVsOverallGap),
-        flag: normalizeFlag(summary.flag),
-        competitionRounds: competitionRounds.length,
-        generalRounds: generalRounds.length,
-        competitionAverage:
-          toNumber(summary.competitionAvgDiff) ??
-          average(
-            competitionRounds.map((round) => Number(round.differential))
+        const generalIndex =
+          toNumber(summary?.last20GeneralPlayHi) ??
+          calculateCategoryHi(generalRounds);
+
+        // Positive means the player's current GHIN Handicap Index is higher
+        // than the competition-only Handicap Index. This is the report's
+        // ranking and review variable.
+        const currentVsCompetitionDifference =
+          currentIndex !== null && competitionIndex !== null
+            ? Number((currentIndex - competitionIndex).toFixed(1))
+            : null;
+
+        return {
+          id: player.id,
+          name: player.full_name,
+          ghinNumber: player.ghin_number,
+          currentIndex,
+          competitionIndex,
+          generalIndex,
+          difference: currentVsCompetitionDifference,
+          flag: flagForDifference(currentVsCompetitionDifference),
+          competitionRounds: competitionRounds.length,
+          generalRounds: generalRounds.length,
+          competitionAverage:
+            toNumber(summary?.competitionAvgDiff) ??
+            average(
+              competitionRounds.map((round) => Number(round.differential))
+            ),
+          generalAverage:
+            toNumber(summary?.casualAvgDiff) ??
+            average(generalRounds.map((round) => Number(round.differential))),
+          competitionTrend: buildTrend(competitionRounds),
+          generalTrend: buildTrend(generalRounds),
+          rounds: overallSelected.map((round) =>
+            mapRound(round, overallUsedDiffs)
           ),
-        generalAverage:
-          toNumber(summary.casualAvgDiff) ??
-          average(generalRounds.map((round) => Number(round.differential))),
-        competitionTrend: buildTrend(competitionRounds),
-        generalTrend: buildTrend(generalRounds),
-        rounds: overallSelected.map((round) =>
-          mapRound(round, overallUsedDiffs)
-        ),
-        breakdown: [
-          buildBreakdownRow("Overall Handicap Rounds", playerRounds),
-          buildBreakdownRow(
-            "Competition Handicap Rounds",
-            competitionRounds
-          ),
-          buildBreakdownRow(
-            "General Play Handicap Rounds",
-            generalRounds
-          ),
-        ],
-      };
-    });
+          breakdown: [
+            buildBreakdownRow("Overall Handicap Rounds", playerRounds),
+            buildBreakdownRow(
+              "Competition Handicap Rounds",
+              competitionRounds
+            ),
+            buildBreakdownRow(
+              "General Play Handicap Rounds",
+              generalRounds
+            ),
+          ],
+        };
+      })
+      .filter((player): player is AuditPlayerReport => player !== null);
 
     reportPlayers.sort(
       (a, b) =>
