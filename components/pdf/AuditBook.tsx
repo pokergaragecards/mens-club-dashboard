@@ -350,12 +350,14 @@ function Card({
 }: {
   label: string;
   value: string;
-  valueStyle?: object;
+  valueStyle?: typeof s.cardValue;
 }) {
   return (
     <View style={s.card}>
       <Text style={s.cardLabel}>{label}</Text>
-      <Text style={[s.cardValue, valueStyle]}>{value}</Text>
+      <Text style={valueStyle ? [s.cardValue, valueStyle] : s.cardValue}>
+        {value}
+      </Text>
     </View>
   );
 }
