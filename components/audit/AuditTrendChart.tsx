@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 export type AuditHandicapTrendPoint = {
   id: string;
@@ -12,45 +12,151 @@ export type AuditHandicapTrendPoint = {
   category: "Competition" | "General Play";
 };
 
-type HoveredPoint = {
-  point: AuditHandicapTrendPoint;
-  x: number;
-  y: number;
+type ConfidenceLevel = {
+  label: "Low" | "Moderate" | "High" | "Very High";
+  stars: number;
+  description: string;
+};
+
+type Recommendation = {
+  interviewPlayer: boolean;
+  reviewExceptionalScores: boolean;
+  adjustHandicap: boolean;
+  noAction: boolean;
 };
 
 function formatNumber(value: number | null, decimals = 1) {
-  return value == null ? "-" : value.toFixed(decimals);
-}
-
-function formatDate(value: string, includeYear = false) {
-  const date = new Date(`${value}T00:00:00`);
-
-  if (Number.isNaN(date.getTime())) return value;
-
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    ...(includeYear ? { year: "numeric" } : {}),
-  });
+  return value == null || !Number.isFinite(value)
+    ? "-"
+    : value.toFixed(decimals);
 }
 
 function dateToTime(value: string) {
-  return new Date(`${value}T00:00:00`).getTime();
+  const normalized = value.includes("T")
+    ? value
+    : `${value}T00:00:00`;
+
+  return new Date(normalized).getTime();
 }
 
-function buildPath(
-  points: AuditHandicapTrendPoint[],
-  xForDate: (date: string) => number,
-  yForValue: (value: number) => number
-) {
-  return points
-    .map(
-      (point, index) =>
-        `${index === 0 ? "M" : "L"} ${xForDate(point.date)} ${yForValue(
-          point.handicapIndex
-        )}`
-    )
-    .join(" ");
+function formatDate(value: string) {
+  const normalized = value.includes("T")
+    ? value
+    : `${value}T00:00:00`;
+
+  const date = new Date(normalized);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString("en-US", {
+    month: "numeric",
+    day: "numeric",
+    year: "2-digit",
+  });
+}
+
+function formatMonth(value: string) {
+  const normalized = value.includes("T")
+    ? value
+    : `${value}T00:00:00`;
+
+  const date = new Date(normalized);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+  });
+}
+
+function getConfidence(
+  competitionRounds: number,
+  generalRounds: number
+): ConfidenceLevel {
+  const totalRounds = competitionRounds + generalRounds;
+
+  if (
+    competitionRounds >= 10 &&
+    generalRounds >= 20 &&
+    totalRounds >= 30
+  ) {
+    return {
+      label: "Very High",
+      stars: 5,
+      description: "Strong samples exist in both round categories.",
+    };
+  }
+
+  if (
+    competitionRounds >= 5 &&
+    generalRounds >= 15 &&
+    totalRounds >= 20
+  ) {
+    return {
+      label: "High",
+      stars: 4,
+      description: "The sample is sufficient for committee review.",
+    };
+  }
+
+  if (competitionRounds >= 5 && totalRounds >= 15) {
+    return {
+      label: "Moderate",
+      stars: 3,
+      description:
+        "The evidence is useful, although additional rounds would help.",
+    };
+  }
+
+  return {
+    label: "Low",
+    stars: 2,
+    description:
+      "The sample is limited and should be interpreted cautiously.",
+  };
+}
+
+function getRecommendation(
+  competitionAdvantage: number | null,
+  confidence: ConfidenceLevel
+): Recommendation {
+  if (competitionAdvantage == null) {
+    return {
+      interviewPlayer: false,
+      reviewExceptionalScores: false,
+      adjustHandicap: false,
+      noAction: true,
+    };
+  }
+
+  if (competitionAdvantage >= 4 && confidence.stars >= 3) {
+    return {
+      interviewPlayer: true,
+      reviewExceptionalScores: true,
+      adjustHandicap: false,
+      noAction: false,
+    };
+  }
+
+  if (competitionAdvantage >= 1.5) {
+    return {
+      interviewPlayer: false,
+      reviewExceptionalScores: true,
+      adjustHandicap: false,
+      noAction: false,
+    };
+  }
+
+  return {
+    interviewPlayer: false,
+    reviewExceptionalScores: false,
+    adjustHandicap: false,
+    noAction: true,
+  };
 }
 
 export function AuditTrendChart({
@@ -62,8 +168,6 @@ export function AuditTrendChart({
   generalPoints: AuditHandicapTrendPoint[];
   currentHandicap: number | null;
 }) {
-  const [hovered, setHovered] = useState<HoveredPoint | null>(null);
-
   const competition = useMemo(
     () =>
       [...competitionPoints].sort(
@@ -80,12 +184,17 @@ export function AuditTrendChart({
     [generalPoints]
   );
 
-  const allPoints = useMemo(
+  const allRounds = useMemo(
     () =>
       [...competition, ...general].sort(
         (a, b) => dateToTime(a.date) - dateToTime(b.date)
       ),
     [competition, general]
+  );
+
+  const timelineRounds = useMemo(
+    () => allRounds.slice(-20),
+    [allRounds]
   );
 
   const latestCompetitionHi =
@@ -94,391 +203,590 @@ export function AuditTrendChart({
       : null;
 
   const latestGeneralHi =
-    general.length > 0 ? general[general.length - 1].handicapIndex : null;
+    general.length > 0
+      ? general[general.length - 1].handicapIndex
+      : null;
 
-  const gap =
-    latestCompetitionHi == null || latestGeneralHi == null
-      ? null
-      : latestGeneralHi - latestCompetitionHi;
+  const competitionAdvantage =
+    currentHandicap != null && latestCompetitionHi != null
+      ? Number(
+          (currentHandicap - latestCompetitionHi).toFixed(1)
+        )
+      : null;
 
-  if (!allPoints.length) {
-    return (
-      <section className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
-        <h2 className="text-xl font-bold text-gray-950">
-          Competition vs General Play Handicap
-        </h2>
+  const generalDifference =
+    currentHandicap != null && latestGeneralHi != null
+      ? Number((currentHandicap - latestGeneralHi).toFixed(1))
+      : null;
 
-        <p className="mt-3 text-sm text-gray-600">
-          Not enough official rounds are available to calculate a category
-          handicap trend.
-        </p>
-      </section>
-    );
-  }
-
-  const width = 1100;
-  const height = 440;
-  const padding = { top: 36, right: 36, bottom: 78, left: 66 };
-
-  const timestamps = allPoints.map((point) => dateToTime(point.date));
-  const minTime = Math.min(...timestamps);
-  const maxTime = Math.max(...timestamps);
-  const timeRange = Math.max(1, maxTime - minTime);
-
-  const handicapValues = allPoints.map((point) => point.handicapIndex);
-
-  if (currentHandicap != null && Number.isFinite(currentHandicap)) {
-    handicapValues.push(currentHandicap);
-  }
-
-  const rawMin = Math.min(...handicapValues);
-  const rawMax = Math.max(...handicapValues);
-  const minValue = Math.floor(rawMin - 1);
-  const maxValue = Math.ceil(rawMax + 1);
-  const valueRange = Math.max(1, maxValue - minValue);
-
-  const xForDate = (date: string) =>
-    padding.left +
-    ((dateToTime(date) - minTime) / timeRange) *
-      (width - padding.left - padding.right);
-
-  // Standard orientation requested: larger handicap values are higher.
-  const yForValue = (value: number) =>
-    padding.top +
-    ((maxValue - value) / valueRange) *
-      (height - padding.top - padding.bottom);
-
-  const yTicks = Array.from({ length: 6 }, (_, index) => {
-    const value = maxValue - (index / 5) * valueRange;
-    return Number(value.toFixed(1));
-  });
-
-  const uniqueDates = Array.from(
-    new Set(allPoints.map((point) => point.date))
-  ).sort((a, b) => dateToTime(a) - dateToTime(b));
-
-  const maxDateTicks = 8;
-  const dateTickStep = Math.max(
-    1,
-    Math.ceil(uniqueDates.length / maxDateTicks)
+  const confidence = getConfidence(
+    competition.length,
+    general.length
   );
 
-  const dateTicks = uniqueDates.filter(
-    (_, index) =>
-      index % dateTickStep === 0 || index === uniqueDates.length - 1
+  const recommendation = getRecommendation(
+    competitionAdvantage,
+    confidence
   );
 
-  const competitionPath = buildPath(competition, xForDate, yForValue);
-  const generalPath = buildPath(general, xForDate, yForValue);
+  const totalRounds = competition.length + general.length;
 
   return (
-    <section className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-gray-950">
-            Competition vs General Play Handicap
-          </h2>
+    <section className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <CurrentHandicapCard value={currentHandicap} />
 
-          <p className="mt-1 max-w-2xl text-sm text-gray-600">
-            Rolling category Handicap Index after each round, using up to the
-            previous 20 rounds in that category. Higher handicap values are at
-            the top; lower competition handicaps appear lower on the chart.
-          </p>
-        </div>
+        <ComparisonCard
+          label="Competition HI"
+          value={latestCompetitionHi}
+          difference={competitionAdvantage}
+          currentHandicap={currentHandicap}
+          positiveMeansAdvantage
+        />
 
-        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-          <SummaryChip
-            label="Current GHIN HI"
-            value={formatNumber(currentHandicap)}
-            className="border-blue-200 bg-blue-50 text-blue-900"
-          />
+        <ComparisonCard
+          label="General Play HI"
+          value={latestGeneralHi}
+          difference={generalDifference}
+          currentHandicap={currentHandicap}
+          positiveMeansAdvantage
+        />
 
-          <SummaryChip
-            label={`Competition HI (${competition.length})`}
-            value={formatNumber(latestCompetitionHi)}
-            className="border-green-200 bg-green-50 text-green-900"
-          />
-
-          <SummaryChip
-            label={`General Play HI (${general.length})`}
-            value={formatNumber(latestGeneralHi)}
-            className="border-gray-300 bg-gray-50 text-gray-900"
-          />
-
-          <SummaryChip
-            label="General − Competition"
-            value={
-              gap == null
-                ? "-"
-                : `${gap >= 0 ? "+" : ""}${gap.toFixed(1)}`
-            }
-            className="border-amber-200 bg-amber-50 text-amber-900"
-          />
-        </div>
+        <AdvantageCard value={competitionAdvantage} />
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-5 text-sm font-semibold">
-        <span className="flex items-center gap-2 text-green-800">
-          <span className="h-3 w-3 rounded-full bg-green-600" />
-          Competition Handicap
-        </span>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+        <MiniRoundTimeline rounds={timelineRounds} />
 
-        <span className="flex items-center gap-2 text-gray-800">
-          <span className="h-3 w-3 rounded-full bg-gray-500" />
-          General Play Handicap
-        </span>
-
-        {currentHandicap != null && (
-          <span className="flex items-center gap-2 text-blue-800">
-            <span className="h-0 w-5 border-t-2 border-dashed border-blue-600" />
-            Current GHIN HI {currentHandicap.toFixed(1)}
-          </span>
-        )}
+        <ConfidencePanel
+          confidence={confidence}
+          competitionRounds={competition.length}
+          generalRounds={general.length}
+          totalRounds={totalRounds}
+        />
       </div>
 
-      {gap != null && (
-        <div
-          className={`mt-4 rounded-lg border px-4 py-3 text-sm font-bold ${
-            gap > 0
-              ? "border-green-200 bg-green-50 text-green-900"
-              : gap < 0
-                ? "border-red-200 bg-red-50 text-red-900"
-                : "border-gray-300 bg-gray-50 text-gray-900"
-          }`}
-        >
-          {gap > 0
-            ? `Competition-only handicap is ${gap.toFixed(
-                1
-              )} strokes lower than general play.`
-            : gap < 0
-              ? `Competition-only handicap is ${Math.abs(gap).toFixed(
-                  1
-                )} strokes higher than general play.`
-              : "Competition and general-play handicaps are equal."}
-        </div>
-      )}
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+        <KeyInsightPanel
+          currentHandicap={currentHandicap}
+          competitionHandicap={latestCompetitionHi}
+          generalHandicap={latestGeneralHi}
+          competitionAdvantage={competitionAdvantage}
+        />
 
-      <div className="mt-4 overflow-x-auto">
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          className="w-full min-w-[840px]"
-          role="img"
-          aria-label="Rolling competition and general play handicap indexes over calendar time"
-        >
-          {yTicks.map((tick) => {
-            const y = yForValue(tick);
-
-            return (
-              <g key={tick}>
-                <line
-                  x1={padding.left}
-                  x2={width - padding.right}
-                  y1={y}
-                  y2={y}
-                  stroke="#d1d5db"
-                  strokeDasharray="4 4"
-                />
-
-                <text
-                  x={padding.left - 12}
-                  y={y + 4}
-                  textAnchor="end"
-                  className="fill-gray-600 text-[12px]"
-                >
-                  {tick.toFixed(1)}
-                </text>
-              </g>
-            );
-          })}
-
-          {dateTicks.map((date) => {
-            const x = xForDate(date);
-
-            return (
-              <g key={date}>
-                <line
-                  x1={x}
-                  x2={x}
-                  y1={padding.top}
-                  y2={height - padding.bottom}
-                  stroke="#f3f4f6"
-                />
-
-                <text
-                  x={x}
-                  y={height - 38}
-                  textAnchor="middle"
-                  className="fill-gray-700 text-[12px]"
-                >
-                  {formatDate(date)}
-                </text>
-              </g>
-            );
-          })}
-
-          {latestCompetitionHi != null && latestGeneralHi != null && (
-            <rect
-              x={padding.left}
-              y={Math.min(
-                yForValue(latestCompetitionHi),
-                yForValue(latestGeneralHi)
-              )}
-              width={width - padding.left - padding.right}
-              height={Math.abs(
-                yForValue(latestCompetitionHi) -
-                  yForValue(latestGeneralHi)
-              )}
-              fill={latestCompetitionHi < latestGeneralHi ? "#dcfce7" : "#fee2e2"}
-              opacity="0.38"
-            />
-          )}
-
-          {currentHandicap != null && Number.isFinite(currentHandicap) && (
-            <>
-              <line
-                x1={padding.left}
-                x2={width - padding.right}
-                y1={yForValue(currentHandicap)}
-                y2={yForValue(currentHandicap)}
-                stroke="#2563eb"
-                strokeWidth="2"
-                strokeDasharray="8 6"
-              />
-
-              <text
-                x={width - padding.right}
-                y={yForValue(currentHandicap) - 8}
-                textAnchor="end"
-                className="fill-blue-700 text-[12px] font-bold"
-              >
-                Current GHIN HI {currentHandicap.toFixed(1)}
-              </text>
-            </>
-          )}
-
-          {competitionPath && (
-            <path
-              d={competitionPath}
-              fill="none"
-              stroke="#15803d"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          )}
-
-          {generalPath && (
-            <path
-              d={generalPath}
-              fill="none"
-              stroke="#6b7280"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          )}
-
-          {[
-            { points: competition, fill: "#15803d" },
-            { points: general, fill: "#6b7280" },
-          ].flatMap(({ points, fill }) =>
-            points.map((point) => {
-              const x = xForDate(point.date);
-              const y = yForValue(point.handicapIndex);
-              const isHovered = hovered?.point.id === point.id;
-
-              return (
-                <g
-                  key={`${point.category}-${point.id}`}
-                  tabIndex={0}
-                  className="cursor-pointer outline-none"
-                  onMouseEnter={() => setHovered({ point, x, y })}
-                  onMouseLeave={() => setHovered(null)}
-                  onFocus={() => setHovered({ point, x, y })}
-                  onBlur={() => setHovered(null)}
-                >
-                  <circle
-                    cx={x}
-                    cy={y}
-                    r={isHovered ? 8 : 6}
-                    fill={fill}
-                    stroke="white"
-                    strokeWidth="2"
-                  />
-                </g>
-              );
-            })
-          )}
-
-          {hovered && (
-            <foreignObject
-              x={Math.min(width - 290, Math.max(8, hovered.x - 130))}
-              y={Math.min(
-                height - padding.bottom - 142,
-                Math.max(8, hovered.y - 150)
-              )}
-              width="280"
-              height="138"
-            >
-              <div className="rounded-lg border border-gray-300 bg-white p-3 text-xs shadow-xl">
-                <div className="font-bold text-gray-950">
-                  {hovered.point.category} Handicap
-                </div>
-
-                <div className="mt-1 text-gray-700">
-                  {formatDate(hovered.point.date, true)}
-                </div>
-
-                <div className="mt-1 text-gray-700">
-                  {hovered.point.course ?? "Unknown course"}
-                </div>
-
-                <div className="mt-2 grid grid-cols-3 gap-3">
-                  <span>
-                    HI:{" "}
-                    <strong>{hovered.point.handicapIndex.toFixed(1)}</strong>
-                  </span>
-
-                  <span>
-                    Score: <strong>{hovered.point.score ?? "-"}</strong>
-                  </span>
-
-                  <span>
-                    Diff:{" "}
-                    <strong>{hovered.point.differential.toFixed(1)}</strong>
-                  </span>
-                </div>
-              </div>
-            </foreignObject>
-          )}
-
-          <text
-            x={width / 2}
-            y={height - 10}
-            textAnchor="middle"
-            className="fill-gray-700 text-[13px] font-semibold"
-          >
-            Round date
-          </text>
-        </svg>
+        <RecommendedActionPanel
+          recommendation={recommendation}
+        />
       </div>
     </section>
   );
 }
 
-function SummaryChip({
-  label,
+function CurrentHandicapCard({
   value,
-  className,
 }: {
-  label: string;
-  value: string;
-  className: string;
+  value: number | null;
 }) {
   return (
-    <div className={`rounded-lg border px-3 py-2 ${className}`}>
-      <div className="text-xs font-bold">{label}</div>
-      <div className="mt-0.5 text-xl font-black">{value}</div>
+    <div className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
+      <div className="text-xs font-bold uppercase tracking-wide text-gray-600">
+        Current GHIN HI
+      </div>
+
+      <div className="mt-1 text-3xl font-black text-gray-950">
+        {formatNumber(value)}
+      </div>
+
+      <div className="mt-2 text-xs text-gray-500">
+        Baseline for category comparisons
+      </div>
+    </div>
+  );
+}
+
+function ComparisonCard({
+  label,
+  value,
+  difference,
+  currentHandicap,
+  positiveMeansAdvantage,
+}: {
+  label: string;
+  value: number | null;
+  difference: number | null;
+  currentHandicap: number | null;
+  positiveMeansAdvantage?: boolean;
+}) {
+  const comparison = getComparisonDisplay(
+    difference,
+    positiveMeansAdvantage
+  );
+
+  return (
+    <div className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
+      <div className="text-xs font-bold uppercase tracking-wide text-gray-600">
+        {label}
+      </div>
+
+      <div className="mt-1 flex flex-wrap items-baseline gap-3">
+        <span className="text-3xl font-black text-gray-950">
+          {formatNumber(value)}
+        </span>
+
+        <span
+          className={`text-lg font-black ${comparison.className}`}
+        >
+          {comparison.symbol} {comparison.value}
+        </span>
+      </div>
+
+      <div className="mt-2 text-xs font-semibold text-gray-700">
+        {comparison.description}
+      </div>
+
+      <div className="mt-1 text-xs text-gray-500">
+        Compared with Current GHIN HI{" "}
+        {formatNumber(currentHandicap)}
+      </div>
+    </div>
+  );
+}
+
+function getComparisonDisplay(
+  difference: number | null,
+  positiveMeansAdvantage = false
+) {
+  if (difference == null) {
+    return {
+      symbol: "",
+      value: "-",
+      description: "Comparison unavailable",
+      className: "text-gray-500",
+    };
+  }
+
+  if (difference > 0) {
+    return {
+      symbol: "▲",
+      value: difference.toFixed(1),
+      description: positiveMeansAdvantage
+        ? `${difference.toFixed(1)} lower than Current GHIN`
+        : `${difference.toFixed(1)} higher than Current GHIN`,
+      className: "text-green-700",
+    };
+  }
+
+  if (difference < 0) {
+    return {
+      symbol: "▼",
+      value: Math.abs(difference).toFixed(1),
+      description: positiveMeansAdvantage
+        ? `${Math.abs(difference).toFixed(
+            1
+          )} higher than Current GHIN`
+        : `${Math.abs(difference).toFixed(
+            1
+          )} lower than Current GHIN`,
+      className: "text-red-700",
+    };
+  }
+
+  return {
+    symbol: "—",
+    value: "0.0",
+    description: "Equal to Current GHIN",
+    className: "text-gray-600",
+  };
+}
+
+function AdvantageCard({
+  value,
+}: {
+  value: number | null;
+}) {
+  const severityClass =
+    value != null && value >= 4
+      ? "text-red-700"
+      : value != null && value >= 1.5
+        ? "text-orange-700"
+        : "text-gray-950";
+
+  return (
+    <div className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
+      <div className="text-xs font-bold uppercase tracking-wide text-gray-600">
+        Competition Advantage vs GHIN
+      </div>
+
+      <div
+        className={`mt-1 text-3xl font-black ${severityClass}`}
+      >
+        {value == null
+          ? "-"
+          : `${Math.max(0, value).toFixed(1)} STROKES`}
+      </div>
+
+      <div className="mt-2 text-xs text-gray-500">
+        Higher values indicate a larger review concern.
+      </div>
+    </div>
+  );
+}
+
+function MiniRoundTimeline({
+  rounds,
+}: {
+  rounds: AuditHandicapTrendPoint[];
+}) {
+  if (!rounds.length) {
+    return (
+      <Panel title="Mini Round Timeline">
+        <p className="text-sm text-gray-600">
+          No official round history is available.
+        </p>
+      </Panel>
+    );
+  }
+
+  const oldest = rounds[0];
+  const newest = rounds[rounds.length - 1];
+
+  return (
+    <Panel title="Mini Round Timeline">
+      <div className="flex flex-wrap items-center gap-5 text-xs font-semibold text-gray-700">
+        <LegendDot
+          className="bg-green-700"
+          label="Competition round"
+        />
+
+        <LegendDot
+          className="bg-gray-400"
+          label="General play round"
+        />
+      </div>
+
+      <div className="mt-7">
+        <div className="relative px-2">
+          <div className="absolute left-2 right-2 top-3 h-0.5 bg-gray-300" />
+
+          <div
+            className="relative grid"
+            style={{
+              gridTemplateColumns: `repeat(${rounds.length}, minmax(0, 1fr))`,
+            }}
+          >
+            {rounds.map((round, index) => {
+              const competitionRound =
+                round.category === "Competition";
+
+              return (
+                <div
+                  key={`${round.category}-${round.id}-${index}`}
+                  className="group relative flex min-w-0 flex-col items-center"
+                >
+                  <div
+                    className={[
+                      "relative z-10 h-6 w-6 rounded-full border-2 border-white shadow-sm",
+                      competitionRound
+                        ? "bg-green-700"
+                        : "bg-gray-400",
+                    ].join(" ")}
+                  />
+
+                  <div className="mt-2 hidden max-w-[48px] truncate text-[10px] font-semibold text-gray-600 sm:block">
+                    {formatMonth(round.date)}
+                  </div>
+
+                  <div className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden w-56 -translate-x-1/2 rounded-lg border border-gray-300 bg-white p-3 text-left text-xs shadow-xl group-hover:block">
+                    <div className="font-black text-gray-950">
+                      {round.category}
+                    </div>
+
+                    <div className="mt-1 text-gray-700">
+                      {formatDate(round.date)}
+                    </div>
+
+                    <div className="mt-1 truncate text-gray-700">
+                      {round.course ?? "Unknown course"}
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-3 gap-2">
+                      <span>
+                        Score
+                        <strong className="block">
+                          {round.score ?? "-"}
+                        </strong>
+                      </span>
+
+                      <span>
+                        Diff
+                        <strong className="block">
+                          {round.differential.toFixed(1)}
+                        </strong>
+                      </span>
+
+                      <span>
+                        HI
+                        <strong className="block">
+                          {round.handicapIndex.toFixed(1)}
+                        </strong>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="mt-5 flex justify-between text-xs font-semibold text-gray-600">
+          <span>Oldest: {formatDate(oldest.date)}</span>
+          <span>Most recent: {formatDate(newest.date)}</span>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function ConfidencePanel({
+  confidence,
+  competitionRounds,
+  generalRounds,
+  totalRounds,
+}: {
+  confidence: ConfidenceLevel;
+  competitionRounds: number;
+  generalRounds: number;
+  totalRounds: number;
+}) {
+  return (
+    <Panel title="Confidence / Evidence">
+      <div
+        className="flex gap-1"
+        aria-label={`${confidence.stars} out of 5 confidence stars`}
+      >
+        {Array.from({ length: 5 }, (_, index) => (
+          <span
+            key={index}
+            className={
+              index < confidence.stars
+                ? "text-3xl leading-none text-green-800"
+                : "text-3xl leading-none text-gray-300"
+            }
+          >
+            ★
+          </span>
+        ))}
+      </div>
+
+      <div className="mt-3 text-xl font-black text-green-900">
+        {confidence.label}
+      </div>
+
+      <p className="mt-1 text-xs leading-5 text-gray-600">
+        {confidence.description}
+      </p>
+
+      <div className="mt-5 space-y-3">
+        <EvidenceItem
+          passed={generalRounds >= 15}
+          text={`${generalRounds} General Play rounds`}
+        />
+
+        <EvidenceItem
+          passed={competitionRounds >= 5}
+          text={`${competitionRounds} Competition rounds`}
+        />
+
+        <EvidenceItem
+          passed={totalRounds >= 20}
+          text={`${totalRounds} total category rounds`}
+        />
+
+        <EvidenceItem
+          passed={competitionRounds >= 5 && generalRounds >= 15}
+          text="Category sample meets review threshold"
+        />
+      </div>
+    </Panel>
+  );
+}
+
+function RecommendedActionPanel({
+  recommendation,
+}: {
+  recommendation: Recommendation;
+}) {
+  return (
+    <Panel title="Recommended Action">
+      <div className="space-y-4">
+        <RecommendationItem
+          checked={recommendation.interviewPlayer}
+          label="Interview player"
+        />
+
+        <RecommendationItem
+          checked={recommendation.reviewExceptionalScores}
+          label="Review exceptional scores"
+        />
+
+        <RecommendationItem
+          checked={recommendation.adjustHandicap}
+          label="Adjust Handicap Index"
+        />
+
+        <RecommendationItem
+          checked={recommendation.noAction}
+          label="No action"
+        />
+      </div>
+
+      <p className="mt-5 text-xs leading-5 text-gray-500">
+        These recommendations are screening indicators. Final
+        action remains a handicap committee decision.
+      </p>
+    </Panel>
+  );
+}
+
+function KeyInsightPanel({
+  currentHandicap,
+  competitionHandicap,
+  generalHandicap,
+  competitionAdvantage,
+}: {
+  currentHandicap: number | null;
+  competitionHandicap: number | null;
+  generalHandicap: number | null;
+  competitionAdvantage: number | null;
+}) {
+  let insight =
+    "Insufficient data is available to compare category Handicap Indexes.";
+
+  if (
+    currentHandicap != null &&
+    competitionHandicap != null &&
+    competitionAdvantage != null
+  ) {
+    if (competitionAdvantage > 0) {
+      insight = `The Competition Handicap Index is ${competitionAdvantage.toFixed(
+        1
+      )} strokes lower than the Current GHIN Handicap Index.`;
+    } else if (competitionAdvantage < 0) {
+      insight = `The Competition Handicap Index is ${Math.abs(
+        competitionAdvantage
+      ).toFixed(
+        1
+      )} strokes higher than the Current GHIN Handicap Index.`;
+    } else {
+      insight =
+        "The Competition Handicap Index equals the Current GHIN Handicap Index.";
+    }
+
+    if (generalHandicap != null) {
+      const generalGap = generalHandicap - competitionHandicap;
+
+      if (generalGap > 0) {
+        insight += ` General Play HI is ${generalGap.toFixed(
+          1
+        )} strokes higher than Competition HI.`;
+      } else if (generalGap < 0) {
+        insight += ` General Play HI is ${Math.abs(
+          generalGap
+        ).toFixed(
+          1
+        )} strokes lower than Competition HI.`;
+      }
+    }
+  }
+
+  return (
+    <Panel title="Key Insight">
+      <p className="max-w-3xl text-sm leading-6 text-gray-800">
+        {insight}
+      </p>
+    </Panel>
+  );
+}
+
+function Panel({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
+      <h2 className="mb-4 text-base font-black uppercase tracking-wide text-green-900">
+        {title}
+      </h2>
+
+      {children}
+    </div>
+  );
+}
+
+function LegendDot({
+  className,
+  label,
+}: {
+  className: string;
+  label: string;
+}) {
+  return (
+    <span className="flex items-center gap-2">
+      <span className={`h-3 w-3 rounded-full ${className}`} />
+      {label}
+    </span>
+  );
+}
+
+function EvidenceItem({
+  passed,
+  text,
+}: {
+  passed: boolean;
+  text: string;
+}) {
+  return (
+    <div className="flex items-start gap-2 text-sm text-gray-800">
+      <span
+        className={[
+          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-xs font-black",
+          passed
+            ? "border-green-700 text-green-700"
+            : "border-amber-600 text-amber-700",
+        ].join(" ")}
+      >
+        {passed ? "✓" : "!"}
+      </span>
+
+      <span>{text}</span>
+    </div>
+  );
+}
+
+function RecommendationItem({
+  checked,
+  label,
+}: {
+  checked: boolean;
+  label: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 text-sm font-semibold text-gray-900">
+      <span
+        className={[
+          "flex h-5 w-5 shrink-0 items-center justify-center border text-sm font-black",
+          checked
+            ? "border-green-800 bg-green-800 text-white"
+            : "border-gray-500 bg-white text-transparent",
+        ].join(" ")}
+      >
+        ✓
+      </span>
+
+      <span>{label}</span>
     </div>
   );
 }
