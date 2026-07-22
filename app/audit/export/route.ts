@@ -194,31 +194,63 @@ function buildBreakdownRow(
 async function getAllOfficialRounds(): Promise<RoundRow[]> {
   const supabase = createSupabaseServerClient();
   const pageSize = 1000;
-  const allRows: RoundRow[] = [];
+
+  // Use a Map keyed by round ID so duplicate pages or unstable ordering
+  // can never produce duplicate rounds.
+  const roundsById = new Map<string, RoundRow>();
 
   for (let start = 0; ; start += pageSize) {
     const { data, error } = await supabase
       .from("player_display_rounds")
       .select(
-        "id, player_id, played_at, gross_score, adjusted_gross_score, differential, score_type, course_name, tee_name, counts_for_hi"
+        `
+          id,
+          player_id,
+          played_at,
+          gross_score,
+          adjusted_gross_score,
+          differential,
+          score_type,
+          course_name,
+          tee_name,
+          counts_for_hi
+        `
       )
       .eq("counts_for_hi", true)
       .not("played_at", "is", null)
       .not("differential", "is", null)
       .order("played_at", { ascending: false })
+      .order("id", { ascending: false })
       .range(start, start + pageSize - 1);
 
     if (error) {
-      throw new Error(`Unable to load official rounds: ${error.message}`);
+      throw new Error(
+        `Unable to load official rounds: ${error.message}`
+      );
     }
 
     const page = (data ?? []) as RoundRow[];
-    allRows.push(...page);
 
-    if (page.length < pageSize) break;
+    for (const round of page) {
+      roundsById.set(round.id, round);
+    }
+
+    if (page.length < pageSize) {
+      break;
+    }
   }
 
-  return allRows;
+  // Return in the same order expected by the rest of the report.
+  return Array.from(roundsById.values()).sort((a, b) => {
+    const dateDiff =
+      new Date(b.played_at).getTime() - new Date(a.played_at).getTime();
+
+    if (dateDiff !== 0) {
+      return dateDiff;
+    }
+
+    return b.id.localeCompare(a.id);
+  });
 }
 
 export async function GET() {
