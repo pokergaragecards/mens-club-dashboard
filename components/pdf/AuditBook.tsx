@@ -31,6 +31,7 @@ const COLORS = {
   red800: "#991b1b",
   red700: "#b91c1c",
   red100: "#fee2e2",
+  red50: "#fef2f2",
   gray950: "#111827",
   gray900: "#17211b",
   gray700: "#374151",
@@ -104,9 +105,9 @@ const s = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 6,
     borderWidth: 1,
-    borderColor: COLORS.green800,
-    backgroundColor: "#e8f1eb",
-    color: COLORS.green900,
+    borderColor: COLORS.green900,
+    backgroundColor: COLORS.green900,
+    color: COLORS.white,
     fontFamily: "Helvetica-Bold",
     fontSize: 10,
     textAlign: "center",
@@ -166,6 +167,16 @@ const s = StyleSheet.create({
   competitionCard: {
     borderColor: COLORS.green200,
     backgroundColor: COLORS.green50,
+  },
+  competitionAlertCard: {
+    borderColor: "#fca5a5",
+    backgroundColor: COLORS.red50,
+  },
+  competitionAlertLabel: {
+    color: COLORS.red700,
+  },
+  competitionAlertValue: {
+    color: COLORS.red700,
   },
   generalCard: {
     borderColor: COLORS.gray300,
@@ -407,20 +418,37 @@ const s = StyleSheet.create({
     marginBottom: 6,
     paddingVertical: 5,
     paddingHorizontal: 7,
+    borderWidth: 1,
+    borderColor: COLORS.green200,
     borderLeftWidth: 3,
     borderLeftColor: COLORS.green700,
     backgroundColor: COLORS.green50,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  insightAlert: {
+    borderColor: "#fca5a5",
+    borderLeftColor: COLORS.red700,
+    backgroundColor: COLORS.red50,
   },
   insightTitle: {
+    width: "18%",
     fontSize: 7,
     fontFamily: "Helvetica-Bold",
     color: COLORS.green900,
-    marginBottom: 2,
+  },
+  insightTitleAlert: {
+    color: COLORS.red700,
   },
   insightText: {
+    width: "82%",
     fontSize: 6.3,
     lineHeight: 1.3,
     color: COLORS.gray700,
+  },
+  insightEmphasis: {
+    color: COLORS.red700,
+    fontFamily: "Helvetica-Bold",
   },
   section: {
     fontSize: 8.5,
@@ -593,23 +621,23 @@ function comparisonData(
 
   if (gap > 0) {
     return {
-      text: `▼ ${gap.toFixed(1)} vs Current GHIN`,
-      detail: `${gap.toFixed(1)} lower than Current GHIN`,
+      text: `▼ ${gap.toFixed(1)} vs Current GHIN Handicap Index`,
+      detail: `${gap.toFixed(1)} lower than Current GHIN Handicap Index`,
       tone: "good" as const,
     };
   }
 
   if (gap < 0) {
     return {
-      text: `▲ ${Math.abs(gap).toFixed(1)} vs Current GHIN`,
-      detail: `${Math.abs(gap).toFixed(1)} higher than Current GHIN`,
+      text: `▲ ${Math.abs(gap).toFixed(1)} vs Current GHIN Handicap Index`,
+      detail: `${Math.abs(gap).toFixed(1)} higher than Current GHIN Handicap Index`,
       tone: "bad" as const,
     };
   }
 
   return {
-    text: "— 0.0 vs Current GHIN",
-    detail: "Equal to Current GHIN",
+    text: "— 0.0 vs Current GHIN Handicap Index",
+    detail: "Equal to Current GHIN Handicap Index",
     tone: "neutral" as const,
   };
 }
@@ -635,7 +663,7 @@ function ComparisonText({
 function CurrentCard({ value }: { value: string }) {
   return (
     <View style={[s.card, s.currentCard]}>
-      <Text style={s.cardLabel}>CURRENT GHIN HI</Text>
+      <Text style={s.cardLabel}>CURRENT GHIN HANDICAP INDEX</Text>
       <Text style={s.cardValue}>{value}</Text>
       <Text style={s.cardDescription}>Official comparison baseline</Text>
     </View>
@@ -653,19 +681,57 @@ function CategoryCard({
   comparison: ReturnType<typeof comparisonData>;
   cardType: "competition" | "general";
 }) {
-  const cardStyle =
-    cardType === "competition"
-      ? [s.card, s.competitionCard]
-      : [s.card, s.generalCard];
+  const isCompetitionAlert =
+    cardType === "competition" && comparison.tone === "good";
+
+  if (cardType === "general") {
+    return (
+      <View style={[s.card, s.generalCard]}>
+        <Text style={s.cardLabel}>{label}</Text>
+        <Text style={s.cardValue}>{value}</Text>
+      </View>
+    );
+  }
 
   return (
-    <View style={cardStyle}>
-      <Text style={s.cardLabel}>{label}</Text>
-      <Text style={s.cardValue}>{value}</Text>
+    <View
+      style={
+        isCompetitionAlert
+          ? [s.card, s.competitionCard, s.competitionAlertCard]
+          : [s.card, s.competitionCard]
+      }
+    >
+      <Text
+        style={
+          isCompetitionAlert
+            ? [s.cardLabel, s.competitionAlertLabel]
+            : s.cardLabel
+        }
+      >
+        {label}
+      </Text>
+
+      <Text
+        style={
+          isCompetitionAlert
+            ? [s.cardValue, s.competitionAlertValue]
+            : s.cardValue
+        }
+      >
+        {value}
+      </Text>
+
       <View style={s.cardComparison}>
-        <ComparisonText text={comparison.text} tone={comparison.tone} />
+        {isCompetitionAlert ? (
+          <Text style={s.comparisonBad}>{comparison.text}</Text>
+        ) : (
+          <ComparisonText text={comparison.text} tone={comparison.tone} />
+        )}
       </View>
-      <Text style={s.cardDescription}>{comparison.detail}</Text>
+
+      {comparison.detail ? (
+        <Text style={s.cardDescription}>{comparison.detail}</Text>
+      ) : null}
     </View>
   );
 }
@@ -680,7 +746,9 @@ function AdvantageCard({ player }: { player: AuditPlayerReport }) {
     <View style={[s.card, s.cardLast, s.advantageCard]}>
       <Text style={s.cardLabel}>COMPETITION ADVANTAGE</Text>
       <Text style={advantageStyle(player.difference)}>{value}</Text>
-      <Text style={s.cardDescription}>Current GHIN minus Competition HI</Text>
+      <Text style={s.cardDescription}>
+        Current GHIN Handicap Index minus Competition Handicap Index
+      </Text>
     </View>
   );
 }
@@ -699,13 +767,13 @@ function HandicapCards({ player }: { player: AuditPlayerReport }) {
     <View style={s.cards}>
       <CurrentCard value={n(player.currentIndex)} />
       <CategoryCard
-        label="COMPETITION HI"
+        label="COMPETITION HANDICAP INDEX"
         value={n(player.competitionIndex)}
         comparison={competitionComparison}
         cardType="competition"
       />
       <CategoryCard
-        label="GENERAL PLAY HI"
+        label="GENERAL PLAY HANDICAP INDEX"
         value={n(player.generalIndex)}
         comparison={generalComparison}
         cardType="general"
@@ -724,7 +792,7 @@ function MiniTimeline({ player }: { player: AuditPlayerReport }) {
 
   return (
     <View style={s.timelinePanel}>
-      <Text style={s.panelTitle}>RECENT ROUND ACTIVITY</Text>
+      <Text style={s.panelTitle}>RECENT ROUND ACTIVITY (Last 20)</Text>
 
       <View style={s.timelineLegend}>
         <View style={s.legendItem}>
@@ -764,8 +832,14 @@ function MiniTimeline({ player }: { player: AuditPlayerReport }) {
           </View>
 
           <View style={s.timelineDates}>
-            <Text>{shortDate(rounds[0].playedAt)}</Text>
-            <Text>{shortDate(rounds[rounds.length - 1].playedAt)}</Text>
+            <View>
+              <Text style={{ fontFamily: "Helvetica-Bold" }}>Older</Text>
+              <Text>{shortDate(rounds[0].playedAt)}</Text>
+            </View>
+            <View style={{ alignItems: "flex-end" }}>
+              <Text style={{ fontFamily: "Helvetica-Bold" }}>More Recent</Text>
+              <Text>{shortDate(rounds[rounds.length - 1].playedAt)}</Text>
+            </View>
           </View>
 
           <Text style={s.timelineSummary}>
@@ -838,7 +912,7 @@ function ConfidencePanel({ player }: { player: AuditPlayerReport }) {
 
   return (
     <View style={s.confidencePanel}>
-      <Text style={s.panelTitle}>CONFIDENCE</Text>
+      <Text style={s.panelTitle}>CONFIDENCE / EVIDENCE</Text>
 
       <View style={s.confidenceStars}>
         {Array.from({ length: 5 }, (_, index) => (
@@ -958,47 +1032,48 @@ function RecommendationPanel({ player }: { player: AuditPlayerReport }) {
 }
 
 function KeyInsight({ player }: { player: AuditPlayerReport }) {
-  let text =
-    "Insufficient data is available to compare the player's category Handicap Indexes.";
-
-  if (player.currentIndex !== null && player.competitionIndex !== null) {
-    const competitionGap = Number(
-      (player.currentIndex - player.competitionIndex).toFixed(1)
+  if (player.currentIndex === null || player.competitionIndex === null) {
+    return (
+      <View style={s.insight}>
+        <Text style={s.insightTitle}>KEY INSIGHT</Text>
+        <Text style={s.insightText}>
+          Insufficient data is available to compare the player&apos;s category
+          Handicap Indexes.
+        </Text>
+      </View>
     );
-
-    if (competitionGap > 0) {
-      text = `Competition HI is ${competitionGap.toFixed(
-        1
-      )} strokes lower than Current GHIN HI.`;
-    } else if (competitionGap < 0) {
-      text = `Competition HI is ${Math.abs(competitionGap).toFixed(
-        1
-      )} strokes higher than Current GHIN HI.`;
-    } else {
-      text = "Competition HI is equal to Current GHIN HI.";
-    }
-
-    if (player.generalIndex !== null) {
-      const categoryGap = Number(
-        (player.generalIndex - player.competitionIndex).toFixed(1)
-      );
-
-      if (categoryGap > 0) {
-        text += ` General Play HI is ${categoryGap.toFixed(
-          1
-        )} strokes higher than Competition HI.`;
-      } else if (categoryGap < 0) {
-        text += ` General Play HI is ${Math.abs(categoryGap).toFixed(
-          1
-        )} strokes lower than Competition HI.`;
-      }
-    }
   }
 
+  const competitionGap = Number(
+    (player.currentIndex - player.competitionIndex).toFixed(1)
+  );
+  const isLower = competitionGap > 0;
+
   return (
-    <View style={s.insight}>
-      <Text style={s.insightTitle}>KEY INSIGHT</Text>
-      <Text style={s.insightText}>{text}</Text>
+    <View style={isLower ? [s.insight, s.insightAlert] : s.insight}>
+      <Text
+        style={
+          isLower ? [s.insightTitle, s.insightTitleAlert] : s.insightTitle
+        }
+      >
+        KEY INSIGHT
+      </Text>
+
+      <Text style={s.insightText}>
+        Competition Handicap Index is{" "}
+        {isLower ? (
+          <Text style={s.insightEmphasis}>
+            {`${Math.abs(competitionGap).toFixed(1)} strokes lower`}
+          </Text>
+        ) : (
+          <Text>
+            {competitionGap === 0
+              ? "equal to"
+              : `${Math.abs(competitionGap).toFixed(1)} strokes higher`}
+          </Text>
+        )}{" "}
+        {competitionGap === 0 ? "" : "than "}Current GHIN Handicap Index.
+      </Text>
     </View>
   );
 }
@@ -1054,7 +1129,7 @@ function ScoreList({ values }: { values: number[] }) {
 function BreakdownTable({ rows }: { rows: AuditBreakdownRow[] }) {
   return (
     <View>
-      <Text style={s.section}>Last 20 Official Handicap Round Breakdown</Text>
+      <Text style={s.section}>LAST 20 OFFICIAL HANDICAP ROUND BREAKDOWN</Text>
 
       <View style={s.breakdown}>
         <View style={s.breakdownHead}>
@@ -1093,7 +1168,7 @@ function BreakdownTable({ rows }: { rows: AuditBreakdownRow[] }) {
 function OfficialRoundsTable({ player }: { player: AuditPlayerReport }) {
   return (
     <View>
-      <Text style={s.section}>Last 20 Official Handicap Rounds</Text>
+      <Text style={s.section}>LAST 20 OFFICIAL HANDICAP ROUNDS</Text>
 
       <View style={[s.row, s.th]}>
         <Text style={s.date}>Date</Text>
@@ -1158,28 +1233,42 @@ function OfficialRoundsTable({ player }: { player: AuditPlayerReport }) {
   );
 }
 
-function CommitteeDecision() {
+function CommitteeDecision({ player }: { player: AuditPlayerReport }) {
+  const recommendation = recommendationForPlayer(player);
   const options = [
-    "No action",
-    "Monitor",
-    "Interview player",
-    "Adjust Handicap Index",
+    { label: "Interview player", checked: recommendation.interview },
+    {
+      label: "Review exceptional scores",
+      checked: recommendation.reviewScores,
+    },
+    { label: "Adjust Handicap Index", checked: recommendation.adjust },
+    { label: "No action", checked: recommendation.noAction },
   ];
 
   return (
     <View style={s.notes}>
-      <Text style={s.section}>Committee Decision</Text>
+      <Text style={s.section}>COMMITTEE DECISION</Text>
 
       <View style={s.committeeOptions}>
         {options.map((option) => (
-          <View style={s.committeeOption} key={option}>
-            <View style={s.committeeBox} />
-            <Text>{option}</Text>
+          <View style={s.committeeOption} key={option.label}>
+            <Text
+              style={
+                option.checked ? s.checkboxChecked : s.checkboxEmpty
+              }
+            >
+              {option.checked ? "✓" : ""}
+            </Text>
+            <Text>{option.label}</Text>
           </View>
         ))}
       </View>
 
-      <Text>New Handicap Index, if applicable: __________</Text>
+      <Text style={s.recommendationNote}>
+        Final decision at committee discretion.
+      </Text>
+
+      <Text style={{ marginTop: 3 }}>Notes:</Text>
       <View style={s.notesLine} />
       <View style={s.notesLine} />
     </View>
@@ -1204,7 +1293,7 @@ function PlayerPage({
             <Text style={s.name}>{player.name}</Text>
             <Text style={s.muted}>
               GHIN #{player.ghinNumber ?? "-"} · {player.competitionRounds}{" "}
-              competition · {player.generalRounds} general play
+              Competition Rounds · {player.generalRounds} General Play Rounds
             </Text>
           </View>
         </View>
@@ -1223,7 +1312,7 @@ function PlayerPage({
       <KeyInsight player={player} />
       <BreakdownTable rows={player.breakdown} />
       <OfficialRoundsTable player={player} />
-      <CommitteeDecision />
+      <CommitteeDecision player={player} />
       <Footer generatedAt={generatedAt} />
     </Page>
   );
