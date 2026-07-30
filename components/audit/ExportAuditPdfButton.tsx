@@ -19,7 +19,10 @@ export function ExportAuditPdfButton() {
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      URL.revokeObjectURL(url);
+      // Revoking immediately can cancel the download before some browsers
+      // have opened the object URL. Keep it alive long enough for the
+      // download to begin, then release it.
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (error) {
       console.error(error);
       alert("Unable to generate the audit PDF.");
