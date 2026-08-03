@@ -11,6 +11,21 @@ type PageProps = {
   searchParams?: Promise<SearchParams>;
 };
 
+type HoleScoreQueryRow = {
+  round_id: string;
+  player_id: string;
+  played_at: string;
+  tee_name: string | null;
+  hole_number: number;
+  gross_score: number;
+  round_signature: string | null;
+  score_type: string | null;
+  players: {
+    full_name: string | null;
+    ghin_number: string | null;
+  } | null;
+};
+
 function getDefaultStartDate() {
   return `${new Date().getFullYear()}-01-01`;
 }
@@ -74,11 +89,14 @@ export default async function HolesPage({
       ? await supabase
           .from("hole_scores")
           .select(`
+            round_id,
             player_id,
             played_at,
             tee_name,
             hole_number,
             gross_score,
+            round_signature,
+            score_type,
             players (
               full_name,
               ghin_number
@@ -103,7 +121,8 @@ export default async function HolesPage({
   }
 
   const rows =
-    (holeScores ?? []).map((row: any) => ({
+    ((holeScores ?? []) as unknown as HoleScoreQueryRow[]).map((row) => ({
+      round_id: row.round_id,
       player_id: row.player_id,
       full_name: row.players?.full_name ?? "",
       ghin_number: row.players?.ghin_number ?? "",
@@ -111,6 +130,8 @@ export default async function HolesPage({
       tee_name: row.tee_name,
       hole_number: row.hole_number,
       gross_score: row.gross_score,
+      round_signature: row.round_signature,
+      score_type: row.score_type,
     }));
 
   return (

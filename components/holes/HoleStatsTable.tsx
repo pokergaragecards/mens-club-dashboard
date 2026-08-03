@@ -10,6 +10,7 @@ type PlayerOption = {
 };
 
 type RawRow = {
+  round_id: string;
   player_id: string;
   full_name: string;
   ghin_number: string | null;
@@ -39,10 +40,13 @@ type HoleStat = {
   average: number | null;
   best: number | null;
   worst: number | null;
+  scoreCounts: Record<number, number>;
+  eagles: number;
   birdies: number;
   pars: number;
   bogeys: number;
   doubles: number;
+  triples: number;
 };
 
 type Props = {
@@ -74,9 +78,7 @@ function dedupeRows(rows: RawRow[]) {
   const map = new Map<string, RawRow>();
 
   for (const row of rows) {
-    const key = row.round_signature
-      ? `${row.round_signature}|${row.hole_number}`
-      : `${row.played_at}|${normalizeTee(row.tee_name)}|${row.score_type ?? ""}|${row.hole_number}|${row.gross_score}`;
+    const key = `${row.round_id}|${row.hole_number}`;
 
     map.set(key, row);
   }
@@ -128,15 +130,22 @@ function buildHoleStats(
         average: null,
         best: null,
         worst: null,
+        scoreCounts: {},
+        eagles: 0,
         birdies: 0,
         pars: 0,
         bogeys: 0,
         doubles: 0,
+        triples: 0,
       };
     }
 
     const average =
       scores.reduce((sum, score) => sum + score, 0) / scores.length;
+    const scoreCounts = scores.reduce<Record<number, number>>((counts, score) => {
+      counts[score] = (counts[score] ?? 0) + 1;
+      return counts;
+    }, {});
 
     return {
       hole,
@@ -147,20 +156,20 @@ function buildHoleStats(
       average,
       best: Math.min(...scores),
       worst: Math.max(...scores),
-      birdies: par == null ? 0 : scores.filter((s) => s <= par - 1).length,
+      scoreCounts,
+      eagles: par == null ? 0 : scores.filter((s) => s <= par - 2).length,
+      birdies: par == null ? 0 : scores.filter((s) => s === par - 1).length,
       pars: par == null ? 0 : scores.filter((s) => s === par).length,
       bogeys: par == null ? 0 : scores.filter((s) => s === par + 1).length,
-      doubles: par == null ? 0 : scores.filter((s) => s >= par + 2).length,
+      doubles: par == null ? 0 : scores.filter((s) => s === par + 2).length,
+      triples: par == null ? 0 : scores.filter((s) => s >= par + 3).length,
     };
   });
 }
 
 function getTeeRoundCount(rows: RawRow[]) {
   return new Set(
-    dedupeRows(rows).map(
-      (row) =>
-        `${row.played_at}|${normalizeTee(row.tee_name)}|${row.score_type ?? ""}|${row.round_signature ?? ""}`
-    )
+    dedupeRows(rows).map((row) => row.round_id)
   ).size;
 }
 
@@ -220,13 +229,24 @@ function MobileHoleCard({ hole }: { hole: HoleStat }) {
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
+      <div className="mt-4 rounded-lg bg-slate-50 p-3">
+        <div className="text-xs font-bold uppercase tracking-wide text-gray-500">
+          Gross score counts
+        </div>
+        <div className="mt-1 text-sm font-bold text-gray-950">
+          {formatScoreCounts(hole.scoreCounts)}
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-3">
         <MobileStat label="Rounds" value={hole.rounds || "-"} />
         <MobileStat label="Best" value={hole.best ?? "-"} />
-        <MobileStat label="Birdie %" value={formatPercent(hole.birdies, hole.rounds)} tone="green" />
-        <MobileStat label="Par %" value={formatPercent(hole.pars, hole.rounds)} />
-        <MobileStat label="Bogey %" value={formatPercent(hole.bogeys, hole.rounds)} tone="yellow" />
-        <MobileStat label="Double+ %" value={formatPercent(hole.doubles, hole.rounds)} tone="red" />
+        <MobileStat label="Eagle+" value={formatCountPercent(hole.eagles, hole.rounds)} tone="green" />
+        <MobileStat label="Birdie" value={formatCountPercent(hole.birdies, hole.rounds)} tone="green" />
+        <MobileStat label="Par" value={formatCountPercent(hole.pars, hole.rounds)} />
+        <MobileStat label="Bogey" value={formatCountPercent(hole.bogeys, hole.rounds)} tone="yellow" />
+        <MobileStat label="Double" value={formatCountPercent(hole.doubles, hole.rounds)} tone="red" />
+        <MobileStat label="Triple+" value={formatCountPercent(hole.triples, hole.rounds)} tone="red" />
       </div>
     </div>
   );
@@ -267,14 +287,17 @@ function DesktopHoleTable({ stats }: { stats: HoleStat[] }) {
     { label: "Avg", value: (h: HoleStat) => formatNumber(h.average) },
     { label: "Best", value: (h: HoleStat) => h.best ?? "-" },
     { label: "Worst", value: (h: HoleStat) => h.worst ?? "-" },
-    { label: "Birdie %", value: (h: HoleStat) => formatPercent(h.birdies, h.rounds) },
-    { label: "Par %", value: (h: HoleStat) => formatPercent(h.pars, h.rounds) },
-    { label: "Bogey %", value: (h: HoleStat) => formatPercent(h.bogeys, h.rounds) },
-    { label: "Double+ %", value: (h: HoleStat) => formatPercent(h.doubles, h.rounds) },
+    { label: "Gross scores", value: (h: HoleStat) => formatScoreCounts(h.scoreCounts) },
+    { label: "Eagle+", value: (h: HoleStat) => formatCountPercent(h.eagles, h.rounds) },
+    { label: "Birdie", value: (h: HoleStat) => formatCountPercent(h.birdies, h.rounds) },
+    { label: "Par", value: (h: HoleStat) => formatCountPercent(h.pars, h.rounds) },
+    { label: "Bogey", value: (h: HoleStat) => formatCountPercent(h.bogeys, h.rounds) },
+    { label: "Double", value: (h: HoleStat) => formatCountPercent(h.doubles, h.rounds) },
+    { label: "Triple+", value: (h: HoleStat) => formatCountPercent(h.triples, h.rounds) },
   ];
 
   return (
-    <table className="w-full min-w-[900px] border-collapse text-xs text-gray-900">
+    <table className="w-full min-w-[1200px] border-collapse text-xs text-gray-900">
       <thead className="bg-gray-200 text-gray-950">
         <tr>
           <th className="sticky left-0 z-10 w-28 bg-gray-200 px-2 py-2 text-left font-bold">
@@ -429,4 +452,18 @@ export function HoleStatsTable({
       )}
     </div>
   );
+}
+
+function formatCountPercent(count: number, total: number) {
+  return `${count} (${formatPercent(count, total)})`;
+}
+
+function formatScoreCounts(counts: Record<number, number>) {
+  const entries = Object.entries(counts).sort(
+    ([a], [b]) => Number(a) - Number(b)
+  );
+
+  return entries.length
+    ? entries.map(([score, count]) => `${score}×${count}`).join(" · ")
+    : "-";
 }

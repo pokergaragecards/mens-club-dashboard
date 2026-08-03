@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { playerStatsService } from "@/services/playerStatsService";
 import { PlayerProfileTabs } from "@/components/players/PlayerProfileTabs";
+import { HandicapHistoryChart } from "@/components/players/HandicapHistoryChart";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -18,6 +19,7 @@ type RoundLike = {
   course_name: string | null;
   tee_name: string | null;
   counts_for_hi?: boolean | null;
+  handicap_index_used?: number | null;
 };
 
 type StatSet = {
@@ -181,6 +183,12 @@ export default async function PlayerDetailPage({ params }: PageProps) {
   );
 
   const seasonStart = getSeasonStart();
+  const handicapHistory = sortedRounds
+    .filter((round) => round.handicap_index_used != null)
+    .map((round) => ({
+      date: round.played_at,
+      handicapIndex: Number(round.handicap_index_used),
+    }));
 
   return (
     <main className="space-y-5 p-4 text-gray-900 md:space-y-6 md:p-8">
@@ -200,6 +208,13 @@ export default async function PlayerDetailPage({ params }: PageProps) {
           </span>
         </p>
       </div>
+
+      <HandicapHistoryChart
+        points={handicapHistory}
+        currentHandicap={
+          summary.handicap == null ? null : Number(summary.handicap)
+        }
+      />
 
       <div className="grid grid-cols-1 gap-4">
         <StatSection

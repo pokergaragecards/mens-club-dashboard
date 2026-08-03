@@ -28,6 +28,7 @@ export interface RoundHistoryRow {
   course_name: string | null;
   source: string | null;
   counts_for_hi: boolean | null;
+  handicap_index_used: number | null;
 }
 
 export interface HoleStatRow {
@@ -108,7 +109,8 @@ export const playerStatsService = {
         tee_name,
         course_name,
         source,
-        counts_for_hi
+        counts_for_hi,
+        handicap_index_used
       `)
       .eq("player_id", playerId)
       .eq("counts_for_hi", true)
@@ -259,8 +261,9 @@ export const playerStatsService = {
       .filter((round) => round.differential != null)
       .map((round) => ({
         played_at: round.played_at,
-        handicap_index_used: round.differential,
+        handicap_index_used: round.handicap_index_used,
       }))
+      .filter((round) => round.handicap_index_used != null)
       .reverse();
   },
 };
