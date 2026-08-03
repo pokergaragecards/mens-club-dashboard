@@ -103,6 +103,31 @@ function isNumberToken(value: string | undefined) {
   return !!value && /^[+-]?\d+(\.\d+)?$/.test(value);
 }
 
+function isGhinNumber(value: string | undefined) {
+  return !!value && /^\d{6,8}$/.test(value);
+}
+
+function isValidGolferNameTokens(tokens: string[]) {
+  if (tokens.length < 1 || tokens.length > 6) return false;
+
+  const reportWords = new Set([
+    "COURSE",
+    "Course",
+    "Golf",
+    "Club",
+    "Page",
+    "Report",
+    "GHIN",
+    "Golfer",
+    "Scores",
+  ]);
+
+  return tokens.every(
+    (token) =>
+      /^[A-Za-z][A-Za-z.'-]*$/.test(token) && !reportWords.has(token)
+  );
+}
+
 function findDateWithin(tokens: string[], start: number, maxLookahead = 8) {
   for (let i = start; i <= Math.min(tokens.length - 1, start + maxLookahead); i++) {
     if (isDate(tokens[i])) return i;
@@ -113,13 +138,13 @@ function findDateWithin(tokens: string[], start: number, maxLookahead = 8) {
 function isLikelyGhinStart(tokens: string[], index: number) {
   const token = tokens[index];
 
-  if (!/^\d{3,}$/.test(token ?? "")) return false;
+  if (!isGhinNumber(token)) return false;
 
   const dateIndex = findDateWithin(tokens, index + 1, 8);
   if (dateIndex === -1) return false;
 
   const nameTokens = tokens.slice(index + 1, dateIndex);
-  if (nameTokens.length < 2 || nameTokens.length > 6) return false;
+  if (!isValidGolferNameTokens(nameTokens)) return false;
 
   const badWords = new Set([
     "Page",

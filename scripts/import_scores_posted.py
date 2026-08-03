@@ -100,6 +100,33 @@ def clean_name(value):
     return re.sub(r"\s+", " ", value).strip()
 
 
+def is_ghin_number(value):
+    return bool(value and re.fullmatch(r"\d{6,8}", value))
+
+
+def is_valid_golfer_name_tokens(tokens):
+    if not 1 <= len(tokens) <= 6:
+        return False
+
+    report_words = {
+        "COURSE",
+        "Course",
+        "Golf",
+        "Club",
+        "Page",
+        "Report",
+        "GHIN",
+        "Golfer",
+        "Scores",
+    }
+
+    return all(
+        re.fullmatch(r"[A-Za-z][A-Za-z.'-]*", token)
+        and token not in report_words
+        for token in tokens
+    )
+
+
 def parse_course_name(tokens):
     if not tokens:
         return "", None
@@ -115,11 +142,14 @@ def parse_course_name(tokens):
 
 
 def is_player_start(tokens, index):
-    if not re.match(r"^\d{3,}$", tokens[index] if index < len(tokens) else ""):
+    if not is_ghin_number(tokens[index] if index < len(tokens) else None):
         return False
 
     for i in range(index + 1, min(index + 9, len(tokens))):
         if tokens[i] in STATUSES:
+            if not is_valid_golfer_name_tokens(tokens[index + 1 : i]):
+                return False
+
             return (
                 is_number_like(tokens[i + 1] if i + 1 < len(tokens) else None)
                 and is_integer(tokens[i + 2] if i + 2 < len(tokens) else None)

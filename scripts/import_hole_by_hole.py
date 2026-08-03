@@ -95,6 +95,33 @@ def is_number_token(value):
     return bool(value and re.match(r"^[+-]?\d+(\.\d+)?$", value))
 
 
+def is_ghin_number(value):
+    return bool(value and re.fullmatch(r"\d{6,8}", value))
+
+
+def is_valid_golfer_name_tokens(tokens):
+    if not 1 <= len(tokens) <= 6:
+        return False
+
+    report_words = {
+        "COURSE",
+        "Course",
+        "Golf",
+        "Club",
+        "Page",
+        "Report",
+        "GHIN",
+        "Golfer",
+        "Scores",
+    }
+
+    return all(
+        re.fullmatch(r"[A-Za-z][A-Za-z.'-]*", token)
+        and token not in report_words
+        for token in tokens
+    )
+
+
 def find_date_within(tokens, start, max_lookahead=8):
     for i in range(start, min(len(tokens), start + max_lookahead + 1)):
         if is_date(tokens[i]):
@@ -104,7 +131,7 @@ def find_date_within(tokens, start, max_lookahead=8):
 
 def is_likely_ghin_start(tokens, index):
     token = tokens[index] if index < len(tokens) else None
-    if not token or not re.match(r"^\d{3,}$", token):
+    if not is_ghin_number(token):
         return False
 
     date_index = find_date_within(tokens, index + 1, 8)
@@ -112,7 +139,7 @@ def is_likely_ghin_start(tokens, index):
         return False
 
     name_tokens = tokens[index + 1 : date_index]
-    if len(name_tokens) < 2 or len(name_tokens) > 6:
+    if not is_valid_golfer_name_tokens(name_tokens):
         return False
 
     bad_words = {

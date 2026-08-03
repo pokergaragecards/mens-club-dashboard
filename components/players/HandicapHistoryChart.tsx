@@ -120,7 +120,6 @@ export function HandicapHistoryChart({
               domain={[Math.floor(minimum - padding), Math.ceil(maximum + padding)]}
               tick={{ fontSize: 12 }}
               width={48}
-              reversed
             />
             <Tooltip
               labelFormatter={(value) => formatDate(String(value))}

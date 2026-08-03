@@ -97,6 +97,31 @@ function cleanName(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+function isGhinNumber(value: string | undefined) {
+  return !!value && /^\d{6,8}$/.test(value);
+}
+
+function isValidGolferNameTokens(tokens: string[]) {
+  if (tokens.length < 1 || tokens.length > 6) return false;
+
+  const reportWords = new Set([
+    "COURSE",
+    "Course",
+    "Golf",
+    "Club",
+    "Page",
+    "Report",
+    "GHIN",
+    "Golfer",
+    "Scores",
+  ]);
+
+  return tokens.every(
+    (token) =>
+      /^[A-Za-z][A-Za-z.'-]*$/.test(token) && !reportWords.has(token)
+  );
+}
+
 function parseUsgaCourseName(tokens: string[]) {
   if (!tokens.length) return { courseName: "", pcc: null };
 
@@ -116,10 +141,13 @@ function parseUsgaCourseName(tokens: string[]) {
 }
 
 function isPlayerStart(tokens: string[], index: number) {
-  if (!/^\d{3,}$/.test(tokens[index] ?? "")) return false;
+  if (!isGhinNumber(tokens[index])) return false;
 
   for (let i = index + 1; i <= Math.min(index + 8, tokens.length - 1); i++) {
     if (!STATUSES.has(tokens[i])) continue;
+
+    const nameTokens = tokens.slice(index + 1, i);
+    if (!isValidGolferNameTokens(nameTokens)) return false;
 
     return (
       isNumberLike(tokens[i + 1]) &&
