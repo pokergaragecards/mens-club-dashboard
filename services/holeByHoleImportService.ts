@@ -62,7 +62,6 @@ async function findOrCreatePlayer(round: HoleByHoleRound) {
       .from("players")
       .update({
         ...name,
-        current_index: round.handicapIndex,
         is_active: true,
       })
       .eq("id", ghinMatch.id);
@@ -89,7 +88,6 @@ async function findOrCreatePlayer(round: HoleByHoleRound) {
       .update({
         ...name,
         ghin_number: round.ghinNumber,
-        current_index: round.handicapIndex,
         is_active: true,
       })
       .eq("id", nameMatch.id);
@@ -127,6 +125,33 @@ function buildExternalRoundKey(playerId: string, round: HoleByHoleRound) {
     getRoundTotal(round),
     round.holes.join("-"),
   ].join("|");
+}
+
+async function findScoresPostedRound(params: {
+  playerId: string;
+  round: HoleByHoleRound;
+}) {
+  const supabase = createSupabaseServerClient();
+
+  const { data, error } = await supabase
+    .from("rounds")
+    .select("id, course_name")
+    .eq("player_id", params.playerId)
+    .eq("played_at", params.round.playedAt)
+    .eq("source", "SCORES_POSTED_REPORT")
+    .eq("score_type", getScoreType(params.round))
+    .eq("adjusted_gross_score", getRoundTotal(params.round));
+
+  if (error) throw error;
+
+  const candidates = data ?? [];
+  if (!candidates.length) return null;
+
+  return (
+    candidates.find((candidate) =>
+      String(candidate.course_name ?? "").toLowerCase().includes("goodrich")
+    ) ?? candidates[0]
+  );
 }
 
 async function findExistingRound(params: {
@@ -177,25 +202,47 @@ async function upsertRound(params: {
   const scoreType = getScoreType(params.round);
   const externalRoundKey = buildExternalRoundKey(params.playerId, params.round);
 
+  const posted = await findScoresPostedRound(params);
+
+  if (posted) {
+    const { error } = await supabase
+      .from("rounds")
+      .update({
+        tee_name: params.round.teeName,
+        tee_gender: params.round.teeGender,
+        front9_score: params.round.outScore,
+        back9_score: params.round.inScore,
+      })
+      .eq("id", posted.id);
+
+    if (error) throw error;
+
+    return {
+      id: posted.id as string,
+      imported: false,
+      existing: true,
+    };
+  }
+
   const existing = await findExistingRound({
     playerId: params.playerId,
     round: params.round,
     externalRoundKey,
   });
 
-  const payload = {
-    player_id: params.playerId,
-    played_at: params.round.playedAt,
+  const updatePayload = {
     gross_score: total,
     adjusted_gross_score: total,
-    differential: null,
     course_rating: params.round.courseRating,
     slope_rating: params.round.slopeRating,
     score_type: scoreType || null,
     tee_name: params.round.teeName,
+    tee_gender: params.round.teeGender,
     course_name: "Goodrich",
     handicap_index_used: params.round.handicapIndex,
     score_handicap_index: params.round.handicapIndex,
+    front9_score: params.round.outScore,
+    back9_score: params.round.inScore,
     is_home: scoreType.includes("H"),
     is_away: scoreType.includes("A"),
     is_competition: scoreType.includes("C"),
@@ -205,10 +252,20 @@ async function upsertRound(params: {
     import_batch_id: params.batchId,
   };
 
+  const insertPayload = {
+    player_id: params.playerId,
+    played_at: params.round.playedAt,
+    ...updatePayload,
+    differential: null,
+    net_score_differential: null,
+    pcc: null,
+    esr: null,
+  };
+
   if (existing) {
     const { error } = await supabase
       .from("rounds")
-      .update(payload)
+      .update(updatePayload)
       .eq("id", existing.id);
 
     if (error) throw error;
@@ -222,7 +279,7 @@ async function upsertRound(params: {
 
   const { data: created, error } = await supabase
     .from("rounds")
-    .insert(payload)
+    .insert(insertPayload)
     .select("id")
     .single();
 
@@ -285,13 +342,20 @@ async function insertHoleScores(params: {
     return {
       round_id: params.roundId,
       player_id: params.playerId,
+      played_at: params.round.playedAt,
+      score_type: params.round.scoreType,
+      tee_name: params.round.teeName,
+      tee_gender: params.round.teeGender,
+      course_rating: params.round.courseRating,
+      slope_rating: params.round.slopeRating,
+      course_handicap: params.round.courseHandicap,
+      handicap_index_used: params.round.handicapIndex,
+      source: SOURCE,
       hole_number: holeNumber,
       gross_score: Number(score),
       par,
       score_to_par: par == null ? null : Number(score) - par,
       stroke_index: courseHole?.handicap ?? null,
-      tee_name: params.round.teeName,
-      course_name: "Goodrich",
     };
   });
 
@@ -368,7 +432,7 @@ export async function importHoleByHoleRounds(params: {
   let roundsImported = 0;
   let roundsExisting = 0;
   let holesImported = 0;
-  let holesExisting = 0;
+  const holesExisting = 0;
   let playersCreated = 0;
   let playersUpdated = 0;
 

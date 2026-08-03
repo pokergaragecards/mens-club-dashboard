@@ -18,6 +18,7 @@ type ImportResult = {
   goodrichRoundsUpdated?: number;
   playersCreated?: number;
   playersUpdated?: number;
+  rowsFailed?: number;
   error?: string;
 };
 
@@ -233,6 +234,7 @@ export function ScoresPostedImportForm() {
               />
               <ResultLine label="Players created" value={result.playersCreated} />
               <ResultLine label="Players updated" value={result.playersUpdated} />
+              <ResultLine label="Failed rows" value={result.rowsFailed} />
             </div>
           )}
         </div>

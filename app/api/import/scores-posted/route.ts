@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import PDFParser from "pdf2json";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
+import { extractPdfText } from "@/utils/pdfTextExtractor";
 import { parseScoresPostedText } from "@/utils/scoresPostedParser";
+import { importScoresPostedReport } from "@/services/scoresPostedImportService";
 import {
   createImportJob,
   markImportJobFailed,
@@ -10,34 +11,6 @@ import {
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
-
-function parsePdfBuffer(buffer: Buffer): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const pdfParser = new PDFParser();
-
-    pdfParser.on("pdfParser_dataError", (errData: any) => {
-      reject(
-        new Error(
-          errData?.parserError instanceof Error
-            ? errData.parserError.message
-            : String(errData?.parserError ?? "PDF parse failed")
-        )
-      );
-    });
-
-    pdfParser.on("pdfParser_dataReady", (pdfData: any) => {
-      const text = pdfData.Pages.map((page: any) =>
-        page.Texts.map((textItem: any) =>
-          decodeURIComponent(textItem.R.map((r: any) => r.T).join(""))
-        ).join(" ")
-      ).join("\n");
-
-      resolve(text);
-    });
-
-    pdfParser.parseBuffer(buffer);
-  });
-}
 
 async function downloadImportFile(storagePath: string) {
   const supabase = createSupabaseServerClient();
@@ -87,7 +60,7 @@ export async function POST(request: Request) {
       stage: "Extracting PDF text",
     });
 
-    const text = await parsePdfBuffer(buffer);
+    const text = await extractPdfText(buffer);
 
     await updateImportJob(jobId, {
       progress: 35,
@@ -96,39 +69,42 @@ export async function POST(request: Request) {
 
     const parsed = parseScoresPostedText(text);
 
+    await updateImportJob(jobId, {
+      status: "running",
+      progress: 40,
+      stage: `Importing ${parsed.validRounds.length} Scores Posted rows`,
+      rowsTotal: parsed.validRounds.length,
+      rowsProcessed: 0,
+    });
+
+    const summary = await importScoresPostedReport({
+      fileName,
+      rounds: parsed.validRounds,
+      rowsInvalid: parsed.invalidRows.length,
+      jobId,
+    });
+
     const jobResult = {
       fileName,
       storagePath,
       rowsFound: parsed.rowsFound,
       validRounds: parsed.validRounds.length,
-      rowsInvalid: parsed.invalidRows.length,
-      parsedRows: parsed.validRounds,
-      summary: {
-        roundsImported: 0,
-        roundsExisting: 0,
-        goodrichRoundsUpdated: 0,
-        playersCreated: 0,
-        playersUpdated: 0,
-        rowsInvalid: parsed.invalidRows.length,
-      },
+      ...summary,
     };
 
     await updateImportJob(jobId, {
-      status: "processing",
-      progress: 40,
-      stage: `Ready to import ${parsed.validRounds.length} Scores Posted rows`,
+      status: "complete",
+      progress: 100,
+      stage: "Scores Posted import complete",
       rowsTotal: parsed.validRounds.length,
-      rowsProcessed: 0,
+      rowsProcessed: parsed.validRounds.length,
       result: jobResult,
     });
 
     return NextResponse.json({
       jobId,
-      fileName,
-      rowsFound: parsed.rowsFound,
-      validRounds: parsed.validRounds.length,
-      rowsInvalid: parsed.invalidRows.length,
-      status: "processing",
+      ...jobResult,
+      status: "complete",
     });
   } catch (error) {
     const message =

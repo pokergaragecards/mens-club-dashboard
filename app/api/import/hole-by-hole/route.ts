@@ -1,40 +1,12 @@
 import { NextResponse } from "next/server";
-import PDFParser from "pdf2json";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
+import { extractPdfText } from "@/utils/pdfTextExtractor";
 import { parseHoleByHoleText } from "@/utils/holeByHoleParser";
 import { importHoleByHoleRounds } from "@/services/holeByHoleImportService";
 import { createImportJob, updateImportJob } from "@/services/importJobService";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
-
-function parsePdfBuffer(buffer: Buffer): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const pdfParser = new PDFParser();
-
-    pdfParser.on("pdfParser_dataError", (errData: any) => {
-      reject(
-        new Error(
-          errData?.parserError instanceof Error
-            ? errData.parserError.message
-            : String(errData?.parserError ?? "PDF parse failed")
-        )
-      );
-    });
-
-    pdfParser.on("pdfParser_dataReady", (pdfData: any) => {
-      const text = pdfData.Pages.map((page: any) =>
-        page.Texts.map((textItem: any) =>
-          decodeURIComponent(textItem.R.map((r: any) => r.T).join(""))
-        ).join(" ")
-      ).join("\n");
-
-      resolve(text);
-    });
-
-    pdfParser.parseBuffer(buffer);
-  });
-}
 
 async function downloadImportFile(storagePath: string) {
   const supabase = createSupabaseServerClient();
@@ -84,7 +56,7 @@ export async function POST(request: Request) {
       stage: "Parsing scorecard text",
     });
 
-    const text = await parsePdfBuffer(buffer);
+    const text = await extractPdfText(buffer);
     const parsed = parseHoleByHoleText(text);
 
     await updateImportJob(jobId, {
