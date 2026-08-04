@@ -43,14 +43,6 @@ const dashboardCards = [
       "Compare golfers side-by-side using scoring, differentials, and hole-by-hole performance.",
     badge: "Compare",
   },
-  {
-    href: "/import",
-    title: "Import Center",
-    emoji: "⬆️",
-    description:
-      "Upload weekly Scores Posted Reports and Goodrich hole-by-hole files to keep the dashboard current.",
-    badge: "Admin",
-  },
 ];
 
 export default function HomePage() {
@@ -67,7 +59,7 @@ export default function HomePage() {
 
         <p className="mt-4 max-w-3xl text-base text-slate-300 md:text-lg">
           A GHIN-focused analytics hub for player profiles, handicap review,
-          Goodrich hole statistics, weekly imports, and scoring trends.
+          Goodrich hole statistics and scoring trends.
         </p>
 
         <div className="mt-6 flex flex-wrap gap-3">
@@ -85,12 +77,6 @@ export default function HomePage() {
             View Players
           </Link>
 
-          <Link
-            href="/import"
-            className="rounded-lg border border-slate-500 px-5 py-3 text-sm font-bold text-white hover:bg-slate-800"
-          >
-            Import Weekly Scores
-          </Link>
         </div>
       </section>
 
@@ -104,8 +90,7 @@ export default function HomePage() {
         <h2 className="text-2xl font-bold text-gray-950">Dashboard Sections</h2>
 
         <p className="mt-1 text-sm font-medium text-gray-600">
-          Start with the audit, browse player profiles, or update the system
-          with the latest weekly reports.
+          Start with the audit or browse player profiles and scoring trends.
         </p>
 
         <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
