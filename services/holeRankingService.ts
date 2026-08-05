@@ -4,6 +4,7 @@ export const GOODRICH_TEE_COLORS = ["Red", "Yellow", "White", "Blue"] as const;
 export const MINIMUM_HOLE_SCORES = 3;
 
 export type GoodrichTeeColor = (typeof GOODRICH_TEE_COLORS)[number];
+export type HoleRankingView = "worst" | "best";
 
 export type PlayerHoleRanking = {
   playerId: string;
@@ -13,11 +14,14 @@ export type PlayerHoleRanking = {
   averageExpectedScore: number;
   averageVsHandicap: number;
   performanceMultiplier: number;
+  currentHandicapIndex: number | null;
   clubAverageMultiplier: number;
   vsClubMultiplier: number;
   rank: number;
+  bestRank: number;
   qualifyingPlayers: number;
   worstPercentile: number;
+  bestPercentile: number;
 };
 
 export type HoleRanking = {
@@ -37,6 +41,8 @@ export type TeeHoleRankings = {
 
 export type HoleRankingReport = {
   generatedAt: string;
+  periodStart: string;
+  periodEnd: string;
   minimumScores: number;
   tees: TeeHoleRankings[];
   methodology: string;
@@ -46,6 +52,8 @@ export type HoleScoreRankingInput = {
   roundId: string;
   playerId: string;
   playerName: string;
+  currentHandicapIndex: number | null;
+  playedAt: string;
   teeName: string | null;
   holeNumber: number;
   grossScore: number;
@@ -78,12 +86,20 @@ type HoleScoreQueryRow = {
   course_rating: number | null;
   slope_rating: number | null;
   players:
-    | { full_name: string | null; is_active: boolean | null }
-    | { full_name: string | null; is_active: boolean | null }[]
+    | {
+        full_name: string | null;
+        is_active: boolean | null;
+        current_index: number | null;
+      }
+    | {
+        full_name: string | null;
+        is_active: boolean | null;
+        current_index: number | null;
+      }[]
     | null;
   rounds:
-    | { course_name: string | null }
-    | { course_name: string | null }[]
+    | { course_name: string | null; played_at: string | null }
+    | { course_name: string | null; played_at: string | null }[]
     | null;
 };
 
@@ -98,13 +114,14 @@ type CourseHoleQueryRow = {
 type ScoreObservation = {
   playerId: string;
   playerName: string;
+  currentHandicapIndex: number | null;
   grossScore: number;
   expectedScore: number;
   vsHandicap: number;
 };
 
 const METHODOLOGY =
-  "For each score, expected hole score equals hole par multiplied by (tee par plus the player's Course Handicap from that historical round) divided by tee par. This spreads the handicap allowance continuously across all 18 holes in proportion to par, and the hole expectations add up to tee par plus Course Handicap; stroke index is informational and does not affect the calculation. The Performance Multiplier equals Average Gross Score divided by Average Expected Score: 1.00x matches expectation, above 1.00x is worse, and below 1.00x is better. Players need at least three scores on the same tee and hole. Club averages give each qualifying player equal weight.";
+  "Only hole scores from the latest 12 months are included. For each score, expected hole score equals hole par multiplied by (tee par plus the player's Course Handicap from that historical round) divided by tee par. This spreads the handicap allowance continuously across all 18 holes in proportion to par, and the hole expectations add up to tee par plus Course Handicap; stroke index is informational and does not affect the calculation. The Performance Multiplier equals Average Gross Score divided by Average Expected Score: 1.00x matches expectation, above 1.00x is worse, and below 1.00x is better. Players need at least three scores on the same tee and hole during the 12-month window. Club averages give each qualifying player equal weight.";
 
 function finiteNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -124,6 +141,53 @@ function rounded(value: number, decimals = 3) {
 
 function average(values: number[]) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+export function twelveMonthHoleRankingPeriod(generatedAt: string) {
+  const periodEnd = generatedAt.slice(0, 10);
+  const startDate = new Date(`${periodEnd}T00:00:00.000Z`);
+  startDate.setUTCFullYear(startDate.getUTCFullYear() - 1);
+
+  return {
+    periodStart: startDate.toISOString().slice(0, 10),
+    periodEnd,
+  };
+}
+
+export function normalizeHoleRankingView(
+  value: string | null | undefined
+): HoleRankingView {
+  return value?.toLowerCase() === "best" ? "best" : "worst";
+}
+
+export function holeRankingRank(
+  player: PlayerHoleRanking,
+  view: HoleRankingView
+) {
+  return view === "best" ? player.bestRank : player.rank;
+}
+
+export function holeRankingPercentile(
+  player: PlayerHoleRanking,
+  view: HoleRankingView
+) {
+  return view === "best" ? player.bestPercentile : player.worstPercentile;
+}
+
+export function playersForHoleRankingView(
+  players: PlayerHoleRanking[],
+  view: HoleRankingView
+) {
+  return [...players].sort((a, b) => {
+    const rankDifference = holeRankingRank(a, view) - holeRankingRank(b, view);
+    if (rankDifference !== 0) return rankDifference;
+    if (a.performanceMultiplier !== b.performanceMultiplier) {
+      return view === "best"
+        ? a.performanceMultiplier - b.performanceMultiplier
+        : b.performanceMultiplier - a.performanceMultiplier;
+    }
+    return a.playerName.localeCompare(b.playerName);
+  });
 }
 
 export function normalizeGoodrichTee(
@@ -170,6 +234,7 @@ export function buildHoleRankingReport(
   courseRows: CourseHoleRankingInput[],
   generatedAt = new Date().toISOString()
 ): HoleRankingReport {
+  const { periodStart, periodEnd } = twelveMonthHoleRankingPeriod(generatedAt);
   const courseHoleMap = new Map<string, CourseHoleRankingInput>();
   const teePars = new Map<GoodrichTeeColor, number>();
 
@@ -200,9 +265,12 @@ export function buildHoleRankingReport(
     const tee = normalizeGoodrichTee(row.teeName);
     const holeNumber = finiteNumber(row.holeNumber);
     const grossScore = finiteNumber(row.grossScore);
+    const playedAt = row.playedAt.slice(0, 10);
 
     if (
       !tee ||
+      playedAt < periodStart ||
+      playedAt > periodEnd ||
       holeNumber === null ||
       holeNumber < 1 ||
       holeNumber > 18 ||
@@ -230,6 +298,7 @@ export function buildHoleRankingReport(
     current.push({
       playerId: row.playerId,
       playerName: row.playerName.trim() || "Unknown Player",
+      currentHandicapIndex: finiteNumber(row.currentHandicapIndex),
       grossScore,
       expectedScore,
       vsHandicap: grossScore - expectedScore,
@@ -262,6 +331,7 @@ export function buildHoleRankingReport(
           return {
             playerId: values[0].playerId,
             playerName: values[0].playerName,
+            currentHandicapIndex: values[0].currentHandicapIndex,
             scoreCount: values.length,
             averageGrossScore: rounded(rawAverageGrossScore),
             averageExpectedScore: rounded(rawAverageExpectedScore),
@@ -304,6 +374,13 @@ export function buildHoleRankingReport(
         previousValue = player.performanceMultiplier;
         previousRank = rank;
         const qualifyingPlayers = playerRows.length;
+        const bestRank =
+          1 +
+          playerRows.filter(
+            (candidate) =>
+              candidate.performanceMultiplier <
+              player.performanceMultiplier - 0.0001
+          ).length;
 
         return {
           ...player,
@@ -313,12 +390,22 @@ export function buildHoleRankingReport(
             4
           ),
           rank,
+          bestRank,
           qualifyingPlayers,
           worstPercentile:
             qualifyingPlayers <= 1
               ? 100
               : rounded(
                   ((qualifyingPlayers - rank) / (qualifyingPlayers - 1)) * 100,
+                  1
+                ),
+          bestPercentile:
+            qualifyingPlayers <= 1
+              ? 100
+              : rounded(
+                  ((qualifyingPlayers - bestRank) /
+                    (qualifyingPlayers - 1)) *
+                    100,
                   1
                 ),
         };
@@ -338,13 +425,15 @@ export function buildHoleRankingReport(
 
   return {
     generatedAt,
+    periodStart,
+    periodEnd,
     minimumScores: MINIMUM_HOLE_SCORES,
     tees,
     methodology: METHODOLOGY,
   };
 }
 
-async function loadAllHoleScores() {
+async function loadAllHoleScores(periodStart: string, periodEnd: string) {
   const supabase = createSupabaseServerClient();
   const pageSize = 1_000;
   const rows: HoleScoreQueryRow[] = [];
@@ -364,12 +453,14 @@ async function loadAllHoleScores() {
         handicap_index_used,
         course_rating,
         slope_rating,
-        players!inner(full_name, is_active),
-        rounds!inner(course_name)
+        players!inner(full_name, is_active, current_index),
+        rounds!inner(course_name, played_at)
       `)
       .eq("source", "GHIN_HBH_PDF")
       .eq("players.is_active", true)
       .ilike("rounds.course_name", "%Goodrich%")
+      .gte("rounds.played_at", periodStart)
+      .lte("rounds.played_at", periodEnd)
       .order("round_id", { ascending: true })
       .order("hole_number", { ascending: true })
       .range(from, from + pageSize - 1);
@@ -383,10 +474,13 @@ async function loadAllHoleScores() {
   return rows;
 }
 
-export async function getGoodrichHoleRankingReport() {
+export async function getGoodrichHoleRankingReport(
+  generatedAt = new Date().toISOString()
+) {
   const supabase = createSupabaseServerClient();
+  const { periodStart, periodEnd } = twelveMonthHoleRankingPeriod(generatedAt);
   const [scoreRows, courseResult] = await Promise.all([
-    loadAllHoleScores(),
+    loadAllHoleScores(periodStart, periodEnd),
     supabase
       .from("course_holes")
       .select("tee_name, hole_number, par, handicap, yardage")
@@ -399,11 +493,14 @@ export async function getGoodrichHoleRankingReport() {
 
   const scores = scoreRows.map<HoleScoreRankingInput>((row) => {
     const player = firstRelation(row.players);
+    const round = firstRelation(row.rounds);
 
     return {
       roundId: row.round_id,
       playerId: row.player_id,
       playerName: player?.full_name ?? "Unknown Player",
+      currentHandicapIndex: finiteNumber(player?.current_index),
+      playedAt: round?.played_at ?? "",
       teeName: row.tee_name,
       holeNumber: row.hole_number,
       grossScore: row.gross_score,
@@ -425,5 +522,5 @@ export async function getGoodrichHoleRankingReport() {
     })
   );
 
-  return buildHoleRankingReport(scores, courseHoles);
+  return buildHoleRankingReport(scores, courseHoles, generatedAt);
 }

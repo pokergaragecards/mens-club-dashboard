@@ -4,11 +4,15 @@ import { ExportHoleRankingsPdfButton } from "@/components/holes/ExportHoleRankin
 import {
   GOODRICH_TEE_COLORS,
   getGoodrichHoleRankingReport,
+  holeRankingPercentile,
+  holeRankingRank,
+  normalizeHoleRankingView,
+  playersForHoleRankingView,
   type GoodrichTeeColor,
 } from "@/services/holeRankingService";
 
 type PageProps = {
-  searchParams?: Promise<{ tee?: string; hole?: string }>;
+  searchParams?: Promise<{ tee?: string; hole?: string; view?: string }>;
 };
 
 const TEE_CLASSES: Record<GoodrichTeeColor, { active: string; idle: string }> = {
@@ -53,6 +57,11 @@ function multiplier(value: number | null, decimals = 3) {
   return `${value.toFixed(decimals)}x`;
 }
 
+function handicapIndex(value: number | null) {
+  if (value === null || !Number.isFinite(value)) return "-";
+  return value.toFixed(1);
+}
+
 function signedPercent(value: number | null, decimals = 1) {
   if (value === null || !Number.isFinite(value)) return "-";
   const percentage = value * 100;
@@ -79,9 +88,12 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
   const tee = selectedTee(params.tee);
   const holeNumber = selectedHole(params.hole);
+  const view = normalizeHoleRankingView(params.view);
+  const isBest = view === "best";
   const report = await getGoodrichHoleRankingReport();
   const teeReport = report.tees.find((item) => item.tee === tee) ?? report.tees[0];
   const hole = teeReport.holes.find((item) => item.holeNumber === holeNumber)!;
+  const rankedPlayers = playersForHoleRankingView(hole.players, view);
 
   return (
     <main className="space-y-6 p-4 text-base text-slate-900 lg:p-8">
@@ -91,19 +103,38 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
             <h1 className="text-3xl font-black text-slate-950">
               Goodrich Handicap-Adjusted Hole Rankings
             </h1>
-            <span className="rounded-full bg-red-100 px-3 py-1 text-sm font-black text-red-800">
-              Worst performance ranks first
+            <span
+              className={`rounded-full px-3 py-1 text-sm font-black ${
+                isBest
+                  ? "bg-green-100 text-green-800"
+                  : "bg-red-100 text-red-800"
+              }`}
+            >
+              {isBest
+                ? "Best performance ranks first"
+                : "Worst performance ranks first"}
             </span>
           </div>
           <p className="mt-2 max-w-4xl text-lg text-slate-600">
             Red, Yellow, White, and Blue tees are compared separately. Every
             score is measured against the number of handicap strokes the player
-            was expected to receive on that hole.
+            was expected to receive on that hole. Only scores from the latest
+            12 months are included.
           </p>
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <ExportHoleRankingsPdfButton />
+          <ExportHoleRankingsPdfButton view={view} />
+          <Link
+            href={`/holes/rankings?view=${isBest ? "worst" : "best"}&tee=${tee}&hole=${holeNumber}`}
+            className={`inline-flex items-center justify-center rounded-lg px-4 py-2.5 font-bold text-white shadow-sm ${
+              isBest
+                ? "bg-red-700 hover:bg-red-600"
+                : "bg-green-700 hover:bg-green-600"
+            }`}
+          >
+            {isBest ? "Show Worst by Hole" : "Show Best by Hole"}
+          </Link>
           <Link
             href="/holes"
             className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 font-bold text-slate-700 shadow-sm hover:bg-slate-50"
@@ -117,6 +148,9 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
         <h2 className="font-black text-blue-950">How the comparison works</h2>
         <p className="mt-1 leading-relaxed text-blue-950">
           <strong>
+            Ranking period: {report.periodStart} through {report.periodEnd}.
+          </strong>{" "}
+          <strong>
             Expected score = hole par × ((tee par + Course Handicap) / tee par).
           </strong>{" "}
           The handicap allowance is spread continuously across all 18 holes in
@@ -127,8 +161,9 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
           The primary ranking value is the <strong>Performance Multiplier =
           Average Gross / Expected Average</strong>. A value of 1.00x matches
           expectation, 1.10x is 10% worse, and 0.90x is 10% better. The raw
-          stroke difference remains visible as supporting detail. A player must
-          have at least{" "}
+          stroke difference remains visible as supporting detail. This view
+          ranks the <strong>{isBest ? "lowest" : "highest"} multiplier first</strong>.
+          A player must have at least{" "}
           <strong>{report.minimumScores} scores on the exact tee and hole</strong>.
           The club average gives every qualifying player equal weight so a
           player with more imported rounds cannot dominate the benchmark.
@@ -139,7 +174,7 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
         {GOODRICH_TEE_COLORS.map((option) => (
           <Link
             key={option}
-            href={`/holes/rankings?tee=${option}&hole=${holeNumber}`}
+            href={`/holes/rankings?view=${view}&tee=${option}&hole=${holeNumber}`}
             className={`min-w-24 rounded-lg border px-5 py-3 text-center text-lg font-black transition-colors ${
               option === tee ? TEE_CLASSES[option].active : TEE_CLASSES[option].idle
             }`}
@@ -152,27 +187,33 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
       <section>
         <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
           <div>
-            <h2 className="text-2xl font-black">Worst player by hole - {tee} tees</h2>
+            <h2 className="text-2xl font-black">
+              {isBest ? "Best" : "Worst"} player by hole - {tee} tees
+            </h2>
             <p className="text-slate-600">Select a hole to see the complete club ranking.</p>
           </div>
           <div className="text-sm font-bold text-slate-500">
-            All available imported Goodrich rounds
+            Latest 12 months: {report.periodStart} through {report.periodEnd}
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-9">
           {teeReport.holes.map((item) => {
-            const worst = item.players[0];
+            const featured = playersForHoleRankingView(item.players, view)[0];
             const active = item.holeNumber === holeNumber;
 
             return (
               <Link
                 key={item.holeNumber}
-                href={`/holes/rankings?tee=${tee}&hole=${item.holeNumber}`}
+                href={`/holes/rankings?view=${view}&tee=${tee}&hole=${item.holeNumber}`}
                 className={`rounded-xl border p-3 shadow-sm transition-colors ${
                   active
-                    ? "border-red-600 bg-red-50 ring-2 ring-red-600"
-                    : "border-slate-200 bg-white hover:border-red-300 hover:bg-red-50"
+                    ? isBest
+                      ? "border-green-600 bg-green-50 ring-2 ring-green-600"
+                      : "border-red-600 bg-red-50 ring-2 ring-red-600"
+                    : isBest
+                      ? "border-slate-200 bg-white hover:border-green-300 hover:bg-green-50"
+                      : "border-slate-200 bg-white hover:border-red-300 hover:bg-red-50"
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -181,13 +222,24 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
                     {item.players.length} ranked
                   </span>
                 </div>
-                {worst ? (
+                {featured ? (
                   <>
-                    <div className="mt-3 truncate font-black text-red-800">
-                      {worst.playerName}
+                    <div
+                      className={`mt-3 truncate font-black ${
+                        isBest ? "text-green-800" : "text-red-800"
+                      }`}
+                    >
+                      {featured.playerName}
                     </div>
-                    <div className="mt-1 text-2xl font-black text-red-700">
-                      {multiplier(worst.performanceMultiplier, 2)}
+                    <div className="mt-1 text-xs font-bold text-slate-600">
+                      Current HI {handicapIndex(featured.currentHandicapIndex)}
+                    </div>
+                    <div
+                      className={`mt-2 text-2xl font-black ${
+                        isBest ? "text-green-700" : "text-red-700"
+                      }`}
+                    >
+                      {multiplier(featured.performanceMultiplier, 2)}
                     </div>
                     <div className="text-xs font-bold text-slate-500">
                       of expected score
@@ -215,34 +267,43 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
               {hole.yardage ? `${hole.yardage} yards` : "Yardage unavailable"}
             </p>
           </div>
-          <div className="text-base font-black text-red-700">
+          <div
+            className={`text-base font-black ${
+              isBest ? "text-green-700" : "text-red-700"
+            }`}
+          >
             Club average multiplier: {multiplier(hole.clubAverageMultiplier)}
           </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1220px] text-left">
+          <table className="w-full min-w-[1320px] text-left">
             <thead className="border-b border-slate-300 bg-slate-900 text-white">
               <tr>
-                <th className="p-3 text-center">Worst Rank</th>
+                <th className="p-3 text-center">
+                  {isBest ? "Best" : "Worst"} Rank
+                </th>
                 <th className="p-3">Player</th>
+                <th className="p-3 text-right">Current HI</th>
                 <th className="p-3 text-right">Scores</th>
                 <th className="p-3 text-right">Avg Gross</th>
                 <th className="p-3 text-right">Expected Avg</th>
                 <th className="p-3 text-right">Performance Multiplier</th>
                 <th className="p-3 text-right">Raw Avg vs Handicap</th>
-                <th className="p-3 text-right">Above Club Multiplier</th>
-                <th className="p-3 text-right">Worst Percentile</th>
+                <th className="p-3 text-right">Vs Club Multiplier</th>
+                <th className="p-3 text-right">
+                  {isBest ? "Best" : "Worst"} Percentile
+                </th>
               </tr>
             </thead>
             <tbody>
-              {hole.players.map((player) => (
+              {rankedPlayers.map((player) => (
                 <tr
                   key={player.playerId}
                   className="border-b border-slate-200 last:border-b-0 hover:bg-blue-50"
                 >
                   <td className="p-3 text-center text-2xl font-black">
-                    #{player.rank}
+                    #{holeRankingRank(player, view)}
                     <span className="ml-1 text-sm text-slate-500">
                       / {player.qualifyingPlayers}
                     </span>
@@ -254,6 +315,9 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
                     >
                       {player.playerName}
                     </Link>
+                  </td>
+                  <td className="p-3 text-right text-lg font-black">
+                    {handicapIndex(player.currentHandicapIndex)}
                   </td>
                   <td className="p-3 text-right text-lg font-bold">
                     {player.scoreCount}
@@ -278,13 +342,13 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
                     {signedPercent(player.vsClubMultiplier)}
                   </td>
                   <td className="p-3 text-right text-lg font-black">
-                    {ordinal(Math.round(player.worstPercentile))}
+                    {ordinal(Math.round(holeRankingPercentile(player, view)))}
                   </td>
                 </tr>
               ))}
               {!hole.players.length && (
                 <tr>
-                  <td colSpan={9} className="p-10 text-center text-lg font-bold text-slate-500">
+                  <td colSpan={10} className="p-10 text-center text-lg font-bold text-slate-500">
                     No active player has three qualifying {tee}-tee scores on
                     this hole yet.
                   </td>

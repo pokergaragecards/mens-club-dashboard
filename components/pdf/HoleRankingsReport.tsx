@@ -7,11 +7,15 @@ import {
   View,
 } from "@react-pdf/renderer";
 
-import type {
-  HoleRanking,
-  HoleRankingReport,
-  PlayerHoleRanking,
-  TeeHoleRankings,
+import {
+  holeRankingPercentile,
+  holeRankingRank,
+  playersForHoleRankingView,
+  type HoleRankingView,
+  type HoleRanking,
+  type HoleRankingReport,
+  type PlayerHoleRanking,
+  type TeeHoleRankings,
 } from "@/services/holeRankingService";
 
 const COLORS = {
@@ -33,9 +37,10 @@ const COLORS = {
   white: "#ffffff",
 };
 
-const MATRIX_PLAYER_WIDTH = 112;
-const MATRIX_OVERALL_WIDTH = 54;
-const MATRIX_HOLE_WIDTH = 32.45;
+const MATRIX_PLAYER_WIDTH = 96;
+const MATRIX_OVERALL_WIDTH = 46;
+const MATRIX_HANDICAP_WIDTH = 34;
+const MATRIX_HOLE_WIDTH = 32;
 const PLAYERS_PER_MATRIX_PAGE = 24;
 
 const s = StyleSheet.create({
@@ -124,18 +129,25 @@ const s = StyleSheet.create({
   },
   cell: {
     paddingHorizontal: 4,
+    flexShrink: 0,
   },
   summaryHole: { width: 44, textAlign: "center", fontFamily: "Helvetica-Bold" },
   summaryPar: { width: 42, textAlign: "center" },
   summaryStroke: { width: 54, textAlign: "center" },
   summaryYardage: { width: 54, textAlign: "right" },
   summaryPlayer: { width: 176, fontSize: 8, fontFamily: "Helvetica-Bold" },
+  summaryHandicap: { width: 64, textAlign: "right" },
   summaryValue: {
     width: 82,
     textAlign: "right",
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
+  },
+  summaryWorstValue: {
     color: COLORS.red,
+  },
+  summaryBestValue: {
+    color: COLORS.green,
   },
   summaryScores: { width: 64, textAlign: "right" },
   summaryField: { width: 72, textAlign: "right" },
@@ -177,6 +189,7 @@ const s = StyleSheet.create({
   },
   matrixPlayer: {
     width: MATRIX_PLAYER_WIDTH,
+    flexShrink: 0,
     justifyContent: "center",
     paddingHorizontal: 4,
     borderRightWidth: 0.5,
@@ -187,6 +200,18 @@ const s = StyleSheet.create({
   },
   matrixOverall: {
     width: MATRIX_OVERALL_WIDTH,
+    flexShrink: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 2,
+    borderRightWidth: 0.5,
+    borderBottomWidth: 0.5,
+    borderColor: COLORS.gray300,
+    fontSize: 5.8,
+  },
+  matrixHandicap: {
+    width: MATRIX_HANDICAP_WIDTH,
+    flexShrink: 0,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 2,
@@ -197,6 +222,7 @@ const s = StyleSheet.create({
   },
   matrixHole: {
     width: MATRIX_HOLE_WIDTH,
+    flexShrink: 0,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 1,
@@ -225,6 +251,14 @@ const s = StyleSheet.create({
   rankTopThree: {
     backgroundColor: "#fef3c7",
     color: "#92400e",
+  },
+  rankBest: {
+    backgroundColor: "#dcfce7",
+    color: "#166534",
+  },
+  rankBestThree: {
+    backgroundColor: "#dbeafe",
+    color: "#1e40af",
   },
   missing: {
     color: COLORS.gray400,
@@ -260,13 +294,19 @@ const s = StyleSheet.create({
 type MatrixPlayer = {
   playerId: string;
   playerName: string;
-  averageWorstPercentile: number;
+  currentHandicapIndex: number | null;
+  averagePercentile: number;
   cells: Map<number, PlayerHoleRanking>;
 };
 
 function multiplier(value: number | null, decimals = 2) {
   if (value === null || !Number.isFinite(value)) return "-";
   return `${value.toFixed(decimals)}x`;
+}
+
+function handicapIndex(value: number | null) {
+  if (value === null || !Number.isFinite(value)) return "-";
+  return value.toFixed(1);
 }
 
 function teeBadgeStyle(tee: TeeHoleRankings["tee"]) {
@@ -282,7 +322,10 @@ function teeBadgeStyle(tee: TeeHoleRankings["tee"]) {
   return { borderColor: "#4b5563", backgroundColor: "#ffffff", color: "#111827" };
 }
 
-function matrixPlayers(tee: TeeHoleRankings): MatrixPlayer[] {
+function matrixPlayers(
+  tee: TeeHoleRankings,
+  view: HoleRankingView
+): MatrixPlayer[] {
   const players = new Map<string, MatrixPlayer>();
 
   for (const hole of tee.holes) {
@@ -290,7 +333,8 @@ function matrixPlayers(tee: TeeHoleRankings): MatrixPlayer[] {
       const current = players.get(ranking.playerId) ?? {
         playerId: ranking.playerId,
         playerName: ranking.playerName,
-        averageWorstPercentile: 0,
+        currentHandicapIndex: ranking.currentHandicapIndex,
+        averagePercentile: 0,
         cells: new Map<number, PlayerHoleRanking>(),
       };
       current.cells.set(hole.holeNumber, ranking);
@@ -301,15 +345,15 @@ function matrixPlayers(tee: TeeHoleRankings): MatrixPlayer[] {
   return Array.from(players.values())
     .map((player) => ({
       ...player,
-      averageWorstPercentile:
+      averagePercentile:
         Array.from(player.cells.values()).reduce(
-          (sum, cell) => sum + cell.worstPercentile,
+          (sum, cell) => sum + holeRankingPercentile(cell, view),
           0
         ) / player.cells.size,
     }))
     .sort((a, b) => {
-      if (a.averageWorstPercentile !== b.averageWorstPercentile) {
-        return b.averageWorstPercentile - a.averageWorstPercentile;
+      if (a.averagePercentile !== b.averagePercentile) {
+        return b.averagePercentile - a.averagePercentile;
       }
       return a.playerName.localeCompare(b.playerName);
     });
@@ -323,14 +367,19 @@ function chunks<T>(rows: T[], size: number) {
   return result.length ? result : [[]];
 }
 
-function SummaryHeader() {
+function SummaryHeader({ view }: { view: HoleRankingView }) {
+  const isBest = view === "best";
+
   return (
     <View style={[s.summaryRow, s.headerRow]}>
       <Text style={[s.cell, s.summaryHole]}>Hole</Text>
       <Text style={[s.cell, s.summaryPar]}>Par</Text>
       <Text style={[s.cell, s.summaryStroke]}>Stroke Idx</Text>
       <Text style={[s.cell, s.summaryYardage]}>Yards</Text>
-      <Text style={[s.cell, s.summaryPlayer]}>Worst by Multiplier</Text>
+      <Text style={[s.cell, s.summaryPlayer]}>
+        {isBest ? "Best" : "Worst"} by Multiplier
+      </Text>
+      <Text style={[s.cell, s.summaryHandicap]}>Current HI</Text>
       <Text style={[s.cell, s.summaryValue]}>Multiplier</Text>
       <Text style={[s.cell, s.summaryScores]}>Scores</Text>
       <Text style={[s.cell, s.summaryField]}>Players</Text>
@@ -339,8 +388,17 @@ function SummaryHeader() {
   );
 }
 
-function SummaryRow({ hole, index }: { hole: HoleRanking; index: number }) {
-  const worst = hole.players[0];
+function SummaryRow({
+  hole,
+  index,
+  view,
+}: {
+  hole: HoleRanking;
+  index: number;
+  view: HoleRankingView;
+}) {
+  const isBest = view === "best";
+  const featured = playersForHoleRankingView(hole.players, view)[0];
 
   return (
     <View style={[s.summaryRow, index % 2 ? s.rowAlt : {}]} wrap={false}>
@@ -349,12 +407,23 @@ function SummaryRow({ hole, index }: { hole: HoleRanking; index: number }) {
       <Text style={[s.cell, s.summaryStroke]}>{hole.strokeIndex ?? "-"}</Text>
       <Text style={[s.cell, s.summaryYardage]}>{hole.yardage ?? "-"}</Text>
       <Text style={[s.cell, s.summaryPlayer]}>
-        {worst?.playerName ?? "No qualifying player"}
+        {featured?.playerName ?? "No qualifying player"}
       </Text>
-      <Text style={[s.cell, s.summaryValue]}>
-        {multiplier(worst?.performanceMultiplier ?? null)}
+      <Text style={[s.cell, s.summaryHandicap]}>
+        {handicapIndex(featured?.currentHandicapIndex ?? null)}
       </Text>
-      <Text style={[s.cell, s.summaryScores]}>{worst?.scoreCount ?? "-"}</Text>
+      <Text
+        style={[
+          s.cell,
+          s.summaryValue,
+          isBest ? s.summaryBestValue : s.summaryWorstValue,
+        ]}
+      >
+        {multiplier(featured?.performanceMultiplier ?? null)}
+      </Text>
+      <Text style={[s.cell, s.summaryScores]}>
+        {featured?.scoreCount ?? "-"}
+      </Text>
       <Text style={[s.cell, s.summaryField]}>{hole.players.length}</Text>
       <Text style={[s.cell, s.summaryClub]}>
         {multiplier(hole.clubAverageMultiplier)}
@@ -363,7 +432,13 @@ function SummaryRow({ hole, index }: { hole: HoleRanking; index: number }) {
   );
 }
 
-function MatrixCell({ ranking }: { ranking: PlayerHoleRanking | undefined }) {
+function MatrixCell({
+  ranking,
+  view,
+}: {
+  ranking: PlayerHoleRanking | undefined;
+  view: HoleRankingView;
+}) {
   if (!ranking) {
     return (
       <View style={s.matrixHole}>
@@ -372,15 +447,22 @@ function MatrixCell({ ranking }: { ranking: PlayerHoleRanking | undefined }) {
     );
   }
 
+  const rank = holeRankingRank(ranking, view);
+  const isBest = view === "best";
+
   return (
     <View
       style={[
         s.matrixHole,
-        ranking.rank === 1 ? s.rankWorst : {},
-        ranking.rank > 1 && ranking.rank <= 3 ? s.rankTopThree : {},
+        rank === 1 ? (isBest ? s.rankBest : s.rankWorst) : {},
+        rank > 1 && rank <= 3
+          ? isBest
+            ? s.rankBestThree
+            : s.rankTopThree
+          : {},
       ]}
     >
-      <Text style={s.matrixRank}>#{ranking.rank}</Text>
+      <Text style={s.matrixRank}>#{rank}</Text>
       <Text style={s.matrixValue}>
         {multiplier(ranking.performanceMultiplier, 2)}
       </Text>
@@ -388,12 +470,22 @@ function MatrixCell({ ranking }: { ranking: PlayerHoleRanking | undefined }) {
   );
 }
 
-function Footer({ generatedAt, matrix = false }: { generatedAt: string; matrix?: boolean }) {
+function Footer({
+  generatedAt,
+  view,
+  matrix = false,
+}: {
+  generatedAt: string;
+  view: HoleRankingView;
+  matrix?: boolean;
+}) {
   const generatedDate = new Date(generatedAt).toLocaleDateString("en-US");
 
   return (
     <View style={matrix ? s.matrixFooter : s.footer} fixed>
-      <Text>Goodrich Men&apos;s Club - handicap-adjusted hole rankings</Text>
+      <Text>
+        Goodrich Men&apos;s Club - {view} handicap-adjusted hole rankings
+      </Text>
       <Text
         render={({ pageNumber }) =>
           `Generated ${generatedDate} | Page ${pageNumber}`
@@ -403,11 +495,21 @@ function Footer({ generatedAt, matrix = false }: { generatedAt: string; matrix?:
   );
 }
 
-export function HoleRankingsReport({ report }: { report: HoleRankingReport }) {
+export function HoleRankingsReport({
+  report,
+  view = "worst",
+}: {
+  report: HoleRankingReport;
+  view?: HoleRankingView;
+}) {
+  const isBest = view === "best";
+
   return (
-    <Document title="Goodrich Handicap-Adjusted Hole Rankings">
+    <Document
+      title={`Goodrich ${isBest ? "Best" : "Worst"} Handicap-Adjusted Hole Rankings`}
+    >
       {report.tees.map((tee) => {
-        const players = matrixPlayers(tee);
+        const players = matrixPlayers(tee, view);
         const playerPages = chunks(players, PLAYERS_PER_MATRIX_PAGE);
 
         return (
@@ -415,9 +517,12 @@ export function HoleRankingsReport({ report }: { report: HoleRankingReport }) {
             <Page size="LETTER" orientation="landscape" style={s.page}>
               <View style={s.header}>
                 <View>
-                  <Text style={s.title}>Worst Player by Goodrich Hole</Text>
+                  <Text style={s.title}>
+                    {isBest ? "Best" : "Worst"} Player by Goodrich Hole
+                  </Text>
                   <Text style={s.subtitle}>
-                    Handicap-adjusted club comparison - {tee.tee} tees only
+                    Handicap-adjusted club comparison - {tee.tee} tees only -{" "}
+                    {report.periodStart} through {report.periodEnd}
                   </Text>
                 </View>
                 <Text style={[s.teeBadge, teeBadgeStyle(tee.tee)]}>
@@ -428,15 +533,20 @@ export function HoleRankingsReport({ report }: { report: HoleRankingReport }) {
               <View style={s.method}>
                 <Text style={s.methodTitle}>METHOD AND ELIGIBILITY</Text>
                 <Text style={s.methodText}>
-                  Expected score = hole par × ((tee par + Course Handicap) / tee
-                  par), using the handicap from each historical round. This
+                  Only hole scores from the latest 12 months ({report.periodStart}
+                  {" "}through {report.periodEnd}) are included. Current HI is
+                  displayed for context; each expected score still uses the Course
+                  Handicap recorded for that historical round. {" "}
+                  Expected score = hole par multiplied by ((tee par + Course
+                  Handicap) / tee par), using the handicap from each historical
+                  round. This
                   spreads the allowance continuously across all 18 holes in
                   proportion to par, and the hole expectations add up to tee par
                   plus Course Handicap; stroke index is informational only.
                   Performance Multiplier = Average Gross Score divided by Average
                   Expected Score. 1.00x matches expectation; higher is worse and
-                  lower is better. Rank #1 is the highest multiplier. Each player
-                  needs at least
+                  lower is better. Rank #1 is the {isBest ? "lowest" : "highest"}
+                  {" "}multiplier in this report. Each player needs at least
                   {` ${report.minimumScores} `}scores on this exact tee and hole.
                   Club averages weight each qualifying player equally. Combo tees
                   are excluded from these four single-tee groups.
@@ -444,9 +554,14 @@ export function HoleRankingsReport({ report }: { report: HoleRankingReport }) {
               </View>
 
               <View style={s.table}>
-                <SummaryHeader />
+                <SummaryHeader view={view} />
                 {tee.holes.map((hole, index) => (
-                  <SummaryRow key={hole.holeNumber} hole={hole} index={index} />
+                  <SummaryRow
+                    key={hole.holeNumber}
+                    hole={hole}
+                    index={index}
+                    view={view}
+                  />
                 ))}
               </View>
 
@@ -456,7 +571,7 @@ export function HoleRankingsReport({ report }: { report: HoleRankingReport }) {
                 GHIN Handicap Index. The following pages show every qualifying
                 player&apos;s rank on all 18 holes.
               </Text>
-              <Footer generatedAt={report.generatedAt} />
+              <Footer generatedAt={report.generatedAt} view={view} />
             </Page>
 
             {playerPages.map((pagePlayers, pageIndex) => (
@@ -474,7 +589,8 @@ export function HoleRankingsReport({ report }: { report: HoleRankingReport }) {
                     <Text style={s.subtitle}>
                       Players {pageIndex * PLAYERS_PER_MATRIX_PAGE + 1}-
                       {pageIndex * PLAYERS_PER_MATRIX_PAGE + pagePlayers.length} of{" "}
-                      {players.length}, ordered by average worst percentile
+                      {players.length}, ordered by average {view} percentile -{" "}
+                      {report.periodStart} through {report.periodEnd}
                     </Text>
                   </View>
                   <Text style={[s.teeBadge, teeBadgeStyle(tee.tee)]}>
@@ -483,12 +599,15 @@ export function HoleRankingsReport({ report }: { report: HoleRankingReport }) {
                 </View>
 
                 <Text style={s.legend}>
-                  Each cell shows #worst rank and the Performance Multiplier.
-                  Red = worst on that hole; amber = ranks 2-3; dash = fewer than
+                  Each cell shows #{view} rank and the Performance Multiplier.
+                  {isBest
+                    ? " Green = best on that hole; blue = ranks 2-3;"
+                    : " Red = worst on that hole; amber = ranks 2-3;"}{" "}
+                  dash = fewer than
                   {` ${report.minimumScores} `}qualifying scores. 1.00x matches
-                  expectation and higher values are worse. Avg Worst % summarizes
-                  the holes on which the player qualifies; 100 is worst and 0 is
-                  best.
+                  expectation; lower values are better and higher values are
+                  worse. Avg {isBest ? "Best" : "Worst"} % summarizes the holes
+                  on which the player qualifies; 100 is {view}.
                 </Text>
 
                 <View style={s.matrixTable}>
@@ -497,7 +616,12 @@ export function HoleRankingsReport({ report }: { report: HoleRankingReport }) {
                       <Text style={s.matrixHeaderText}>Player</Text>
                     </View>
                     <View style={s.matrixOverall}>
-                      <Text style={s.matrixHeaderText}>Avg Worst %</Text>
+                      <Text style={s.matrixHeaderText}>
+                        Avg {isBest ? "Best" : "Worst"} %
+                      </Text>
+                    </View>
+                    <View style={s.matrixHandicap}>
+                      <Text style={s.matrixHeaderText}>Current HI</Text>
                     </View>
                     {tee.holes.map((hole) => (
                       <View key={hole.holeNumber} style={s.matrixHole}>
@@ -521,13 +645,19 @@ export function HoleRankingsReport({ report }: { report: HoleRankingReport }) {
                         </View>
                         <View style={s.matrixOverall}>
                           <Text style={s.matrixRank}>
-                            {player.averageWorstPercentile.toFixed(0)}
+                            {player.averagePercentile.toFixed(0)}
+                          </Text>
+                        </View>
+                        <View style={s.matrixHandicap}>
+                          <Text style={s.matrixRank}>
+                            {handicapIndex(player.currentHandicapIndex)}
                           </Text>
                         </View>
                         {tee.holes.map((hole) => (
                           <MatrixCell
                             key={hole.holeNumber}
                             ranking={player.cells.get(hole.holeNumber)}
+                            view={view}
                           />
                         ))}
                       </View>
@@ -539,7 +669,7 @@ export function HoleRankingsReport({ report }: { report: HoleRankingReport }) {
                   )}
                 </View>
 
-                <Footer generatedAt={report.generatedAt} matrix />
+                <Footer generatedAt={report.generatedAt} view={view} matrix />
               </Page>
             ))}
           </React.Fragment>
