@@ -98,46 +98,49 @@ export default async function AuditPage({ searchParams }: PageProps) {
       </div>
 
       <div className="mt-6 hidden max-h-[75vh] overflow-auto rounded-xl border border-gray-300 bg-white shadow-sm lg:block">
-        <table className="w-full min-w-[3900px] text-left text-base text-gray-900">
+        <table className="w-full min-w-[4200px] text-left text-base text-gray-900">
           <thead className="sticky top-0 z-20 border-b border-gray-300 bg-gray-200 text-gray-950 shadow-sm">
             <tr>
-              <th className="min-w-[540px] p-4 text-[2rem] font-black leading-tight">
+              <th className="min-w-[540px] p-4 text-base font-bold leading-snug">
                 Player
               </th>
-              <th className="min-w-[190px] p-4 text-right text-[2rem] font-black leading-tight">
+              <th className="min-w-[190px] p-4 text-right text-base font-bold leading-snug">
                 Sandbag Score
               </th>
-              <th className="min-w-[230px] p-4 text-right text-[2rem] font-black leading-tight">
+              <th className="min-w-[230px] p-4 text-right text-base font-bold leading-snug">
                 Current Handicap Index
               </th>
-              <th className="min-w-[250px] p-4 text-right text-[2rem] font-black leading-tight">
+              <th className="min-w-[250px] p-4 text-right text-base font-bold leading-snug">
                 Last 20 Competition HI
               </th>
-              <th className="min-w-[250px] p-4 text-right text-[2rem] font-black leading-tight">
+              <th className="min-w-[280px] p-4 text-right text-base font-bold leading-snug">
+                Last 12 Months Competition HI
+              </th>
+              <th className="min-w-[250px] p-4 text-right text-base font-bold leading-snug">
                 Last 20 General Play HI
               </th>
-              <th className="min-w-[280px] border-x-2 border-red-300 bg-red-100 p-4 text-right text-[2rem] font-black leading-tight text-red-800">
+              <th className="min-w-[280px] border-x-2 border-red-300 bg-red-100 p-4 text-right text-base font-bold leading-snug text-red-800">
                 Competition vs Overall Gap
               </th>
-              <th className="min-w-[220px] p-4 text-right text-[2rem] font-black leading-tight">
+              <th className="min-w-[220px] p-4 text-right text-base font-bold leading-snug">
                 Competition Rounds
               </th>
-              <th className="min-w-[220px] p-4 text-right text-[2rem] font-black leading-tight">
+              <th className="min-w-[220px] p-4 text-right text-base font-bold leading-snug">
                 General Play Rounds
               </th>
-              <th className="min-w-[230px] p-4 text-right text-[2rem] font-black leading-tight">
+              <th className="min-w-[230px] p-4 text-right text-base font-bold leading-snug">
                 Total Handicap Rounds
               </th>
-              <th className="min-w-[270px] p-4 text-right text-[2rem] font-black leading-tight">
+              <th className="min-w-[270px] p-4 text-right text-base font-bold leading-snug">
                 Competition Avg Differential
               </th>
-              <th className="min-w-[270px] p-4 text-right text-[2rem] font-black leading-tight">
+              <th className="min-w-[270px] p-4 text-right text-base font-bold leading-snug">
                 General Play Avg Differential
               </th>
-              <th className="min-w-[240px] p-4 text-right text-[2rem] font-black leading-tight">
+              <th className="min-w-[240px] p-4 text-right text-base font-bold leading-snug">
                 Competition Avg Score
               </th>
-              <th className="min-w-[240px] p-4 text-right text-[2rem] font-black leading-tight">
+              <th className="min-w-[240px] p-4 text-right text-base font-bold leading-snug">
                 General Play Avg Score
               </th>
               <th className="p-3 font-bold">Confidence</th>
@@ -151,7 +154,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
               <tr key={row.id} className="border-b border-gray-200 hover:bg-blue-50">
                 <td className="min-w-[540px] p-3 font-bold">
                   <div className="grid grid-cols-[minmax(190px,1fr)_80px_80px_140px] items-center gap-3">
-                    <span className="text-base">{row.full_name}</span>
+                    <span className="text-2xl">{row.full_name}</span>
 
                     <Link href={`/players/${row.id}`} className={ACTION_BUTTON}>
                       Player
@@ -182,34 +185,42 @@ export default async function AuditPage({ searchParams }: PageProps) {
                   </div>
                 </td>
 
-                <td className="p-3 text-right font-bold">{row.sandbagIndex}</td>
-                <td className="p-3 text-right">{formatNumber(row.overallHi)}</td>
-                <td className="p-3 text-right font-bold">
+                <td className="p-3 text-right text-2xl font-black">{row.sandbagIndex}</td>
+                <td className="p-3 text-right text-2xl font-bold">{formatNumber(row.overallHi)}</td>
+                <td className="p-3 text-right text-2xl font-bold">
                   {formatNumber(row.last20CompetitionHi)}
                 </td>
-                <td className="p-3 text-right">
+                <td className="p-3 text-right font-bold">
+                  <div className="text-2xl">
+                    {formatNumber(row.last12MonthsCompetitionHi)}
+                  </div>
+                  <div className="mt-1 text-sm font-medium text-gray-500">
+                    {row.last12MonthsCompetitionRounds} eligible rounds
+                  </div>
+                </td>
+                <td className="p-3 text-right text-2xl font-bold">
                   {formatNumber(row.last20GeneralPlayHi)}
                 </td>
                 <td className="border-x-2 border-red-200 bg-red-50 p-3 text-right text-3xl font-black text-red-700">
                   {formatNumber(row.competitionVsOverallGap)}
                 </td>
-                <td className="p-3 text-right">{row.competitionRounds}</td>
-                <td className="p-3 text-right">{row.casualRounds}</td>
-                <td className="p-3 text-right">{row.totalRounds}</td>
-                <td className="p-3 text-right">
+                <td className="p-3 text-right text-2xl font-bold">{row.competitionRounds}</td>
+                <td className="p-3 text-right text-2xl font-bold">{row.casualRounds}</td>
+                <td className="p-3 text-right text-2xl font-bold">{row.totalRounds}</td>
+                <td className="p-3 text-right text-2xl font-bold">
                   {formatNumber(row.competitionAvgDiff)}
                 </td>
-                <td className="p-3 text-right">
+                <td className="p-3 text-right text-2xl font-bold">
                   {formatNumber(row.casualAvgDiff)}
                 </td>
-                <td className="p-3 text-right">
+                <td className="p-3 text-right text-2xl font-bold">
                   {formatNumber(row.competitionScoringAverage)}
                 </td>
-                <td className="p-3 text-right">
+                <td className="p-3 text-right text-2xl font-bold">
                   {formatNumber(row.casualScoringAverage)}
                 </td>
 
-                <td className="p-3 font-bold">
+                <td className="p-3 text-xl font-bold">
                   <span
                     className={`rounded-full px-3 py-1 ${confidenceClass(
                       row.confidence
@@ -219,13 +230,13 @@ export default async function AuditPage({ searchParams }: PageProps) {
                   </span>
                 </td>
 
-                <td className="p-3 font-bold">
+                <td className="p-3 text-xl font-bold">
                   <span className={`rounded-full px-3 py-1 ${flagClass(row.flag)}`}>
                     {row.flag}
                   </span>
                 </td>
 
-                <td className="p-3 text-gray-800">{row.reasons.join(" ")}</td>
+                <td className="p-3 text-xl font-medium text-gray-800">{row.reasons.join(" ")}</td>
               </tr>
             ))}
           </tbody>
@@ -309,6 +320,10 @@ export default async function AuditPage({ searchParams }: PageProps) {
               <MobileStat
                 label="Last 20 Competition HI"
                 value={formatNumber(row.last20CompetitionHi)}
+              />
+              <MobileStat
+                label="Last 12 Months Competition HI"
+                value={formatNumber(row.last12MonthsCompetitionHi)}
               />
               <MobileStat
                 label="Last 20 General Play HI"
