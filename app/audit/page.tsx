@@ -44,10 +44,28 @@ function decisionClass(code: string) {
   return "bg-green-100 text-green-900";
 }
 
+function decisionPriority(code: string) {
+  if (
+    code === "adjustment_supported" ||
+    code === "provisional_adjustment" ||
+    code === "manual_review"
+  ) {
+    return 0;
+  }
+
+  if (code === "monitor") return 1;
+  return 2;
+}
+
 export default async function AuditPage({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
   const period: Period = params.period ?? "last20";
   const rows = [...(await auditService.getAuditRows(period))].sort((a, b) => {
+    const priorityDifference =
+      decisionPriority(a.decision.code) - decisionPriority(b.decision.code);
+
+    if (priorityDifference !== 0) return priorityDifference;
+
     const aGap = a.competitionVsOverallGap ?? Number.NEGATIVE_INFINITY;
     const bGap = b.competitionVsOverallGap ?? Number.NEGATIVE_INFINITY;
 
