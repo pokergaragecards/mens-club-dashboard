@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { auditService } from "@/services/auditService";
 import { ExportAuditPdfButton } from "@/components/audit/ExportAuditPdfButton";
+import { ExportCompetitionChokersPdfButton } from "@/components/audit/ExportCompetitionChokersPdfButton";
 import { PrepareEmailButton } from "@/components/audit/PrepareEmailButton";
 
 type Period = "last20" | "30" | "60" | "90" | "season";
@@ -98,6 +99,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
 
         <div className="flex flex-wrap items-center gap-3">
           <ExportAuditPdfButton />
+          <ExportCompetitionChokersPdfButton />
 
           <Link
             href="/audit/committee"
