@@ -18,6 +18,15 @@ function roundedUpHalf(value: number) {
   return Math.ceil(value * 2) / 2;
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 function safeFileName(value: string) {
   return value.replace(/[^a-zA-Z0-9.-]+/g, "-").replace(/^-|-$/g, "");
 }
@@ -58,6 +67,55 @@ Thank you,
 Goodrich Men's Club Handicap Committee`;
 }
 
+function buildEmailHtml(props: Props) {
+  const qualifies =
+    props.competitionIndex != null &&
+    props.competitionGap != null &&
+    props.competitionGap >= 2;
+  const adjustedIndex =
+    qualifies && props.competitionIndex != null
+      ? roundedUpHalf(props.competitionIndex)
+      : null;
+
+  const adjustment = qualifies
+    ? `<p>Because your Competition Handicap Index is at least <strong>2.0 strokes lower</strong> than your official handicap, a <strong>Committee-Adjusted Handicap Index of ${adjustedIndex?.toFixed(
+        1
+      )}</strong> will be used for Goodrich Men's Club competitive events and matches. This value is your Competition Handicap Index rounded upward to the next half-stroke.</p>`
+    : "<p>This audit is being provided for review. <strong>No competition-only adjustment</strong> is indicated by the current 2.0-stroke threshold.</p>";
+
+  return `<p>Hello ${escapeHtml(props.playerName)},</p>
+<p>The Goodrich Men's Club Handicap Committee has completed its current review of your competition scoring history.</p>
+<p><strong>Official GHIN Handicap Index: ${valueOrDash(
+    props.currentIndex
+  )}</strong><br>
+<strong>Competition Handicap Index: ${valueOrDash(
+    props.competitionIndex
+  )}</strong><br>
+<strong>Difference: ${valueOrDash(props.competitionGap)} strokes</strong></p>
+${adjustment}
+<p><strong>Your official GHIN Handicap Index will not be changed.</strong> Any committee adjustment applies <strong>only to Goodrich Men's Club competitive events and matches.</strong></p>
+<p>We will review the calculation weekly as additional competition scores are posted. The attached audit PDF contains the scoring details used in this review.</p>
+<p>If you have any questions, please contact a member of the Handicap Committee.</p>
+<p>Thank you,<br>
+<strong>Goodrich Men's Club Handicap Committee</strong></p>`;
+}
+
+async function copyFormattedEmail(html: string, text: string) {
+  if (typeof ClipboardItem === "undefined" || !navigator.clipboard?.write) {
+    await navigator.clipboard.writeText(text);
+    return false;
+  }
+
+  await navigator.clipboard.write([
+    new ClipboardItem({
+      "text/html": new Blob([html], { type: "text/html" }),
+      "text/plain": new Blob([text], { type: "text/plain" }),
+    }),
+  ]);
+
+  return true;
+}
+
 export function PrepareEmailButton(props: Props) {
   const [preparing, setPreparing] = useState(false);
 
@@ -91,18 +149,22 @@ export function PrepareEmailButton(props: Props) {
 
       const subject = "Goodrich Men's Club Competition Handicap Review";
       const body = buildEmailBody(props);
+      const htmlBody = buildEmailHtml(props);
+      let copiedFormatted = false;
 
       try {
-        await navigator.clipboard.writeText(body);
+        copiedFormatted = await copyFormattedEmail(htmlBody, body);
       } catch {
-        // Gmail still receives the draft text if clipboard access is blocked.
+        // Gmail receives the plain-text body if clipboard access is blocked.
       }
 
       const gmailUrl = new URL("https://mail.google.com/mail/");
       gmailUrl.searchParams.set("view", "cm");
       gmailUrl.searchParams.set("fs", "1");
       gmailUrl.searchParams.set("su", subject);
-      gmailUrl.searchParams.set("body", body);
+      if (!copiedFormatted) {
+        gmailUrl.searchParams.set("body", body);
+      }
       if (draftWindow) {
         draftWindow.location.href = gmailUrl.toString();
       } else {
@@ -110,7 +172,9 @@ export function PrepareEmailButton(props: Props) {
       }
 
       window.alert(
-        "The player PDF was downloaded and the Gmail draft was prepared. Attach the downloaded PDF before sending."
+        copiedFormatted
+          ? "The formatted email was copied and the player PDF was downloaded. Paste the email into Gmail, then attach the downloaded PDF before sending."
+          : "The player PDF was downloaded and a plain-text Gmail draft was prepared. Attach the downloaded PDF before sending."
       );
     } catch (error) {
       draftWindow?.close();
@@ -127,7 +191,7 @@ export function PrepareEmailButton(props: Props) {
       type="button"
       onClick={prepareEmail}
       disabled={preparing}
-      className="rounded-md border border-green-700 bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-800 transition-colors hover:bg-green-100 disabled:cursor-wait disabled:opacity-60"
+      className="inline-flex min-h-10 w-full items-center justify-center rounded-md border border-green-700 bg-green-50 px-3 py-1.5 text-center text-sm font-semibold text-green-800 transition-colors hover:bg-green-100 disabled:cursor-wait disabled:opacity-60"
       title="Download the player's PDF and open a Gmail draft"
     >
       {preparing ? "Preparing..." : "Prepare Email"}

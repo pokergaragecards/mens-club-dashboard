@@ -10,7 +10,7 @@ type PageProps = {
 };
 
 const ACTION_BUTTON =
-  "rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700";
+  "inline-flex min-h-10 w-full items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-gray-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700";
 const MANUAL_EMAIL_PLAYER_IDS = new Set([
   "d32518c3-09fc-412c-9555-9f4fa6513b98",
 ]);
@@ -38,7 +38,13 @@ function confidenceClass(confidence: string) {
 export default async function AuditPage({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
   const period: Period = params.period ?? "last20";
-  const rows = await auditService.getAuditRows(period);
+  const rows = [...(await auditService.getAuditRows(period))].sort((a, b) => {
+    const aGap = a.competitionVsOverallGap ?? Number.NEGATIVE_INFINITY;
+    const bGap = b.competitionVsOverallGap ?? Number.NEGATIVE_INFINITY;
+
+    if (aGap !== bGap) return bGap - aGap;
+    return a.full_name.localeCompare(b.full_name);
+  });
 
   const tabs: { href: string; label: string; value: Period }[] = [
     { href: "/audit?period=last20", label: "Last 20", value: "last20" },
@@ -49,14 +55,14 @@ export default async function AuditPage({ searchParams }: PageProps) {
   ];
 
   return (
-    <main className="p-4 text-gray-900 lg:p-8">
+    <main className="p-4 text-base text-gray-900 lg:p-8">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-950">
             Handicap Audit
           </h1>
 
-          <p className="mt-2 text-sm text-gray-600 lg:text-base">
+          <p className="mt-2 text-base text-gray-600 lg:text-lg">
             Audit view using official GHIN handicap-counting rounds only,
             comparing Overall Handicap Index, Last 20 Competition Handicap
             Index, Last 20 General Play Handicap Index, and scoring gaps.
@@ -68,7 +74,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
 
           <Link
             href="/audit/committee"
-            className="inline-flex w-fit items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+            className="inline-flex w-fit items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-base font-semibold text-gray-700 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
           >
             Committee Audit
           </Link>
@@ -82,8 +88,8 @@ export default async function AuditPage({ searchParams }: PageProps) {
             href={tab.href}
             className={
               period === tab.value
-                ? "rounded-lg border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
-                : "rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                ? "rounded-lg border border-slate-900 bg-slate-900 px-4 py-2.5 text-base font-semibold text-white"
+                : "rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-base font-semibold text-gray-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
             }
           >
             {tab.label}
@@ -92,7 +98,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
       </div>
 
       <div className="mt-6 hidden max-h-[75vh] overflow-auto rounded-xl border border-gray-300 bg-white shadow-sm lg:block">
-        <table className="w-full min-w-[1700px] text-left text-sm text-gray-900">
+        <table className="w-full min-w-[2050px] text-left text-base text-gray-900">
           <thead className="sticky top-0 z-20 border-b border-gray-300 bg-gray-200 text-gray-950 shadow-sm">
             <tr>
               <th className="p-3 font-bold">Player</th>
@@ -117,9 +123,9 @@ export default async function AuditPage({ searchParams }: PageProps) {
           <tbody>
             {rows.map((row) => (
               <tr key={row.id} className="border-b border-gray-200 hover:bg-blue-50">
-                <td className="p-3 font-bold">
-                  <div className="flex items-center gap-2">
-                    <span>{row.full_name}</span>
+                <td className="min-w-[540px] p-3 font-bold">
+                  <div className="grid grid-cols-[minmax(190px,1fr)_80px_80px_140px] items-center gap-3">
+                    <span className="text-base">{row.full_name}</span>
 
                     <Link href={`/players/${row.id}`} className={ACTION_BUTTON}>
                       Player
@@ -132,7 +138,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
                     {row.competitionVsOverallGap != null &&
                     row.competitionVsOverallGap >= 2 ? (
                       MANUAL_EMAIL_PLAYER_IDS.has(row.id) ? (
-                        <span className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                        <span className="inline-flex min-h-10 items-center justify-center rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-center text-sm font-semibold text-amber-800">
                           Manual Exception
                         </span>
                       ) : (
@@ -144,7 +150,9 @@ export default async function AuditPage({ searchParams }: PageProps) {
                           competitionGap={row.competitionVsOverallGap}
                         />
                       )
-                    ) : null}
+                    ) : (
+                      <span aria-hidden="true" />
+                    )}
                   </div>
                 </td>
 
@@ -208,11 +216,11 @@ export default async function AuditPage({ searchParams }: PageProps) {
               <div>
                 <div className="text-xs font-bold text-gray-500">#{index + 1}</div>
 
-                <div className="text-xl font-bold text-gray-950">
+                <div className="text-2xl font-bold text-gray-950">
                   {row.full_name}
                 </div>
 
-                <div className="mt-2 flex flex-wrap gap-2">
+                <div className="mt-3 grid grid-cols-3 gap-2">
                   <Link href={`/players/${row.id}`} className={ACTION_BUTTON}>
                     Player
                   </Link>
@@ -224,7 +232,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
                   {row.competitionVsOverallGap != null &&
                   row.competitionVsOverallGap >= 2 ? (
                     MANUAL_EMAIL_PLAYER_IDS.has(row.id) ? (
-                      <span className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                      <span className="inline-flex min-h-10 items-center justify-center rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-center text-sm font-semibold text-amber-800">
                         Manual Exception
                       </span>
                     ) : (
@@ -236,7 +244,9 @@ export default async function AuditPage({ searchParams }: PageProps) {
                         competitionGap={row.competitionVsOverallGap}
                       />
                     )
-                  ) : null}
+                  ) : (
+                    <span aria-hidden="true" />
+                  )}
                 </div>
 
                 <div className="mt-2 flex flex-wrap gap-2">
