@@ -253,8 +253,9 @@ async function getAllOfficialRounds(): Promise<RoundRow[]> {
   });
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const playerId = new URL(request.url).searchParams.get("playerId");
     const supabase = createSupabaseServerClient();
 
     const [
@@ -288,9 +289,11 @@ export async function GET() {
       roundsByPlayer.set(round.player_id, existing);
     }
 
-    const reportPlayers: AuditPlayerReport[] = (
-      (playerData ?? []) as PlayerRow[]
-    )
+    const requestedPlayers = ((playerData ?? []) as PlayerRow[]).filter(
+      (player) => !playerId || player.id === playerId
+    );
+
+    const reportPlayers: AuditPlayerReport[] = requestedPlayers
       .map((player): AuditPlayerReport | null => {
         const summary = summaryById.get(player.id);
         const playerRounds = roundsByPlayer.get(player.id) ?? [];
@@ -301,7 +304,7 @@ export async function GET() {
 
         // The export includes every player with at least five official
         // competition scores, regardless of their review status.
-        if (competitionRounds.length < 5) return null;
+        if (!playerId && competitionRounds.length < 5) return null;
 
         const generalRounds = playerRounds.filter(
           (round) => !isCompetition(round.score_type)
@@ -375,6 +378,13 @@ export async function GET() {
       })
       .filter((player): player is AuditPlayerReport => player !== null);
 
+    if (playerId && !reportPlayers.length) {
+      return Response.json(
+        { error: "Player not found." },
+        { status: 404 }
+      );
+    }
+
     reportPlayers.sort(
       (a, b) =>
         (b.difference ?? Number.NEGATIVE_INFINITY) -
@@ -392,12 +402,15 @@ export async function GET() {
 
     const buffer = await renderToBuffer(document);
     const date = new Date().toISOString().slice(0, 10);
+    const fileName = playerId
+      ? `${reportPlayers[0].name.replace(/[^a-zA-Z0-9.-]+/g, "-")}-handicap-audit-${date}.pdf`
+      : `goodrich-audit-${date}.pdf`;
 
     return new Response(new Uint8Array(buffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="goodrich-audit-${date}.pdf"`,
+        "Content-Disposition": `attachment; filename="${fileName}"`,
         "Cache-Control": "no-store, max-age=0",
       },
     });

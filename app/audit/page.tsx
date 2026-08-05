@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { auditService } from "@/services/auditService";
 import { ExportAuditPdfButton } from "@/components/audit/ExportAuditPdfButton";
+import { PrepareEmailButton } from "@/components/audit/PrepareEmailButton";
 
 type Period = "last20" | "30" | "60" | "90" | "season";
 
@@ -10,6 +11,9 @@ type PageProps = {
 
 const ACTION_BUTTON =
   "rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700";
+const MANUAL_EMAIL_PLAYER_IDS = new Set([
+  "d32518c3-09fc-412c-9555-9f4fa6513b98",
+]);
 
 function formatNumber(value: unknown, decimals = 1) {
   if (value === null || value === undefined) return "-";
@@ -124,6 +128,20 @@ export default async function AuditPage({ searchParams }: PageProps) {
                     <Link href={`/audit/${row.id}`} className={ACTION_BUTTON}>
                       Audit
                     </Link>
+
+                    {MANUAL_EMAIL_PLAYER_IDS.has(row.id) ? (
+                      <span className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                        Manual Exception
+                      </span>
+                    ) : (
+                      <PrepareEmailButton
+                        playerId={row.id}
+                        playerName={row.full_name}
+                        currentIndex={row.overallHi}
+                        competitionIndex={row.last20CompetitionHi}
+                        competitionGap={row.competitionVsOverallGap}
+                      />
+                    )}
                   </div>
                 </td>
 
@@ -199,6 +217,20 @@ export default async function AuditPage({ searchParams }: PageProps) {
                   <Link href={`/audit/${row.id}`} className={ACTION_BUTTON}>
                     Audit
                   </Link>
+
+                  {MANUAL_EMAIL_PLAYER_IDS.has(row.id) ? (
+                    <span className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                      Manual Exception
+                    </span>
+                  ) : (
+                    <PrepareEmailButton
+                      playerId={row.id}
+                      playerName={row.full_name}
+                      currentIndex={row.overallHi}
+                      competitionIndex={row.last20CompetitionHi}
+                      competitionGap={row.competitionVsOverallGap}
+                    />
+                  )}
                 </div>
 
                 <div className="mt-2 flex flex-wrap gap-2">
