@@ -98,22 +98,48 @@ export default async function AuditPage({ searchParams }: PageProps) {
       </div>
 
       <div className="mt-6 hidden max-h-[75vh] overflow-auto rounded-xl border border-gray-300 bg-white shadow-sm lg:block">
-        <table className="w-full min-w-[2050px] text-left text-base text-gray-900">
+        <table className="w-full min-w-[3900px] text-left text-base text-gray-900">
           <thead className="sticky top-0 z-20 border-b border-gray-300 bg-gray-200 text-gray-950 shadow-sm">
             <tr>
-              <th className="p-3 font-bold">Player</th>
-              <th className="p-3 text-right font-bold">Sandbag Score</th>
-              <th className="p-3 text-right font-bold">Current Handicap Index</th>
-              <th className="p-3 text-right font-bold">Last 20 Competition HI</th>
-              <th className="p-3 text-right font-bold">Last 20 General Play HI</th>
-              <th className="p-3 text-right font-bold">Competition vs Overall Gap</th>
-              <th className="p-3 text-right font-bold">Competition Rounds</th>
-              <th className="p-3 text-right font-bold">General Play Rounds</th>
-              <th className="p-3 text-right font-bold">Total Handicap Rounds</th>
-              <th className="p-3 text-right font-bold">Competition Avg Differential</th>
-              <th className="p-3 text-right font-bold">General Play Avg Differential</th>
-              <th className="p-3 text-right font-bold">Competition Avg Score</th>
-              <th className="p-3 text-right font-bold">General Play Avg Score</th>
+              <th className="min-w-[540px] p-4 text-[2rem] font-black leading-tight">
+                Player
+              </th>
+              <th className="min-w-[190px] p-4 text-right text-[2rem] font-black leading-tight">
+                Sandbag Score
+              </th>
+              <th className="min-w-[230px] p-4 text-right text-[2rem] font-black leading-tight">
+                Current Handicap Index
+              </th>
+              <th className="min-w-[250px] p-4 text-right text-[2rem] font-black leading-tight">
+                Last 20 Competition HI
+              </th>
+              <th className="min-w-[250px] p-4 text-right text-[2rem] font-black leading-tight">
+                Last 20 General Play HI
+              </th>
+              <th className="min-w-[280px] border-x-2 border-red-300 bg-red-100 p-4 text-right text-[2rem] font-black leading-tight text-red-800">
+                Competition vs Overall Gap
+              </th>
+              <th className="min-w-[220px] p-4 text-right text-[2rem] font-black leading-tight">
+                Competition Rounds
+              </th>
+              <th className="min-w-[220px] p-4 text-right text-[2rem] font-black leading-tight">
+                General Play Rounds
+              </th>
+              <th className="min-w-[230px] p-4 text-right text-[2rem] font-black leading-tight">
+                Total Handicap Rounds
+              </th>
+              <th className="min-w-[270px] p-4 text-right text-[2rem] font-black leading-tight">
+                Competition Avg Differential
+              </th>
+              <th className="min-w-[270px] p-4 text-right text-[2rem] font-black leading-tight">
+                General Play Avg Differential
+              </th>
+              <th className="min-w-[240px] p-4 text-right text-[2rem] font-black leading-tight">
+                Competition Avg Score
+              </th>
+              <th className="min-w-[240px] p-4 text-right text-[2rem] font-black leading-tight">
+                General Play Avg Score
+              </th>
               <th className="p-3 font-bold">Confidence</th>
               <th className="p-3 font-bold">Status</th>
               <th className="p-3 font-bold">Reason</th>
@@ -164,7 +190,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
                 <td className="p-3 text-right">
                   {formatNumber(row.last20GeneralPlayHi)}
                 </td>
-                <td className="p-3 text-right font-bold">
+                <td className="border-x-2 border-red-200 bg-red-50 p-3 text-right text-3xl font-black text-red-700">
                   {formatNumber(row.competitionVsOverallGap)}
                 </td>
                 <td className="p-3 text-right">{row.competitionRounds}</td>
