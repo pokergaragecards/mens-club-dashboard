@@ -12,8 +12,9 @@ export type PlayerHoleRanking = {
   averageGrossScore: number;
   averageExpectedScore: number;
   averageVsHandicap: number;
-  clubAverageVsHandicap: number;
-  vsClubAverage: number;
+  performanceMultiplier: number;
+  clubAverageMultiplier: number;
+  vsClubMultiplier: number;
   rank: number;
   qualifyingPlayers: number;
   worstPercentile: number;
@@ -25,7 +26,7 @@ export type HoleRanking = {
   par: number | null;
   strokeIndex: number | null;
   yardage: number | null;
-  clubAverageVsHandicap: number | null;
+  clubAverageMultiplier: number | null;
   players: PlayerHoleRanking[];
 };
 
@@ -103,7 +104,7 @@ type ScoreObservation = {
 };
 
 const METHODOLOGY =
-  "For each score, expected hole score equals par plus the strokes the player receives on that hole from the round's Course Handicap and the tee's stroke index. Performance versus handicap equals gross score minus expected score: positive is worse and negative is better. Players need at least three scores on the same tee and hole. Club averages give each qualifying player equal weight.";
+  "For each score, expected hole score equals par plus the strokes the player receives on that hole from the round's Course Handicap and the tee's stroke index. The Performance Multiplier equals Average Gross Score divided by Average Expected Score: 1.00x matches expectation, above 1.00x is worse, and below 1.00x is better. Players need at least three scores on the same tee and hole. Club averages give each qualifying player equal weight.";
 
 function finiteNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -273,19 +274,33 @@ export function buildHoleRankingReport(
             values.length >= MINIMUM_HOLE_SCORES
           );
         })
-        .map(([, values]) => ({
-          playerId: values[0].playerId,
-          playerName: values[0].playerName,
-          scoreCount: values.length,
-          averageGrossScore: rounded(average(values.map((value) => value.grossScore))),
-          averageExpectedScore: rounded(
-            average(values.map((value) => value.expectedScore))
-          ),
-          averageVsHandicap: rounded(
-            average(values.map((value) => value.vsHandicap))
-          ),
-        }))
+        .map(([, values]) => {
+          const rawAverageGrossScore = average(
+            values.map((value) => value.grossScore)
+          );
+          const rawAverageExpectedScore = average(
+            values.map((value) => value.expectedScore)
+          );
+
+          return {
+            playerId: values[0].playerId,
+            playerName: values[0].playerName,
+            scoreCount: values.length,
+            averageGrossScore: rounded(rawAverageGrossScore),
+            averageExpectedScore: rounded(rawAverageExpectedScore),
+            averageVsHandicap: rounded(
+              average(values.map((value) => value.vsHandicap))
+            ),
+            performanceMultiplier: rounded(
+              rawAverageGrossScore / rawAverageExpectedScore,
+              4
+            ),
+          };
+        })
         .sort((a, b) => {
+          if (a.performanceMultiplier !== b.performanceMultiplier) {
+            return b.performanceMultiplier - a.performanceMultiplier;
+          }
           if (a.averageVsHandicap !== b.averageVsHandicap) {
             return b.averageVsHandicap - a.averageVsHandicap;
           }
@@ -295,8 +310,11 @@ export function buildHoleRankingReport(
           return a.playerName.localeCompare(b.playerName);
         });
 
-      const clubAverage = playerRows.length
-        ? rounded(average(playerRows.map((player) => player.averageVsHandicap)))
+      const clubAverageMultiplier = playerRows.length
+        ? rounded(
+            average(playerRows.map((player) => player.performanceMultiplier)),
+            4
+          )
         : null;
       let previousValue: number | null = null;
       let previousRank = 0;
@@ -304,16 +322,19 @@ export function buildHoleRankingReport(
       const players = playerRows.map<PlayerHoleRanking>((player, rowIndex) => {
         const isTie =
           previousValue !== null &&
-          Math.abs(player.averageVsHandicap - previousValue) < 0.001;
+          Math.abs(player.performanceMultiplier - previousValue) < 0.0001;
         const rank = isTie ? previousRank : rowIndex + 1;
-        previousValue = player.averageVsHandicap;
+        previousValue = player.performanceMultiplier;
         previousRank = rank;
         const qualifyingPlayers = playerRows.length;
 
         return {
           ...player,
-          clubAverageVsHandicap: clubAverage ?? 0,
-          vsClubAverage: rounded(player.averageVsHandicap - (clubAverage ?? 0)),
+          clubAverageMultiplier: clubAverageMultiplier ?? 0,
+          vsClubMultiplier: rounded(
+            player.performanceMultiplier - (clubAverageMultiplier ?? 0),
+            4
+          ),
           rank,
           qualifyingPlayers,
           worstPercentile:
@@ -332,7 +353,7 @@ export function buildHoleRankingReport(
         par: finiteNumber(definition?.par),
         strokeIndex: finiteNumber(definition?.strokeIndex),
         yardage: finiteNumber(definition?.yardage),
-        clubAverageVsHandicap: clubAverage,
+        clubAverageMultiplier,
         players,
       };
     }),

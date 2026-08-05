@@ -48,11 +48,31 @@ function signed(value: number | null, decimals = 2) {
   return `${value > 0 ? "+" : ""}${value.toFixed(decimals)}`;
 }
 
+function multiplier(value: number | null, decimals = 3) {
+  if (value === null || !Number.isFinite(value)) return "-";
+  return `${value.toFixed(decimals)}x`;
+}
+
+function signedPercent(value: number | null, decimals = 1) {
+  if (value === null || !Number.isFinite(value)) return "-";
+  const percentage = value * 100;
+  return `${percentage > 0 ? "+" : ""}${percentage.toFixed(decimals)}%`;
+}
+
 function performanceClass(value: number) {
-  if (value >= 0.75) return "bg-red-100 text-red-900";
-  if (value > 0) return "bg-amber-50 text-amber-900";
-  if (value <= -0.75) return "bg-green-100 text-green-900";
+  if (value >= 1.2) return "bg-red-100 text-red-900";
+  if (value > 1) return "bg-amber-50 text-amber-900";
+  if (value <= 0.85) return "bg-green-100 text-green-900";
   return "bg-slate-50 text-slate-900";
+}
+
+function ordinal(value: number) {
+  const mod100 = value % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${value}th`;
+  if (value % 10 === 1) return `${value}st`;
+  if (value % 10 === 2) return `${value}nd`;
+  if (value % 10 === 3) return `${value}rd`;
+  return `${value}th`;
 }
 
 export default async function HoleRankingsPage({ searchParams }: PageProps) {
@@ -97,9 +117,11 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
         <h2 className="font-black text-blue-950">How the comparison works</h2>
         <p className="mt-1 leading-relaxed text-blue-950">
           <strong>Expected score = par + allocated Course Handicap strokes.</strong>{" "}
-          The ranking value is <strong>average gross score - expected score</strong>.
-          A positive value means the player averaged worse than handicap; a
-          negative value means better. A player must have at least{" "}
+          The primary ranking value is the <strong>Performance Multiplier =
+          Average Gross / Expected Average</strong>. A value of 1.00x matches
+          expectation, 1.10x is 10% worse, and 0.90x is 10% better. The raw
+          stroke difference remains visible as supporting detail. A player must
+          have at least{" "}
           <strong>{report.minimumScores} scores on the exact tee and hole</strong>.
           The club average gives every qualifying player equal weight so a
           player with more imported rounds cannot dominate the benchmark.
@@ -158,9 +180,11 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
                       {worst.playerName}
                     </div>
                     <div className="mt-1 text-2xl font-black text-red-700">
-                      {signed(worst.averageVsHandicap)}
+                      {multiplier(worst.performanceMultiplier, 2)}
                     </div>
-                    <div className="text-xs font-bold text-slate-500">vs handicap</div>
+                    <div className="text-xs font-bold text-slate-500">
+                      of expected score
+                    </div>
                   </>
                 ) : (
                   <div className="mt-3 text-sm font-semibold text-slate-500">
@@ -185,12 +209,12 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
             </p>
           </div>
           <div className="text-base font-black text-red-700">
-            Club average vs handicap: {signed(hole.clubAverageVsHandicap)}
+            Club average multiplier: {multiplier(hole.clubAverageMultiplier)}
           </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1050px] text-left">
+          <table className="w-full min-w-[1220px] text-left">
             <thead className="border-b border-slate-300 bg-slate-900 text-white">
               <tr>
                 <th className="p-3 text-center">Worst Rank</th>
@@ -198,8 +222,9 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
                 <th className="p-3 text-right">Scores</th>
                 <th className="p-3 text-right">Avg Gross</th>
                 <th className="p-3 text-right">Expected Avg</th>
-                <th className="p-3 text-right">Avg vs Handicap</th>
-                <th className="p-3 text-right">Worse than Club</th>
+                <th className="p-3 text-right">Performance Multiplier</th>
+                <th className="p-3 text-right">Raw Avg vs Handicap</th>
+                <th className="p-3 text-right">Above Club Multiplier</th>
                 <th className="p-3 text-right">Worst Percentile</th>
               </tr>
             </thead>
@@ -234,22 +259,25 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
                   </td>
                   <td
                     className={`p-3 text-right text-2xl font-black ${performanceClass(
-                      player.averageVsHandicap
+                      player.performanceMultiplier
                     )}`}
                   >
+                    {multiplier(player.performanceMultiplier)}
+                  </td>
+                  <td className="p-3 text-right text-lg font-black">
                     {signed(player.averageVsHandicap)}
                   </td>
                   <td className="p-3 text-right text-lg font-black">
-                    {signed(player.vsClubAverage)}
+                    {signedPercent(player.vsClubMultiplier)}
                   </td>
                   <td className="p-3 text-right text-lg font-black">
-                    {player.worstPercentile.toFixed(0)}th
+                    {ordinal(Math.round(player.worstPercentile))}
                   </td>
                 </tr>
               ))}
               {!hole.players.length && (
                 <tr>
-                  <td colSpan={8} className="p-10 text-center text-lg font-bold text-slate-500">
+                  <td colSpan={9} className="p-10 text-center text-lg font-bold text-slate-500">
                     No active player has three qualifying {tee}-tee scores on
                     this hole yet.
                   </td>

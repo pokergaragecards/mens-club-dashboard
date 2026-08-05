@@ -264,9 +264,9 @@ type MatrixPlayer = {
   cells: Map<number, PlayerHoleRanking>;
 };
 
-function signed(value: number | null, decimals = 2) {
+function multiplier(value: number | null, decimals = 2) {
   if (value === null || !Number.isFinite(value)) return "-";
-  return `${value > 0 ? "+" : ""}${value.toFixed(decimals)}`;
+  return `${value.toFixed(decimals)}x`;
 }
 
 function teeBadgeStyle(tee: TeeHoleRankings["tee"]) {
@@ -330,11 +330,11 @@ function SummaryHeader() {
       <Text style={[s.cell, s.summaryPar]}>Par</Text>
       <Text style={[s.cell, s.summaryStroke]}>Stroke Idx</Text>
       <Text style={[s.cell, s.summaryYardage]}>Yards</Text>
-      <Text style={[s.cell, s.summaryPlayer]}>Worst vs Handicap</Text>
-      <Text style={[s.cell, s.summaryValue]}>Avg vs Hcap</Text>
+      <Text style={[s.cell, s.summaryPlayer]}>Worst by Multiplier</Text>
+      <Text style={[s.cell, s.summaryValue]}>Multiplier</Text>
       <Text style={[s.cell, s.summaryScores]}>Scores</Text>
       <Text style={[s.cell, s.summaryField]}>Players</Text>
-      <Text style={[s.cell, s.summaryClub]}>Club Avg</Text>
+      <Text style={[s.cell, s.summaryClub]}>Club Mult.</Text>
     </View>
   );
 }
@@ -352,12 +352,12 @@ function SummaryRow({ hole, index }: { hole: HoleRanking; index: number }) {
         {worst?.playerName ?? "No qualifying player"}
       </Text>
       <Text style={[s.cell, s.summaryValue]}>
-        {signed(worst?.averageVsHandicap ?? null)}
+        {multiplier(worst?.performanceMultiplier ?? null)}
       </Text>
       <Text style={[s.cell, s.summaryScores]}>{worst?.scoreCount ?? "-"}</Text>
       <Text style={[s.cell, s.summaryField]}>{hole.players.length}</Text>
       <Text style={[s.cell, s.summaryClub]}>
-        {signed(hole.clubAverageVsHandicap)}
+        {multiplier(hole.clubAverageMultiplier)}
       </Text>
     </View>
   );
@@ -381,7 +381,9 @@ function MatrixCell({ ranking }: { ranking: PlayerHoleRanking | undefined }) {
       ]}
     >
       <Text style={s.matrixRank}>#{ranking.rank}</Text>
-      <Text style={s.matrixValue}>{signed(ranking.averageVsHandicap, 1)}</Text>
+      <Text style={s.matrixValue}>
+        {multiplier(ranking.performanceMultiplier, 2)}
+      </Text>
     </View>
   );
 }
@@ -427,9 +429,10 @@ export function HoleRankingsReport({ report }: { report: HoleRankingReport }) {
                 <Text style={s.methodTitle}>METHOD AND ELIGIBILITY</Text>
                 <Text style={s.methodText}>
                   Expected score = hole par + Course Handicap strokes allocated
-                  by stroke index. Avg vs Handicap = gross score - expected score;
-                  positive is worse, negative is better. Rank #1 is the highest
-                  average (worst relative performance). Each player needs at least
+                  by stroke index. Performance Multiplier = Average Gross Score
+                  divided by Average Expected Score. 1.00x matches expectation;
+                  higher is worse and lower is better. Rank #1 is the highest
+                  multiplier. Each player needs at least
                   {` ${report.minimumScores} `}scores on this exact tee and hole.
                   Club averages weight each qualifying player equally. Combo tees
                   are excluded from these four single-tee groups.
@@ -476,11 +479,12 @@ export function HoleRankingsReport({ report }: { report: HoleRankingReport }) {
                 </View>
 
                 <Text style={s.legend}>
-                  Each cell shows #worst rank and average strokes versus handicap.
+                  Each cell shows #worst rank and the Performance Multiplier.
                   Red = worst on that hole; amber = ranks 2-3; dash = fewer than
-                  {` ${report.minimumScores} `}qualifying scores. Higher positive
-                  values are worse. Avg Worst % summarizes the holes on which the
-                  player qualifies; 100 is worst and 0 is best.
+                  {` ${report.minimumScores} `}qualifying scores. 1.00x matches
+                  expectation and higher values are worse. Avg Worst % summarizes
+                  the holes on which the player qualifies; 100 is worst and 0 is
+                  best.
                 </Text>
 
                 <View style={s.matrixTable}>
