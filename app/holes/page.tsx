@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import { HoleStatsTable } from "@/components/holes/HoleStatsTable";
+import Link from "next/link";
 
 type SearchParams = {
   player?: string;
@@ -136,15 +137,24 @@ export default async function HolesPage({
 
   return (
     <main className="space-y-6 p-8">
-      <div>
-        <h1 className="text-3xl font-bold">
-          Hole Statistics
-        </h1>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">
+            Hole Statistics
+          </h1>
 
-        <p className="mt-2 text-gray-600">
-          View hole-by-hole scoring history by
-          player and tee box.
-        </p>
+          <p className="mt-2 text-gray-600">
+            View hole-by-hole scoring history by
+            player and tee box.
+          </p>
+        </div>
+
+        <Link
+          href="/holes/rankings"
+          className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2.5 font-bold text-white shadow-sm transition-colors hover:bg-slate-700"
+        >
+          Club Hole Rankings
+        </Link>
       </div>
 
       <HoleStatsTable
