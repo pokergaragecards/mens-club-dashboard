@@ -129,19 +129,22 @@ export default async function AuditPage({ searchParams }: PageProps) {
                       Audit
                     </Link>
 
-                    {MANUAL_EMAIL_PLAYER_IDS.has(row.id) ? (
-                      <span className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
-                        Manual Exception
-                      </span>
-                    ) : (
-                      <PrepareEmailButton
-                        playerId={row.id}
-                        playerName={row.full_name}
-                        currentIndex={row.overallHi}
-                        competitionIndex={row.last20CompetitionHi}
-                        competitionGap={row.competitionVsOverallGap}
-                      />
-                    )}
+                    {row.competitionVsOverallGap != null &&
+                    row.competitionVsOverallGap >= 2 ? (
+                      MANUAL_EMAIL_PLAYER_IDS.has(row.id) ? (
+                        <span className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                          Manual Exception
+                        </span>
+                      ) : (
+                        <PrepareEmailButton
+                          playerId={row.id}
+                          playerName={row.full_name}
+                          currentIndex={row.overallHi}
+                          competitionIndex={row.last20CompetitionHi}
+                          competitionGap={row.competitionVsOverallGap}
+                        />
+                      )
+                    ) : null}
                   </div>
                 </td>
 
@@ -218,19 +221,22 @@ export default async function AuditPage({ searchParams }: PageProps) {
                     Audit
                   </Link>
 
-                  {MANUAL_EMAIL_PLAYER_IDS.has(row.id) ? (
-                    <span className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
-                      Manual Exception
-                    </span>
-                  ) : (
-                    <PrepareEmailButton
-                      playerId={row.id}
-                      playerName={row.full_name}
-                      currentIndex={row.overallHi}
-                      competitionIndex={row.last20CompetitionHi}
-                      competitionGap={row.competitionVsOverallGap}
-                    />
-                  )}
+                  {row.competitionVsOverallGap != null &&
+                  row.competitionVsOverallGap >= 2 ? (
+                    MANUAL_EMAIL_PLAYER_IDS.has(row.id) ? (
+                      <span className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                        Manual Exception
+                      </span>
+                    ) : (
+                      <PrepareEmailButton
+                        playerId={row.id}
+                        playerName={row.full_name}
+                        currentIndex={row.overallHi}
+                        competitionIndex={row.last20CompetitionHi}
+                        competitionGap={row.competitionVsOverallGap}
+                      />
+                    )
+                  ) : null}
                 </div>
 
                 <div className="mt-2 flex flex-wrap gap-2">
