@@ -428,11 +428,15 @@ export function HoleRankingsReport({ report }: { report: HoleRankingReport }) {
               <View style={s.method}>
                 <Text style={s.methodTitle}>METHOD AND ELIGIBILITY</Text>
                 <Text style={s.methodText}>
-                  Expected score = hole par + Course Handicap strokes allocated
-                  by stroke index. Performance Multiplier = Average Gross Score
-                  divided by Average Expected Score. 1.00x matches expectation;
-                  higher is worse and lower is better. Rank #1 is the highest
-                  multiplier. Each player needs at least
+                  Expected score = hole par × ((tee par + Course Handicap) / tee
+                  par), using the handicap from each historical round. This
+                  spreads the allowance continuously across all 18 holes in
+                  proportion to par, and the hole expectations add up to tee par
+                  plus Course Handicap; stroke index is informational only.
+                  Performance Multiplier = Average Gross Score divided by Average
+                  Expected Score. 1.00x matches expectation; higher is worse and
+                  lower is better. Rank #1 is the highest multiplier. Each player
+                  needs at least
                   {` ${report.minimumScores} `}scores on this exact tee and hole.
                   Club averages weight each qualifying player equally. Combo tees
                   are excluded from these four single-tee groups.

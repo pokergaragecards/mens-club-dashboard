@@ -104,7 +104,7 @@ type ScoreObservation = {
 };
 
 const METHODOLOGY =
-  "For each score, expected hole score equals par plus the strokes the player receives on that hole from the round's Course Handicap and the tee's stroke index. The Performance Multiplier equals Average Gross Score divided by Average Expected Score: 1.00x matches expectation, above 1.00x is worse, and below 1.00x is better. Players need at least three scores on the same tee and hole. Club averages give each qualifying player equal weight.";
+  "For each score, expected hole score equals hole par multiplied by (tee par plus the player's Course Handicap from that historical round) divided by tee par. This spreads the handicap allowance continuously across all 18 holes in proportion to par, and the hole expectations add up to tee par plus Course Handicap; stroke index is informational and does not affect the calculation. The Performance Multiplier equals Average Gross Score divided by Average Expected Score: 1.00x matches expectation, above 1.00x is worse, and below 1.00x is better. Players need at least three scores on the same tee and hole. Club averages give each qualifying player equal weight.";
 
 function finiteNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -139,26 +139,6 @@ export function normalizeGoodrichTee(
 
   // A combo tee such as "Blue/White" is not mixed into either single-tee group.
   return matches.length === 1 ? matches[0] : null;
-}
-
-export function allocateCourseHandicapStrokes(
-  courseHandicap: number,
-  strokeIndex: number
-) {
-  const roundedHandicap = Math.round(courseHandicap);
-  const index = Math.min(18, Math.max(1, Math.round(strokeIndex)));
-
-  if (roundedHandicap >= 0) {
-    const fullCycles = Math.floor(roundedHandicap / 18);
-    const remaining = roundedHandicap % 18;
-    return fullCycles + (index <= remaining ? 1 : 0);
-  }
-
-  const plusHandicap = Math.abs(roundedHandicap);
-  const fullCycles = Math.floor(plusHandicap / 18);
-  const remaining = plusHandicap % 18;
-  const givesBackStroke = remaining > 0 && index > 18 - remaining;
-  return -(fullCycles + (givesBackStroke ? 1 : 0));
 }
 
 function deriveCourseHandicap(
@@ -238,16 +218,13 @@ export function buildHoleRankingReport(
 
     const definition = courseHoleMap.get(`${tee}|${holeNumber}`);
     const par = finiteNumber(row.par) ?? finiteNumber(definition?.par);
-    const strokeIndex =
-      finiteNumber(row.strokeIndex) ?? finiteNumber(definition?.strokeIndex);
     const storedTeePar = teePars.get(tee) ?? 0;
     const teePar = storedTeePar > 0 ? storedTeePar : null;
     const courseHandicap = deriveCourseHandicap(row, teePar);
 
-    if (par === null || strokeIndex === null || courseHandicap === null) continue;
+    if (par === null || courseHandicap === null || teePar === null) continue;
 
-    const expectedScore =
-      par + allocateCourseHandicapStrokes(courseHandicap, strokeIndex);
+    const expectedScore = par * ((teePar + courseHandicap) / teePar);
     const key = `${tee}|${holeNumber}|${row.playerId}`;
     const current = observations.get(key) ?? [];
     current.push({

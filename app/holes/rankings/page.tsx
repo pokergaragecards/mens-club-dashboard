@@ -116,7 +116,14 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
       <section className="rounded-xl border border-blue-200 bg-blue-50 p-4">
         <h2 className="font-black text-blue-950">How the comparison works</h2>
         <p className="mt-1 leading-relaxed text-blue-950">
-          <strong>Expected score = par + allocated Course Handicap strokes.</strong>{" "}
+          <strong>
+            Expected score = hole par × ((tee par + Course Handicap) / tee par).
+          </strong>{" "}
+          The handicap allowance is spread continuously across all 18 holes in
+          proportion to par. On a par-70 tee, a 17 Course Handicap produces a
+          1.243 round factor: expected scores are 3.73 on a par 3, 4.97 on a par
+          4, and 6.21 on a par 5, adding up to 87 for the round. Stroke index is
+          shown as course information but does not affect this calculation.{" "}
           The primary ranking value is the <strong>Performance Multiplier =
           Average Gross / Expected Average</strong>. A value of 1.00x matches
           expectation, 1.10x is 10% worse, and 0.90x is 10% better. The raw
