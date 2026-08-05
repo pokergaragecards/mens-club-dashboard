@@ -4,6 +4,7 @@ import {
   AuditTrendChart,
   type AuditHandicapTrendPoint,
 } from "@/components/audit/AuditTrendChart";
+import { auditService } from "@/services/auditService";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -78,8 +79,8 @@ function average(values: number[]) {
 }
 
 function whsUsedCount(roundCount: number) {
-  if (roundCount < 5) return 0;
-  if (roundCount === 5) return 1;
+  if (roundCount < 3) return 0;
+  if (roundCount <= 5) return 1;
   if (roundCount <= 8) return 2;
   if (roundCount <= 11) return 3;
   if (roundCount <= 14) return 4;
@@ -89,8 +90,19 @@ function whsUsedCount(roundCount: number) {
   return 8;
 }
 
+function whsAdjustment(roundCount: number) {
+  if (roundCount === 3) return -2;
+  if (roundCount === 4 || roundCount === 6) return -1;
+  return 0;
+}
+
 function calculateCategoryHi(rounds: RoundRow[]) {
-  const differentials = rounds
+  const differentials = [...rounds]
+    .sort(
+      (a, b) =>
+        new Date(b.played_at).getTime() - new Date(a.played_at).getTime()
+    )
+    .slice(0, 20)
     .map((round) => Number(round.differential))
     .filter(Number.isFinite)
     .sort((a, b) => a - b);
@@ -100,10 +112,12 @@ function calculateCategoryHi(rounds: RoundRow[]) {
   if (!usedCount) return null;
 
   const used = differentials.slice(0, usedCount);
-  const adjustment = differentials.length === 6 ? -1 : 0;
+  const adjustment = whsAdjustment(differentials.length);
   const result = average(used);
 
-  return result == null ? null : result + adjustment;
+  return result == null
+    ? null
+    : Math.round((result + adjustment) * 10) / 10;
 }
 
 function whsHi(rounds: RoundWithDiff[]) {
@@ -115,10 +129,24 @@ function whsHi(rounds: RoundWithDiff[]) {
     .slice(0, usedCount)
     .map((round) => round.diff);
 
-  const adjustment = rounds.length === 6 ? -1 : 0;
+  const adjustment = whsAdjustment(rounds.length);
   const hi = average(usedDiffs);
 
-  return hi == null ? null : hi + adjustment;
+  return hi == null ? null : Math.round((hi + adjustment) * 10) / 10;
+}
+
+function decisionClass(code: string) {
+  if (code === "adjustment_supported")
+    return "border-red-300 bg-red-50 text-red-950";
+  if (code === "provisional_adjustment")
+    return "border-orange-300 bg-orange-50 text-orange-950";
+  if (code === "manual_review")
+    return "border-purple-300 bg-purple-50 text-purple-950";
+  if (code === "monitor")
+    return "border-yellow-300 bg-yellow-50 text-yellow-950";
+  if (code === "no_adjustment")
+    return "border-blue-300 bg-blue-50 text-blue-950";
+  return "border-green-300 bg-green-50 text-green-950";
 }
 
 function buildGroup(label: string, rounds: RoundWithDiff[]): AuditGroup {
@@ -252,6 +280,24 @@ function NumberList({
   );
 }
 
+function DecisionMetric({
+  label,
+  value,
+  note,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+}) {
+  return (
+    <div className="rounded-xl border border-current/20 bg-white/80 p-4">
+      <div className="text-sm font-bold text-gray-600">{label}</div>
+      <div className="mt-1 text-3xl font-black text-gray-950">{value}</div>
+      {note && <div className="mt-1 text-sm text-gray-600">{note}</div>}
+    </div>
+  );
+}
+
 export default async function PlayerAuditPage({
   params,
 }: PageProps) {
@@ -261,6 +307,7 @@ export default async function PlayerAuditPage({
   const [
     { data: player, error: playerError },
     { data: rounds, error: roundsError },
+    auditRows,
   ] = await Promise.all([
     supabase
       .from("players")
@@ -288,6 +335,7 @@ export default async function PlayerAuditPage({
       .not("played_at", "is", null)
       .not("differential", "is", null)
       .order("played_at", { ascending: false }),
+    auditService.getAuditRows("last20"),
   ]);
 
   if (playerError || roundsError) {
@@ -318,6 +366,7 @@ export default async function PlayerAuditPage({
   }
 
   const hiRoundRows = (rounds ?? []) as RoundRow[];
+  const auditRow = auditRows.find((row) => row.id === id);
   const groups = buildAuditGroups(hiRoundRows);
 
   const competitionRounds = hiRoundRows.filter((round) =>
@@ -360,6 +409,72 @@ export default async function PlayerAuditPage({
           </span>
         </p>
       </header>
+
+      {auditRow && (
+        <section
+          className={`rounded-2xl border-2 p-5 shadow-sm ${decisionClass(
+            auditRow.decision.code
+          )}`}
+        >
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="text-sm font-black uppercase tracking-wide">
+                Committee Decision Analysis
+              </div>
+              <h2 className="mt-1 text-3xl font-black">
+                {auditRow.decision.label}
+              </h2>
+              <p className="mt-3 max-w-4xl text-lg font-medium leading-7">
+                {auditRow.decision.summary}
+              </p>
+            </div>
+
+            {auditRow.decision.suggestedIndex != null && (
+              <div className="min-w-48 rounded-xl border border-current bg-white/70 p-4 text-center">
+                <div className="text-sm font-black uppercase">
+                  Suggested Committee HI
+                </div>
+                <div className="mt-1 text-5xl font-black">
+                  {formatNumber(auditRow.decision.suggestedIndex)}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <DecisionMetric
+              label="Official / Overall HI"
+              value={formatNumber(auditRow.overallHi)}
+            />
+            <DecisionMetric
+              label="All Competition HI"
+              value={formatNumber(auditRow.last20CompetitionHi)}
+            />
+            <DecisionMetric
+              label="Last 12 Months Competition HI"
+              value={formatNumber(auditRow.last12MonthsCompetitionHi)}
+              note={`${auditRow.last12MonthsCompetitionRounds} eligible rounds`}
+            />
+            <DecisionMetric
+              label="General Play HI"
+              value={formatNumber(auditRow.last20GeneralPlayHi)}
+            />
+            <DecisionMetric
+              label="Competition vs Overall Gap"
+              value={formatNumber(auditRow.competitionVsOverallGap)}
+            />
+          </div>
+
+          <div className="mt-5 rounded-xl bg-white/70 p-4">
+            <h3 className="text-lg font-black">Evidence considered</h3>
+            <ul className="mt-2 list-disc space-y-2 pl-6 text-base font-medium">
+              {auditRow.decision.evidence.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
 
       <AuditTrendChart
         competitionPoints={competitionTrendPoints}

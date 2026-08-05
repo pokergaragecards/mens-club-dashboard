@@ -35,6 +35,15 @@ function confidenceClass(confidence: string) {
   return "bg-yellow-100 text-yellow-900";
 }
 
+function decisionClass(code: string) {
+  if (code === "adjustment_supported") return "bg-red-100 text-red-900";
+  if (code === "provisional_adjustment") return "bg-orange-100 text-orange-900";
+  if (code === "manual_review") return "bg-purple-100 text-purple-900";
+  if (code === "monitor") return "bg-yellow-100 text-yellow-900";
+  if (code === "no_adjustment") return "bg-blue-100 text-blue-900";
+  return "bg-green-100 text-green-900";
+}
+
 export default async function AuditPage({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
   const period: Period = params.period ?? "last20";
@@ -98,7 +107,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
       </div>
 
       <div className="mt-6 hidden max-h-[75vh] overflow-auto rounded-xl border border-gray-300 bg-white shadow-sm lg:block">
-        <table className="w-full min-w-[4200px] text-left text-base text-gray-900">
+        <table className="w-full min-w-[4450px] text-left text-base text-gray-900">
           <thead className="sticky top-0 z-20 border-b border-gray-300 bg-gray-200 text-gray-950 shadow-sm">
             <tr>
               <th className="min-w-[540px] p-4 text-base font-bold leading-snug">
@@ -121,6 +130,9 @@ export default async function AuditPage({ searchParams }: PageProps) {
               </th>
               <th className="min-w-[280px] border-x-2 border-red-300 bg-red-100 p-4 text-right text-base font-bold leading-snug text-red-800">
                 Competition vs Overall Gap
+              </th>
+              <th className="min-w-[260px] p-4 text-base font-bold leading-snug">
+                Committee Decision
               </th>
               <th className="min-w-[220px] p-4 text-right text-base font-bold leading-snug">
                 Competition Rounds
@@ -203,6 +215,16 @@ export default async function AuditPage({ searchParams }: PageProps) {
                 </td>
                 <td className="border-x-2 border-red-200 bg-red-50 p-3 text-right text-3xl font-black text-red-700">
                   {formatNumber(row.competitionVsOverallGap)}
+                </td>
+                <td className="p-3 text-lg font-bold">
+                  <Link
+                    href={`/audit/${row.id}`}
+                    className={`inline-flex rounded-lg px-3 py-2 ${decisionClass(
+                      row.decision.code
+                    )}`}
+                  >
+                    {row.decision.label}
+                  </Link>
                 </td>
                 <td className="p-3 text-right text-2xl font-bold">{row.competitionRounds}</td>
                 <td className="p-3 text-right text-2xl font-bold">{row.casualRounds}</td>
@@ -334,6 +356,28 @@ export default async function AuditPage({ searchParams }: PageProps) {
                 value={formatNumber(row.competitionVsOverallGap)}
               />
             </Section>
+
+            <div
+              className={`mt-4 rounded-xl p-4 ${decisionClass(
+                row.decision.code
+              )}`}
+            >
+              <div className="text-sm font-black uppercase tracking-wide">
+                Committee Decision
+              </div>
+              <div className="mt-1 text-xl font-black">
+                {row.decision.label}
+              </div>
+              <p className="mt-2 text-base font-medium">
+                {row.decision.summary}
+              </p>
+              <Link
+                href={`/audit/${row.id}`}
+                className="mt-3 inline-flex font-bold underline"
+              >
+                Review decision details
+              </Link>
+            </div>
 
             <Section title="Official Handicap Round Counts">
               <MobileStat label="Competition Rounds" value={row.competitionRounds} />
