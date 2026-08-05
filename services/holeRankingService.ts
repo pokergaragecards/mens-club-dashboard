@@ -2,6 +2,8 @@ import { createSupabaseServerClient } from "@/lib/supabaseServer";
 
 export const GOODRICH_TEE_COLORS = ["Red", "Yellow", "White", "Blue"] as const;
 export const MINIMUM_HOLE_SCORES = 3;
+export const PERFORMANCE_INDEX_BASE = 100;
+export const MIN_EXPECTED_DISTANCE_FROM_PAR = 0.25;
 
 export type GoodrichTeeColor = (typeof GOODRICH_TEE_COLORS)[number];
 export type HoleRankingView = "worst" | "best";
@@ -13,10 +15,10 @@ export type PlayerHoleRanking = {
   averageGrossScore: number;
   averageExpectedScore: number;
   averageVsHandicap: number;
-  performanceMultiplier: number;
+  performanceIndex: number;
   currentHandicapIndex: number | null;
-  clubAverageMultiplier: number;
-  vsClubMultiplier: number;
+  clubAverageIndex: number;
+  vsClubIndex: number;
   rank: number;
   bestRank: number;
   qualifyingPlayers: number;
@@ -30,7 +32,7 @@ export type HoleRanking = {
   par: number | null;
   strokeIndex: number | null;
   yardage: number | null;
-  clubAverageMultiplier: number | null;
+  clubAverageIndex: number | null;
   players: PlayerHoleRanking[];
 };
 
@@ -115,13 +117,13 @@ type ScoreObservation = {
   playerId: string;
   playerName: string;
   currentHandicapIndex: number | null;
+  par: number;
   grossScore: number;
   expectedScore: number;
-  vsHandicap: number;
 };
 
 const METHODOLOGY =
-  "Only hole scores from the latest 12 months are included. For each score, expected hole score equals hole par multiplied by (tee par plus the player's Course Handicap from that historical round) divided by tee par. This spreads the handicap allowance continuously across all 18 holes in proportion to par, and the hole expectations add up to tee par plus Course Handicap; stroke index is informational and does not affect the calculation. The Performance Multiplier equals Average Gross Score divided by Average Expected Score: 1.00x matches expectation, above 1.00x is worse, and below 1.00x is better. Players need at least three scores on the same tee and hole during the 12-month window. Club averages give each qualifying player equal weight.";
+  "Only hole scores from the latest 12 months are included. For each score, expected hole score equals hole par multiplied by (tee par plus the player's Course Handicap from that historical round) divided by tee par. This spreads the handicap allowance continuously across all 18 holes in proportion to par, and the hole expectations add up to tee par plus Course Handicap; stroke index is informational and does not affect the calculation. The Performance Index measures actual strokes from par as a percentage of expected strokes from par: 100 matches expectation, 120 is 20% worse, and 80 is 20% better. A 0.25-stroke minimum denominator prevents unstable results for scratch and plus expectations near par. Players need at least three scores on the same tee and hole during the 12-month window. Club averages give each qualifying player equal weight.";
 
 function finiteNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -141,6 +143,23 @@ function rounded(value: number, decimals = 3) {
 
 function average(values: number[]) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+export function calculateOverParPerformanceIndex(
+  actualAverage: number,
+  expectedAverage: number,
+  par: number
+) {
+  const expectedDistanceFromPar = expectedAverage - par;
+  const denominator = Math.max(
+    Math.abs(expectedDistanceFromPar),
+    MIN_EXPECTED_DISTANCE_FROM_PAR
+  );
+
+  return (
+    PERFORMANCE_INDEX_BASE +
+    ((actualAverage - expectedAverage) / denominator) * PERFORMANCE_INDEX_BASE
+  );
 }
 
 export function twelveMonthHoleRankingPeriod(generatedAt: string) {
@@ -181,10 +200,10 @@ export function playersForHoleRankingView(
   return [...players].sort((a, b) => {
     const rankDifference = holeRankingRank(a, view) - holeRankingRank(b, view);
     if (rankDifference !== 0) return rankDifference;
-    if (a.performanceMultiplier !== b.performanceMultiplier) {
+    if (a.performanceIndex !== b.performanceIndex) {
       return view === "best"
-        ? a.performanceMultiplier - b.performanceMultiplier
-        : b.performanceMultiplier - a.performanceMultiplier;
+        ? a.performanceIndex - b.performanceIndex
+        : b.performanceIndex - a.performanceIndex;
     }
     return a.playerName.localeCompare(b.playerName);
   });
@@ -299,9 +318,9 @@ export function buildHoleRankingReport(
       playerId: row.playerId,
       playerName: row.playerName.trim() || "Unknown Player",
       currentHandicapIndex: finiteNumber(row.currentHandicapIndex),
+      par,
       grossScore,
       expectedScore,
-      vsHandicap: grossScore - expectedScore,
     });
     observations.set(key, current);
   }
@@ -327,6 +346,9 @@ export function buildHoleRankingReport(
           const rawAverageExpectedScore = average(
             values.map((value) => value.expectedScore)
           );
+          const rawAveragePar = average(values.map((value) => value.par));
+          const rawAverageVsExpected =
+            rawAverageGrossScore - rawAverageExpectedScore;
 
           return {
             playerId: values[0].playerId,
@@ -335,18 +357,20 @@ export function buildHoleRankingReport(
             scoreCount: values.length,
             averageGrossScore: rounded(rawAverageGrossScore),
             averageExpectedScore: rounded(rawAverageExpectedScore),
-            averageVsHandicap: rounded(
-              average(values.map((value) => value.vsHandicap))
-            ),
-            performanceMultiplier: rounded(
-              rawAverageGrossScore / rawAverageExpectedScore,
-              4
+            averageVsHandicap: rounded(rawAverageVsExpected),
+            performanceIndex: rounded(
+              calculateOverParPerformanceIndex(
+                rawAverageGrossScore,
+                rawAverageExpectedScore,
+                rawAveragePar
+              ),
+              2
             ),
           };
         })
         .sort((a, b) => {
-          if (a.performanceMultiplier !== b.performanceMultiplier) {
-            return b.performanceMultiplier - a.performanceMultiplier;
+          if (a.performanceIndex !== b.performanceIndex) {
+            return b.performanceIndex - a.performanceIndex;
           }
           if (a.averageVsHandicap !== b.averageVsHandicap) {
             return b.averageVsHandicap - a.averageVsHandicap;
@@ -357,10 +381,10 @@ export function buildHoleRankingReport(
           return a.playerName.localeCompare(b.playerName);
         });
 
-      const clubAverageMultiplier = playerRows.length
+      const clubAverageIndex = playerRows.length
         ? rounded(
-            average(playerRows.map((player) => player.performanceMultiplier)),
-            4
+            average(playerRows.map((player) => player.performanceIndex)),
+            2
           )
         : null;
       let previousValue: number | null = null;
@@ -369,25 +393,25 @@ export function buildHoleRankingReport(
       const players = playerRows.map<PlayerHoleRanking>((player, rowIndex) => {
         const isTie =
           previousValue !== null &&
-          Math.abs(player.performanceMultiplier - previousValue) < 0.0001;
+          Math.abs(player.performanceIndex - previousValue) < 0.001;
         const rank = isTie ? previousRank : rowIndex + 1;
-        previousValue = player.performanceMultiplier;
+        previousValue = player.performanceIndex;
         previousRank = rank;
         const qualifyingPlayers = playerRows.length;
         const bestRank =
           1 +
           playerRows.filter(
             (candidate) =>
-              candidate.performanceMultiplier <
-              player.performanceMultiplier - 0.0001
+              candidate.performanceIndex < player.performanceIndex - 0.001
           ).length;
 
         return {
           ...player,
-          clubAverageMultiplier: clubAverageMultiplier ?? 0,
-          vsClubMultiplier: rounded(
-            player.performanceMultiplier - (clubAverageMultiplier ?? 0),
-            4
+          clubAverageIndex: clubAverageIndex ?? PERFORMANCE_INDEX_BASE,
+          vsClubIndex: rounded(
+            player.performanceIndex -
+              (clubAverageIndex ?? PERFORMANCE_INDEX_BASE),
+            2
           ),
           rank,
           bestRank,
@@ -417,7 +441,7 @@ export function buildHoleRankingReport(
         par: finiteNumber(definition?.par),
         strokeIndex: finiteNumber(definition?.strokeIndex),
         yardage: finiteNumber(definition?.yardage),
-        clubAverageMultiplier,
+        clubAverageIndex,
         players,
       };
     }),

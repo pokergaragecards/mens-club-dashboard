@@ -299,9 +299,9 @@ type MatrixPlayer = {
   cells: Map<number, PlayerHoleRanking>;
 };
 
-function multiplier(value: number | null, decimals = 2) {
+function performanceIndex(value: number | null, decimals = 1) {
   if (value === null || !Number.isFinite(value)) return "-";
-  return `${value.toFixed(decimals)}x`;
+  return value.toFixed(decimals);
 }
 
 function handicapIndex(value: number | null) {
@@ -377,13 +377,13 @@ function SummaryHeader({ view }: { view: HoleRankingView }) {
       <Text style={[s.cell, s.summaryStroke]}>Stroke Idx</Text>
       <Text style={[s.cell, s.summaryYardage]}>Yards</Text>
       <Text style={[s.cell, s.summaryPlayer]}>
-        {isBest ? "Best" : "Worst"} by Multiplier
+        {isBest ? "Best" : "Worst"} by Index
       </Text>
       <Text style={[s.cell, s.summaryHandicap]}>Current HI</Text>
-      <Text style={[s.cell, s.summaryValue]}>Multiplier</Text>
+      <Text style={[s.cell, s.summaryValue]}>Perf. Index</Text>
       <Text style={[s.cell, s.summaryScores]}>Scores</Text>
       <Text style={[s.cell, s.summaryField]}>Players</Text>
-      <Text style={[s.cell, s.summaryClub]}>Club Mult.</Text>
+      <Text style={[s.cell, s.summaryClub]}>Club Index</Text>
     </View>
   );
 }
@@ -419,14 +419,14 @@ function SummaryRow({
           isBest ? s.summaryBestValue : s.summaryWorstValue,
         ]}
       >
-        {multiplier(featured?.performanceMultiplier ?? null)}
+        {performanceIndex(featured?.performanceIndex ?? null)}
       </Text>
       <Text style={[s.cell, s.summaryScores]}>
         {featured?.scoreCount ?? "-"}
       </Text>
       <Text style={[s.cell, s.summaryField]}>{hole.players.length}</Text>
       <Text style={[s.cell, s.summaryClub]}>
-        {multiplier(hole.clubAverageMultiplier)}
+        {performanceIndex(hole.clubAverageIndex)}
       </Text>
     </View>
   );
@@ -464,7 +464,7 @@ function MatrixCell({
     >
       <Text style={s.matrixRank}>#{rank}</Text>
       <Text style={s.matrixValue}>
-        {multiplier(ranking.performanceMultiplier, 2)}
+        {performanceIndex(ranking.performanceIndex)}
       </Text>
     </View>
   );
@@ -543,10 +543,16 @@ export function HoleRankingsReport({
                   spreads the allowance continuously across all 18 holes in
                   proportion to par, and the hole expectations add up to tee par
                   plus Course Handicap; stroke index is informational only.
-                  Performance Multiplier = Average Gross Score divided by Average
-                  Expected Score. 1.00x matches expectation; higher is worse and
-                  lower is better. Rank #1 is the {isBest ? "lowest" : "highest"}
-                  {" "}multiplier in this report. Each player needs at least
+                  Performance Index = 100 + 100 x (Average Gross - Expected
+                  Average) / max(abs(Expected Average - par), 0.25). For normal
+                  positive allowances, this equals 100 x (Average Gross - par) /
+                  (Expected Average - par). 100 matches expectation, 120 is 20%
+                  worse, and 80 is 20% better. Players of any handicap receive
+                  the same index when they perform the same percentage above or
+                  below their own expectation. The minimum denominator stabilizes
+                  scratch and plus expectations near par. Rank #1 is
+                  the {isBest ? "lowest" : "highest"}
+                  {" "}index in this report. Each player needs at least
                   {` ${report.minimumScores} `}scores on this exact tee and hole.
                   Club averages weight each qualifying player equally. Combo tees
                   are excluded from these four single-tee groups.
@@ -599,14 +605,16 @@ export function HoleRankingsReport({
                 </View>
 
                 <Text style={s.legend}>
-                  Each cell shows #{view} rank and the Performance Multiplier.
+                  Each cell shows #{view} rank and the Performance Index.
                   {isBest
                     ? " Green = best on that hole; blue = ranks 2-3;"
                     : " Red = worst on that hole; amber = ranks 2-3;"}{" "}
                   dash = fewer than
-                  {` ${report.minimumScores} `}qualifying scores. 1.00x matches
+                  {` ${report.minimumScores} `}qualifying scores. 100 matches
                   expectation; lower values are better and higher values are
-                  worse. Avg {isBest ? "Best" : "Worst"} % summarizes the holes
+                  worse. 120 is 20% worse and 80 is 20% better relative to
+                  expected strokes from par. Avg {isBest ? "Best" : "Worst"} %
+                  summarizes the holes
                   on which the player qualifies; 100 is {view}.
                 </Text>
 

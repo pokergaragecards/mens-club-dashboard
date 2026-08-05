@@ -52,9 +52,9 @@ function signed(value: number | null, decimals = 2) {
   return `${value > 0 ? "+" : ""}${value.toFixed(decimals)}`;
 }
 
-function multiplier(value: number | null, decimals = 3) {
+function performanceIndex(value: number | null, decimals = 1) {
   if (value === null || !Number.isFinite(value)) return "-";
-  return `${value.toFixed(decimals)}x`;
+  return value.toFixed(decimals);
 }
 
 function handicapIndex(value: number | null) {
@@ -62,16 +62,15 @@ function handicapIndex(value: number | null) {
   return value.toFixed(1);
 }
 
-function signedPercent(value: number | null, decimals = 1) {
+function signedIndexPoints(value: number | null, decimals = 1) {
   if (value === null || !Number.isFinite(value)) return "-";
-  const percentage = value * 100;
-  return `${percentage > 0 ? "+" : ""}${percentage.toFixed(decimals)}%`;
+  return `${value > 0 ? "+" : ""}${value.toFixed(decimals)} pts`;
 }
 
 function performanceClass(value: number) {
-  if (value >= 1.2) return "bg-red-100 text-red-900";
-  if (value > 1) return "bg-amber-50 text-amber-900";
-  if (value <= 0.85) return "bg-green-100 text-green-900";
+  if (value >= 120) return "bg-red-100 text-red-900";
+  if (value > 100) return "bg-amber-50 text-amber-900";
+  if (value <= 80) return "bg-green-100 text-green-900";
   return "bg-slate-50 text-slate-900";
 }
 
@@ -158,11 +157,17 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
           1.243 round factor: expected scores are 3.73 on a par 3, 4.97 on a par
           4, and 6.21 on a par 5, adding up to 87 for the round. Stroke index is
           shown as course information but does not affect this calculation.{" "}
-          The primary ranking value is the <strong>Performance Multiplier =
-          Average Gross / Expected Average</strong>. A value of 1.00x matches
-          expectation, 1.10x is 10% worse, and 0.90x is 10% better. The raw
-          stroke difference remains visible as supporting detail. This view
-          ranks the <strong>{isBest ? "lowest" : "highest"} multiplier first</strong>.
+          The primary ranking value is the <strong>Performance Index = 100 +
+          100 × (Average Gross - Expected Average) / max(|Expected Average -
+          Par|, 0.25)</strong>. For normal positive handicap allowances, this is
+          equivalent to 100 × (Average Gross - Par) / (Expected Average - Par).
+          An index of 100 matches expectation, 120 is 20% worse, and 80 is 20%
+          better. This gives the same index to players of any handicap when they
+          perform the same percentage above or below their own expected strokes
+          from par. The 0.25-stroke minimum prevents unstable results for scratch
+          and plus expectations very close to par. The raw stroke difference
+          remains visible as supporting detail. This
+          view ranks the <strong>{isBest ? "lowest" : "highest"} index first</strong>.
           A player must have at least{" "}
           <strong>{report.minimumScores} scores on the exact tee and hole</strong>.
           The club average gives every qualifying player equal weight so a
@@ -239,10 +244,10 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
                         isBest ? "text-green-700" : "text-red-700"
                       }`}
                     >
-                      {multiplier(featured.performanceMultiplier, 2)}
+                      {performanceIndex(featured.performanceIndex)}
                     </div>
                     <div className="text-xs font-bold text-slate-500">
-                      of expected score
+                      Performance Index
                     </div>
                   </>
                 ) : (
@@ -272,7 +277,7 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
               isBest ? "text-green-700" : "text-red-700"
             }`}
           >
-            Club average multiplier: {multiplier(hole.clubAverageMultiplier)}
+            Club average index: {performanceIndex(hole.clubAverageIndex)}
           </div>
         </div>
 
@@ -288,9 +293,9 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
                 <th className="p-3 text-right">Scores</th>
                 <th className="p-3 text-right">Avg Gross</th>
                 <th className="p-3 text-right">Expected Avg</th>
-                <th className="p-3 text-right">Performance Multiplier</th>
-                <th className="p-3 text-right">Raw Avg vs Handicap</th>
-                <th className="p-3 text-right">Vs Club Multiplier</th>
+                <th className="p-3 text-right">Performance Index</th>
+                <th className="p-3 text-right">Avg Strokes vs Expected</th>
+                <th className="p-3 text-right">Vs Club Index</th>
                 <th className="p-3 text-right">
                   {isBest ? "Best" : "Worst"} Percentile
                 </th>
@@ -330,16 +335,16 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
                   </td>
                   <td
                     className={`p-3 text-right text-2xl font-black ${performanceClass(
-                      player.performanceMultiplier
+                      player.performanceIndex
                     )}`}
                   >
-                    {multiplier(player.performanceMultiplier)}
+                    {performanceIndex(player.performanceIndex)}
                   </td>
                   <td className="p-3 text-right text-lg font-black">
                     {signed(player.averageVsHandicap)}
                   </td>
                   <td className="p-3 text-right text-lg font-black">
-                    {signedPercent(player.vsClubMultiplier)}
+                    {signedIndexPoints(player.vsClubIndex)}
                   </td>
                   <td className="p-3 text-right text-lg font-black">
                     {ordinal(Math.round(holeRankingPercentile(player, view)))}
