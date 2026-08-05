@@ -128,6 +128,15 @@ const s = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
     fontSize: 8,
   },
+  decisionBadge: {
+    maxWidth: 180,
+    paddingVertical: 5,
+    paddingHorizontal: 7,
+    borderWidth: 1,
+    fontFamily: "Helvetica-Bold",
+    fontSize: 7,
+    textAlign: "center",
+  },
   investigateFlag: {
     color: COLORS.red800,
     borderColor: COLORS.red700,
@@ -142,6 +151,16 @@ const s = StyleSheet.create({
     color: COLORS.green800,
     borderColor: COLORS.green700,
     backgroundColor: COLORS.green100,
+  },
+  monitorFlag: {
+    color: COLORS.amber800,
+    borderColor: COLORS.amber700,
+    backgroundColor: COLORS.amber100,
+  },
+  noAdjustmentFlag: {
+    color: COLORS.blue700,
+    borderColor: COLORS.blue700,
+    backgroundColor: COLORS.blue100,
   },
   cards: {
     flexDirection: "row",
@@ -236,7 +255,7 @@ const s = StyleSheet.create({
     marginBottom: 6,
   },
   timelinePanel: {
-    width: "56%",
+    width: "52%",
     minHeight: 88,
     marginRight: 5,
     padding: 6,
@@ -254,7 +273,7 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.white,
   },
   recommendationPanel: {
-    width: "23%",
+    width: "27%",
     minHeight: 88,
     padding: 6,
     borderWidth: 1,
@@ -357,17 +376,23 @@ const s = StyleSheet.create({
     color: COLORS.green900,
     marginBottom: 4,
   },
+  confidenceScore: {
+    marginBottom: 3,
+    fontSize: 6.2,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.green800,
+  },
   evidenceItem: {
     flexDirection: "row",
     marginBottom: 2.5,
   },
   evidenceIcon: {
-    width: 8,
+    width: 13,
     fontFamily: "Helvetica-Bold",
     color: COLORS.green700,
   },
   evidenceWarning: {
-    width: 8,
+    width: 13,
     fontFamily: "Helvetica-Bold",
     color: COLORS.amber700,
   },
@@ -414,6 +439,24 @@ const s = StyleSheet.create({
     color: COLORS.gray500,
     lineHeight: 1.25,
   },
+  recommendationLabel: {
+    fontSize: 8.2,
+    lineHeight: 1.2,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.gray950,
+  },
+  recommendationSuggested: {
+    marginTop: 5,
+    fontSize: 13,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.red700,
+  },
+  recommendationSummary: {
+    marginTop: 4,
+    fontSize: 5.3,
+    lineHeight: 1.25,
+    color: COLORS.gray600,
+  },
   insight: {
     marginBottom: 6,
     paddingVertical: 5,
@@ -449,6 +492,135 @@ const s = StyleSheet.create({
   insightEmphasis: {
     color: COLORS.red700,
     fontFamily: "Helvetica-Bold",
+  },
+  decisionAnalysis: {
+    marginBottom: 6,
+    padding: 7,
+    borderWidth: 1.2,
+    borderColor: COLORS.gray300,
+    backgroundColor: COLORS.gray50,
+  },
+  decisionAdjustment: {
+    borderColor: COLORS.red700,
+    backgroundColor: COLORS.red50,
+  },
+  decisionProvisional: {
+    borderColor: COLORS.orange700,
+    backgroundColor: COLORS.orange100,
+  },
+  decisionManual: {
+    borderColor: COLORS.amber700,
+    backgroundColor: COLORS.amber50,
+  },
+  decisionMonitor: {
+    borderColor: COLORS.amber700,
+    backgroundColor: COLORS.amber50,
+  },
+  decisionNoAdjustment: {
+    borderColor: COLORS.blue700,
+    backgroundColor: COLORS.blue50,
+  },
+  decisionNoAction: {
+    borderColor: COLORS.green700,
+    backgroundColor: COLORS.green50,
+  },
+  decisionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  decisionHeaderCopy: {
+    flexGrow: 1,
+    flexBasis: 0,
+    paddingRight: 8,
+  },
+  decisionEyebrow: {
+    fontSize: 6.2,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.gray600,
+    marginBottom: 2,
+  },
+  decisionLabel: {
+    fontSize: 11,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.gray950,
+  },
+  decisionSummary: {
+    marginTop: 3,
+    fontSize: 6,
+    lineHeight: 1.3,
+    color: COLORS.gray700,
+  },
+  suggestedBox: {
+    width: 92,
+    padding: 5,
+    borderWidth: 1,
+    borderColor: COLORS.gray300,
+    backgroundColor: COLORS.white,
+    alignItems: "center",
+  },
+  suggestedLabel: {
+    fontSize: 5.4,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.gray600,
+    textAlign: "center",
+  },
+  suggestedValue: {
+    marginTop: 2,
+    fontSize: 16,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.red700,
+  },
+  decisionMetrics: {
+    marginBottom: 5,
+    paddingVertical: 3,
+    paddingHorizontal: 5,
+    borderWidth: 0.6,
+    borderColor: COLORS.gray300,
+    backgroundColor: COLORS.white,
+    fontSize: 5.7,
+    fontFamily: "Helvetica-Bold",
+  },
+  decisionColumns: {
+    flexDirection: "row",
+  },
+  decisionColumn: {
+    width: "50%",
+    paddingRight: 7,
+  },
+  decisionColumnLast: {
+    width: "50%",
+    paddingLeft: 7,
+    borderLeftWidth: 0.6,
+    borderLeftColor: COLORS.gray300,
+  },
+  decisionColumnTitle: {
+    marginBottom: 3,
+    fontSize: 6.2,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.gray950,
+  },
+  decisionListItem: {
+    flexDirection: "row",
+    marginBottom: 2.2,
+  },
+  decisionListMarker: {
+    width: 10,
+    fontSize: 5.5,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.gray700,
+  },
+  decisionListText: {
+    flexGrow: 1,
+    flexBasis: 0,
+    fontSize: 5.5,
+    lineHeight: 1.25,
+    color: COLORS.gray700,
+  },
+  decisionDisclaimer: {
+    marginTop: 4,
+    fontSize: 5.1,
+    color: COLORS.gray500,
   },
   section: {
     fontSize: 8.5,
@@ -558,9 +730,9 @@ const s = StyleSheet.create({
     color: COLORS.green900,
     marginBottom: 12,
   },
-  summaryPlayer: { width: "35%", padding: 5 },
-  summaryNum: { width: "13%", padding: 5, textAlign: "right" },
-  summaryFlag: { width: "13%", padding: 5 },
+  summaryPlayer: { width: "25%", padding: 5 },
+  summaryNum: { width: "9%", padding: 5, textAlign: "right" },
+  summaryDecision: { width: "30%", padding: 5 },
 });
 
 const n = (value: number | null) =>
@@ -584,9 +756,9 @@ function shortDate(value: string) {
 function Footer({ generatedAt }: { generatedAt: string }) {
   return (
     <View style={s.footer} fixed>
-      <Text>Goodrich Men's Club Handicap Committee Audit</Text>
+      <Text>Goodrich Men&apos;s Club Handicap Committee Audit</Text>
       <Text>
-        Generated {new Date(generatedAt).toLocaleDateString("en-US")} · Page{" "}
+        Generated {new Date(generatedAt).toLocaleDateString("en-US")} - Page{" "}
         <Text render={({ pageNumber }) => `${pageNumber}`} />
       </Text>
     </View>
@@ -599,10 +771,23 @@ function advantageStyle(difference: number | null) {
   return s.advantageNormal;
 }
 
-function flagStyle(flag: AuditPlayerReport["flag"]) {
-  if (flag === "INVESTIGATE") return s.investigateFlag;
-  if (flag === "REVIEW") return s.reviewFlag;
+function decisionBadgeStyle(code: AuditPlayerReport["decision"]["code"]) {
+  if (code === "adjustment_supported") return s.investigateFlag;
+  if (code === "provisional_adjustment") return s.reviewFlag;
+  if (code === "manual_review" || code === "monitor") {
+    return s.monitorFlag;
+  }
+  if (code === "no_adjustment") return s.noAdjustmentFlag;
   return s.noActionFlag;
+}
+
+function decisionPanelStyle(code: AuditPlayerReport["decision"]["code"]) {
+  if (code === "adjustment_supported") return s.decisionAdjustment;
+  if (code === "provisional_adjustment") return s.decisionProvisional;
+  if (code === "manual_review") return s.decisionManual;
+  if (code === "monitor") return s.decisionMonitor;
+  if (code === "no_adjustment") return s.decisionNoAdjustment;
+  return s.decisionNoAction;
 }
 
 function comparisonData(
@@ -621,7 +806,7 @@ function comparisonData(
 
   if (gap > 0) {
     return {
-      text: `▼ ${gap.toFixed(1)} vs Current GHIN Handicap Index`,
+      text: `${gap.toFixed(1)} lower vs Current GHIN Handicap Index`,
       detail: `${gap.toFixed(1)} lower than Current GHIN Handicap Index`,
       tone: "good" as const,
     };
@@ -629,14 +814,14 @@ function comparisonData(
 
   if (gap < 0) {
     return {
-      text: `▲ ${Math.abs(gap).toFixed(1)} vs Current GHIN Handicap Index`,
+      text: `${Math.abs(gap).toFixed(1)} higher vs Current GHIN Handicap Index`,
       detail: `${Math.abs(gap).toFixed(1)} higher than Current GHIN Handicap Index`,
       tone: "bad" as const,
     };
   }
 
   return {
-    text: "— 0.0 vs Current GHIN Handicap Index",
+    text: "0.0 vs Current GHIN Handicap Index",
     detail: "Equal to Current GHIN Handicap Index",
     tone: "neutral" as const,
   };
@@ -899,7 +1084,7 @@ function EvidenceItem({ passed, text }: { passed: boolean; text: string }) {
   return (
     <View style={s.evidenceItem}>
       <Text style={passed ? s.evidenceIcon : s.evidenceWarning}>
-        {passed ? "✓" : "!"}
+        {passed ? "OK" : "!"}
       </Text>
       <Text style={s.evidenceText}>{text}</Text>
     </View>
@@ -914,22 +1099,10 @@ function ConfidencePanel({ player }: { player: AuditPlayerReport }) {
     <View style={s.confidencePanel}>
       <Text style={s.panelTitle}>CONFIDENCE / EVIDENCE</Text>
 
-      <View style={s.confidenceStars}>
-        {Array.from({ length: 5 }, (_, index) => (
-          <Text
-            key={index}
-            style={
-              index < confidence.stars
-                ? s.confidenceStarOn
-                : s.confidenceStarOff
-            }
-          >
-            ★
-          </Text>
-        ))}
-      </View>
-
       <Text style={s.confidenceLabel}>{confidence.label}</Text>
+      <Text style={s.confidenceScore}>
+        {confidence.stars}/5 evidence strength
+      </Text>
       <EvidenceItem
         passed={player.generalRounds >= 15}
         text={`${player.generalRounds} general rounds`}
@@ -940,139 +1113,26 @@ function ConfidencePanel({ player }: { player: AuditPlayerReport }) {
       />
       <EvidenceItem passed={total >= 20} text={`${total} total rounds`} />
       <EvidenceItem
-        passed={player.competitionRounds >= 5 && player.generalRounds >= 15}
-        text="Review threshold met"
+        passed={player.difference != null && player.difference >= 2}
+        text="2.0-stroke review threshold"
       />
       <Text style={s.recommendationNote}>{confidence.description}</Text>
     </View>
   );
 }
 
-type Recommendation = {
-  interview: boolean;
-  reviewScores: boolean;
-  adjust: boolean;
-  noAction: boolean;
-};
-
-function recommendationForPlayer(
-  player: AuditPlayerReport
-): Recommendation {
-  if (player.flag === "INVESTIGATE") {
-    return {
-      interview: true,
-      reviewScores: true,
-      adjust: false,
-      noAction: false,
-    };
-  }
-
-  if (player.flag === "REVIEW") {
-    return {
-      interview: false,
-      reviewScores: true,
-      adjust: false,
-      noAction: false,
-    };
-  }
-
-  return {
-    interview: false,
-    reviewScores: false,
-    adjust: false,
-    noAction: true,
-  };
-}
-
-function RecommendationItem({
-  checked,
-  label,
-}: {
-  checked: boolean;
-  label: string;
-}) {
-  return (
-    <View style={s.recommendationItem}>
-      <Text style={checked ? s.checkboxChecked : s.checkboxEmpty}>
-        {checked ? "✓" : ""}
-      </Text>
-      <Text style={s.recommendationText}>{label}</Text>
-    </View>
-  );
-}
-
 function RecommendationPanel({ player }: { player: AuditPlayerReport }) {
-  const recommendation = recommendationForPlayer(player);
-
   return (
     <View style={s.recommendationPanel}>
       <Text style={s.panelTitle}>RECOMMENDED ACTION</Text>
-      <RecommendationItem
-        checked={recommendation.interview}
-        label="Interview player"
-      />
-      <RecommendationItem
-        checked={recommendation.reviewScores}
-        label="Review exceptional scores"
-      />
-      <RecommendationItem
-        checked={recommendation.adjust}
-        label="Adjust Handicap Index"
-      />
-      <RecommendationItem
-        checked={recommendation.noAction}
-        label="No action"
-      />
-      <Text style={s.recommendationNote}>
-        Screening recommendation only. Final action remains a committee
-        decision.
-      </Text>
-    </View>
-  );
-}
-
-function KeyInsight({ player }: { player: AuditPlayerReport }) {
-  if (player.currentIndex === null || player.competitionIndex === null) {
-    return (
-      <View style={s.insight}>
-        <Text style={s.insightTitle}>KEY INSIGHT</Text>
-        <Text style={s.insightText}>
-          Insufficient data is available to compare the player&apos;s category
-          Handicap Indexes.
+      <Text style={s.recommendationLabel}>{player.decision.label}</Text>
+      {player.decision.suggestedIndex != null ? (
+        <Text style={s.recommendationSuggested}>
+          {player.decision.suggestedIndex.toFixed(1)}
         </Text>
-      </View>
-    );
-  }
-
-  const competitionGap = Number(
-    (player.currentIndex - player.competitionIndex).toFixed(1)
-  );
-  const isLower = competitionGap > 0;
-
-  return (
-    <View style={isLower ? [s.insight, s.insightAlert] : s.insight}>
-      <Text
-        style={
-          isLower ? [s.insightTitle, s.insightTitleAlert] : s.insightTitle
-        }
-      >
-        KEY INSIGHT
-      </Text>
-
-      <Text style={s.insightText}>
-        Competition Handicap Index is{" "}
-        {isLower ? (
-          <Text style={s.insightEmphasis}>
-            {`${Math.abs(competitionGap).toFixed(1)} strokes lower`}
-          </Text>
-        ) : (
-          <Text>
-            {competitionGap === 0
-              ? "equal to"
-              : `${Math.abs(competitionGap).toFixed(1)} strokes higher`}
-          </Text>
-        )}{" "}
-        {competitionGap === 0 ? "" : "than "}Current GHIN Handicap Index.
+      ) : null}
+      <Text style={s.recommendationSummary}>
+        {player.decision.summary}
       </Text>
     </View>
   );
@@ -1224,7 +1284,7 @@ function OfficialRoundsTable({ player }: { player: AuditPlayerReport }) {
             <Text style={diffStyle}>{round.differential.toFixed(1)}</Text>
             <Text style={typeStyle}>
               {round.category}
-              {round.usedInCalculation ? " · USED" : ""}
+              {round.usedInCalculation ? " - USED" : ""}
             </Text>
           </View>
         );
@@ -1233,44 +1293,64 @@ function OfficialRoundsTable({ player }: { player: AuditPlayerReport }) {
   );
 }
 
-function CommitteeDecision({ player }: { player: AuditPlayerReport }) {
-  const recommendation = recommendationForPlayer(player);
-  const options = [
-    { label: "Interview player", checked: recommendation.interview },
-    {
-      label: "Review exceptional scores",
-      checked: recommendation.reviewScores,
-    },
-    { label: "Adjust Handicap Index", checked: recommendation.adjust },
-    { label: "No action", checked: recommendation.noAction },
-  ];
-
+function DecisionAnalysis({ player }: { player: AuditPlayerReport }) {
+  const { decision } = player;
   return (
-    <View style={s.notes}>
-      <Text style={s.section}>COMMITTEE DECISION</Text>
+    <View
+      style={[s.decisionAnalysis, decisionPanelStyle(decision.code)]}
+      wrap={false}
+    >
+      <View style={s.decisionHeader}>
+        <View style={s.decisionHeaderCopy}>
+          <Text style={s.decisionEyebrow}>COMMITTEE DECISION ANALYSIS</Text>
+          <Text style={s.decisionLabel}>{decision.label}</Text>
+          <Text style={s.decisionSummary}>{decision.summary}</Text>
+        </View>
 
-      <View style={s.committeeOptions}>
-        {options.map((option) => (
-          <View style={s.committeeOption} key={option.label}>
-            <Text
-              style={
-                option.checked ? s.checkboxChecked : s.checkboxEmpty
-              }
-            >
-              {option.checked ? "✓" : ""}
+        {decision.suggestedIndex != null ? (
+          <View style={s.suggestedBox}>
+            <Text style={s.suggestedLabel}>SUGGESTED COMMITTEE HI</Text>
+            <Text style={s.suggestedValue}>
+              {decision.suggestedIndex.toFixed(1)}
             </Text>
-            <Text>{option.label}</Text>
           </View>
-        ))}
+        ) : null}
       </View>
 
-      <Text style={s.recommendationNote}>
-        Final decision at committee discretion.
+      <Text style={s.decisionMetrics}>
+        Current HI {n(player.currentIndex)} | All Competition HI{" "}
+        {n(player.competitionIndex)} | Last 12 Months Competition HI{" "}
+        {n(player.last12MonthsCompetitionIndex)} from{" "}
+        {player.last12MonthsCompetitionRounds} eligible rounds | General Play
+        HI {n(player.generalIndex)} | Gap {n(player.difference)}
       </Text>
 
-      <Text style={{ marginTop: 3 }}>Notes:</Text>
-      <View style={s.notesLine} />
-      <View style={s.notesLine} />
+      <View style={s.decisionColumns}>
+        <View style={s.decisionColumn}>
+          <Text style={s.decisionColumnTitle}>WHY THIS DECISION</Text>
+          {decision.evidence.map((item) => (
+            <View style={s.decisionListItem} key={item}>
+              <Text style={s.decisionListMarker}>-</Text>
+              <Text style={s.decisionListText}>{item}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={s.decisionColumnLast}>
+          <Text style={s.decisionColumnTitle}>SUGGESTED NEXT STEPS</Text>
+          {decision.nextSteps.map((item, index) => (
+            <View style={s.decisionListItem} key={item}>
+              <Text style={s.decisionListMarker}>{index + 1}.</Text>
+              <Text style={s.decisionListText}>{item}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      <Text style={s.decisionDisclaimer}>
+        Recommendation generated from the documented audit rules. Final action
+        remains at the Handicap Committee&apos;s discretion.
+      </Text>
     </View>
   );
 }
@@ -1292,13 +1372,20 @@ function PlayerPage({
           <View>
             <Text style={s.name}>{player.name}</Text>
             <Text style={s.muted}>
-              GHIN #{player.ghinNumber ?? "-"} · {player.competitionRounds}{" "}
-              Competition Rounds · {player.generalRounds} General Play Rounds
+              GHIN #{player.ghinNumber ?? "-"} | {player.competitionRounds}{" "}
+              Competition Rounds | {player.generalRounds} General Play Rounds
             </Text>
           </View>
         </View>
 
-        <Text style={[s.flag, flagStyle(player.flag)]}>{player.flag}</Text>
+        <Text
+          style={[
+            s.decisionBadge,
+            decisionBadgeStyle(player.decision.code),
+          ]}
+        >
+          {player.decision.label}
+        </Text>
       </View>
 
       <HandicapCards player={player} />
@@ -1309,10 +1396,9 @@ function PlayerPage({
         <RecommendationPanel player={player} />
       </View>
 
-      <KeyInsight player={player} />
+      <DecisionAnalysis player={player} />
       <BreakdownTable rows={player.breakdown} />
       <OfficialRoundsTable player={player} />
-      <CommitteeDecision player={player} />
       <Footer generatedAt={generatedAt} />
     </Page>
   );
@@ -1327,9 +1413,10 @@ function Summary({ report, title }: { report: AuditReport; title: string }) {
         <Text style={s.summaryPlayer}>Player</Text>
         <Text style={s.summaryNum}>Current</Text>
         <Text style={s.summaryNum}>Comp</Text>
+        <Text style={s.summaryNum}>12 Mo.</Text>
         <Text style={s.summaryNum}>General</Text>
-        <Text style={s.summaryNum}>Comp Advantage</Text>
-        <Text style={s.summaryFlag}>Flag</Text>
+        <Text style={s.summaryNum}>Gap</Text>
+        <Text style={s.summaryDecision}>Decision</Text>
       </View>
 
       {report.players.map((player, index) => (
@@ -1339,14 +1426,22 @@ function Summary({ report, title }: { report: AuditReport; title: string }) {
           </Text>
           <Text style={s.summaryNum}>{n(player.currentIndex)}</Text>
           <Text style={s.summaryNum}>{n(player.competitionIndex)}</Text>
+          <Text style={s.summaryNum}>
+            {n(player.last12MonthsCompetitionIndex)}
+          </Text>
           <Text style={s.summaryNum}>{n(player.generalIndex)}</Text>
           <Text style={[s.summaryNum, advantageStyle(player.difference)]}>
             {player.difference === null
               ? "-"
               : Math.max(0, player.difference).toFixed(1)}
           </Text>
-          <Text style={[s.summaryFlag, flagStyle(player.flag)]}>
-            {player.flag}
+          <Text
+            style={[
+              s.summaryDecision,
+              decisionBadgeStyle(player.decision.code),
+            ]}
+          >
+            {player.decision.label}
           </Text>
         </View>
       ))}
@@ -1360,7 +1455,7 @@ export function AuditBook({ report }: { report: AuditReport }) {
   return (
     <Document title="Goodrich Men's Club Handicap Committee Audit">
       <Page size="LETTER" style={s.cover}>
-        <Text style={s.title}>Goodrich Men's Club</Text>
+        <Text style={s.title}>Goodrich Men&apos;s Club</Text>
         <Text style={s.subtitle}>Handicap Committee Audit</Text>
 
         <View style={s.meta}>
@@ -1372,12 +1467,12 @@ export function AuditBook({ report }: { report: AuditReport }) {
           </Text>
           <Text style={s.metaText}>
             Includes players with at least five competition scores. Players are
-            ranked by Current GHIN Handicap Index minus Competition Handicap
-            Index.
+            grouped by committee decision: adjustments, monitor, then no
+            adjustment. Each group is ranked by the Competition-vs-Overall gap.
           </Text>
           <Text style={s.metaText}>
             Category Handicap Indexes are committee screening tools and do not
-            replace the player's official GHIN Handicap Index.
+            replace the player&apos;s official GHIN Handicap Index.
           </Text>
         </View>
       </Page>
