@@ -7,8 +7,26 @@ import {
   expectedRoundScoreFromHandicapIndex,
   golfSampleConfidence,
   priorShrinkageFraction,
+  rankLeagueHolesByAverageToPar,
   shrinkPerformanceEstimate,
 } from "../lib/holeRankingMath.ts";
+
+test("league hole index ranks average strokes over par, not raw average", () => {
+  const ranked = rankLeagueHolesByAverageToPar([
+    { holeNumber: 1, par: 5, averageGrossScore: 5.3 },
+    { holeNumber: 2, par: 3, averageGrossScore: 3.8 },
+    { holeNumber: 3, par: 4, averageGrossScore: 4.5 },
+  ]);
+
+  assert.deepEqual(
+    ranked.map((hole) => [hole.holeNumber, hole.leagueHoleIndex]),
+    [
+      [2, 1],
+      [3, 2],
+      [1, 3],
+    ]
+  );
+});
 
 test("expected round score converts Current HI through tee rating and slope", () => {
   const expectedRound = expectedRoundScoreFromHandicapIndex(-0.3, 71.2, 122);

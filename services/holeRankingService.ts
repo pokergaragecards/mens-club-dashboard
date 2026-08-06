@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import {
   aggregateRawPerformanceEstimate,
   expectedHoleScoreFromTeeRating,
+  rankLeagueHolesByAverageToPar,
   shrinkPerformanceEstimate,
   type AggregatePerformanceObservation,
   type AggregateRawPerformanceEstimate,
@@ -48,6 +49,9 @@ export type HoleRanking = {
   yardage: number | null;
   robustScoringSigma: number | null;
   clubAverageIndex: number | null;
+  leagueAverageGrossScore: number | null;
+  leagueAverageToPar: number | null;
+  leagueHoleIndex: number | null;
   players: PlayerHoleRanking[];
 };
 
@@ -711,6 +715,43 @@ export function buildHoleRankingReport(
   );
   const prior = empiricalBayesPrior(rawEstimates);
 
+  const leagueHoleStatistics = new Map<
+    string,
+    {
+      averageGrossScore: number;
+      averageToPar: number;
+      leagueHoleIndex: number;
+    }
+  >();
+
+  for (const tee of GOODRICH_TEE_COLORS) {
+    const teeHoleAverages = Array.from({ length: 18 }, (_, index) => {
+      const holeNumber = index + 1;
+      const grossScores = Array.from(observations.entries())
+        .filter(([key]) => {
+          const [rowTee, rowHole] = key.split("|");
+          return rowTee === tee && Number(rowHole) === holeNumber;
+        })
+        .flatMap(([, values]) => values.map((value) => value.grossScore));
+      const par = finiteNumber(courseHoleMap.get(`${tee}|${holeNumber}`)?.par);
+
+      if (!grossScores.length || par === null) return null;
+      return {
+        holeNumber,
+        par,
+        averageGrossScore: average(grossScores),
+      };
+    }).filter((hole): hole is NonNullable<typeof hole> => hole !== null);
+
+    for (const hole of rankLeagueHolesByAverageToPar(teeHoleAverages)) {
+      leagueHoleStatistics.set(`${tee}|${hole.holeNumber}`, {
+        averageGrossScore: rounded(hole.averageGrossScore),
+        averageToPar: rounded(hole.averageToPar),
+        leagueHoleIndex: hole.leagueHoleIndex,
+      });
+    }
+  }
+
   const tees = GOODRICH_TEE_COLORS.map<TeeHoleRankings>((tee) => ({
     tee,
     teePar: (teePars.get(tee) ?? 0) || null,
@@ -726,6 +767,9 @@ export function buildHoleRankingReport(
     holes: Array.from({ length: 18 }, (_, index): HoleRanking => {
       const holeNumber = index + 1;
       const definition = courseHoleMap.get(`${tee}|${holeNumber}`);
+      const leagueStatistics = leagueHoleStatistics.get(
+        `${tee}|${holeNumber}`
+      );
       const playerRows = Array.from(observations.entries())
         .filter(([key, values]) => {
           const [rowTee, rowHole] = key.split("|");
@@ -865,6 +909,10 @@ export function buildHoleRankingReport(
           3
         ),
         clubAverageIndex,
+        leagueAverageGrossScore:
+          leagueStatistics?.averageGrossScore ?? null,
+        leagueAverageToPar: leagueStatistics?.averageToPar ?? null,
+        leagueHoleIndex: leagueStatistics?.leagueHoleIndex ?? null,
         players,
       };
     }),

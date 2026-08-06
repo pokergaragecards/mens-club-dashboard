@@ -44,6 +44,8 @@ const MATRIX_HANDICAP_WIDTH = 34;
 const MATRIX_ROUNDS_WIDTH = 32;
 const MATRIX_HOLE_WIDTH = 30;
 const PLAYERS_PER_MATRIX_PAGE = 16;
+const COVER_HOLE_WIDTH = 36;
+const COVER_TEE_WIDTH = 177;
 
 const s = StyleSheet.create({
   page: {
@@ -61,6 +63,15 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
     fontFamily: "Helvetica",
     fontSize: 6,
+    color: COLORS.gray900,
+    backgroundColor: COLORS.white,
+  },
+  coverPage: {
+    paddingTop: 18,
+    paddingBottom: 20,
+    paddingHorizontal: 24,
+    fontFamily: "Helvetica",
+    fontSize: 7,
     color: COLORS.gray900,
     backgroundColor: COLORS.white,
   },
@@ -109,6 +120,87 @@ const s = StyleSheet.create({
     fontSize: 6.2,
     lineHeight: 1.25,
     color: COLORS.gray700,
+  },
+  methodLabel: {
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.navy,
+  },
+  coverSectionTitle: {
+    marginBottom: 2,
+    fontSize: 11,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.navy,
+  },
+  coverSectionText: {
+    marginBottom: 6,
+    fontSize: 6.5,
+    lineHeight: 1.25,
+    color: COLORS.gray600,
+  },
+  coverTable: {
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderColor: COLORS.gray300,
+  },
+  coverTableHeader: {
+    minHeight: 32,
+    flexDirection: "row",
+    backgroundColor: COLORS.navy,
+    color: COLORS.white,
+  },
+  coverTableRow: {
+    minHeight: 18,
+    flexDirection: "row",
+  },
+  coverHoleCell: {
+    width: COVER_HOLE_WIDTH,
+    flexShrink: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRightWidth: 0.5,
+    borderBottomWidth: 0.5,
+    borderColor: COLORS.gray300,
+    fontFamily: "Helvetica-Bold",
+  },
+  coverTeeCell: {
+    width: COVER_TEE_WIDTH,
+    flexShrink: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 6,
+    borderRightWidth: 0.5,
+    borderBottomWidth: 0.5,
+    borderColor: COLORS.gray300,
+  },
+  coverTeeHeader: {
+    width: COVER_TEE_WIDTH,
+    flexShrink: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+    borderRightWidth: 0.5,
+    borderBottomWidth: 0.5,
+    borderColor: COLORS.gray300,
+  },
+  coverTeeName: {
+    fontSize: 7.5,
+    fontFamily: "Helvetica-Bold",
+  },
+  coverTeeSpec: {
+    marginTop: 2,
+    fontSize: 5.2,
+  },
+  coverAverage: {
+    fontSize: 6.3,
+  },
+  coverIndex: {
+    fontSize: 6.5,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.navy,
+  },
+  coverHardestIndex: {
+    color: COLORS.red,
   },
   table: {
     borderWidth: 1,
@@ -582,6 +674,125 @@ function Footer({
   );
 }
 
+function CoverPage({
+  report,
+  view,
+}: {
+  report: HoleRankingReport;
+  view: HoleRankingView;
+}) {
+  const isBest = view === "best";
+
+  return (
+    <Page size="LETTER" orientation="landscape" style={s.coverPage}>
+      <View style={s.header}>
+        <View>
+          <Text style={s.title}>
+            Goodrich {isBest ? "Best" : "Worst"} Handicap-Adjusted Hole Rankings
+          </Text>
+          <Text style={s.subtitle}>
+            Analysis guide and current league hole difficulty - {report.periodStart}
+            {" "}through {report.periodEnd}
+          </Text>
+        </View>
+        <Text style={[s.teeBadge, { borderColor: COLORS.navy, color: COLORS.navy }]}>
+          ANALYSIS GUIDE
+        </Text>
+      </View>
+
+      <View style={s.method}>
+        <Text style={s.methodTitle}>HOW TO READ THIS REPORT</Text>
+        <Text style={s.methodText}>
+          <Text style={s.methodLabel}>PLAYER ANALYSIS. </Text>
+          Red, Gold, White, and Blue tees are analyzed separately using only
+          imported Goodrich hole scores from the latest 12 months. Expected
+          round score = Course Rating + Current HI x (Slope Rating / 113), and
+          expected hole score is distributed in proportion to par without
+          rounding. The adjusted performance index accounts for sample size and
+          scoring variability; each player needs at least {report.minimumScores}
+          {" "}scores on the exact tee and hole.
+          {"\n"}
+          <Text style={s.methodLabel}>PLAYER MATRIX. </Text>
+          Each cell shows club rank and actual average score. Within each player&apos;s
+          row, green marks the best 3 league-relative holes, yellow marks the next
+          3, red marks the worst 3, and all other holes remain neutral. 12M Rds
+          counts distinct imported rounds on that tee.
+          {"\n"}
+          <Text style={s.methodLabel}>LEAGUE HOLE INDEX. </Text>
+          The table below uses every valid score in this report period. Holes are
+          ordered separately for each tee by average gross score minus par. LHI 1
+          is hardest and LHI 18 is easiest. This is a descriptive league index,
+          not the course&apos;s official stroke index, and it does not alter handicaps.
+        </Text>
+      </View>
+
+      <Text style={s.coverSectionTitle}>Current Average Score and League Hole Index</Text>
+      <Text style={s.coverSectionText}>
+        Avg is the current 12-month gross scoring average. LHI ranks difficulty by
+        average strokes over par, which allows par 3s, par 4s, and par 5s to be
+        compared fairly. Ties are resolved by hole number to keep indexes unique.
+      </Text>
+
+      <View style={s.coverTable}>
+        <View style={s.coverTableHeader}>
+          <View style={s.coverHoleCell}>
+            <Text>Hole</Text>
+          </View>
+          {report.tees.map((tee) => (
+            <View key={tee.tee} style={s.coverTeeHeader}>
+              <Text style={s.coverTeeName}>
+                {goodrichTeeDisplayName(tee.tee)} Tees
+              </Text>
+              <Text style={s.coverTeeSpec}>{teeSpecifications(tee)}</Text>
+            </View>
+          ))}
+        </View>
+
+        {Array.from({ length: 18 }, (_, index) => index + 1).map(
+          (holeNumber, rowIndex) => (
+            <View
+              key={holeNumber}
+              style={[s.coverTableRow, rowIndex % 2 ? s.rowAlt : {}]}
+              wrap={false}
+            >
+              <View style={s.coverHoleCell}>
+                <Text>{holeNumber}</Text>
+              </View>
+              {report.tees.map((tee) => {
+                const hole = tee.holes.find(
+                  (candidate) => candidate.holeNumber === holeNumber
+                );
+                const leagueHoleIndex = hole?.leagueHoleIndex ?? null;
+
+                return (
+                  <View key={tee.tee} style={s.coverTeeCell}>
+                    <Text style={s.coverAverage}>
+                      Par {hole?.par ?? "-"} | Avg{" "}
+                      {performanceIndex(hole?.leagueAverageGrossScore ?? null, 2)}
+                    </Text>
+                    <Text
+                      style={[
+                        s.coverIndex,
+                        leagueHoleIndex !== null && leagueHoleIndex <= 3
+                          ? s.coverHardestIndex
+                          : {},
+                      ]}
+                    >
+                      LHI {leagueHoleIndex ?? "-"}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          )
+        )}
+      </View>
+
+      <Footer generatedAt={report.generatedAt} view={view} />
+    </Page>
+  );
+}
+
 export function HoleRankingsReport({
   report,
   view = "worst",
@@ -595,6 +806,7 @@ export function HoleRankingsReport({
     <Document
       title={`Goodrich ${isBest ? "Best" : "Worst"} Handicap-Adjusted Hole Rankings`}
     >
+      <CoverPage report={report} view={view} />
       {report.tees.map((tee) => {
         const players = matrixPlayers(tee, view);
         const playerPages = chunks(players, PLAYERS_PER_MATRIX_PAGE);

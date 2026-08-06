@@ -19,6 +19,17 @@ export type ShrunkPerformanceEstimate = {
   posteriorStandardError: number;
 };
 
+export type LeagueHoleAverage = {
+  holeNumber: number;
+  par: number;
+  averageGrossScore: number;
+};
+
+export type RankedLeagueHoleAverage = LeagueHoleAverage & {
+  averageToPar: number;
+  leagueHoleIndex: number;
+};
+
 function sampleStandardDeviation(values: number[], fallback: number) {
   if (values.length < 2) return fallback;
   const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -85,6 +96,36 @@ export function expectedHoleScoreFromTeeRating(
   }
 
   return par * (expectedRoundScore / teePar);
+}
+
+export function rankLeagueHolesByAverageToPar(
+  holes: LeagueHoleAverage[]
+): RankedLeagueHoleAverage[] {
+  return holes
+    .filter(
+      (hole) =>
+        Number.isInteger(hole.holeNumber) &&
+        hole.holeNumber > 0 &&
+        Number.isFinite(hole.par) &&
+        hole.par > 0 &&
+        Number.isFinite(hole.averageGrossScore) &&
+        hole.averageGrossScore > 0
+    )
+    .map((hole) => ({
+      ...hole,
+      averageToPar: hole.averageGrossScore - hole.par,
+      leagueHoleIndex: 0,
+    }))
+    .sort((a, b) => {
+      if (a.averageToPar !== b.averageToPar) {
+        return b.averageToPar - a.averageToPar;
+      }
+      return a.holeNumber - b.holeNumber;
+    })
+    .map((hole, index) => ({
+      ...hole,
+      leagueHoleIndex: index + 1,
+    }));
 }
 
 export function aggregateRawPerformanceEstimate(
