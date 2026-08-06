@@ -133,15 +133,21 @@ const s = StyleSheet.create({
     paddingHorizontal: 4,
     flexShrink: 0,
   },
-  summaryHole: { width: 36, textAlign: "center", fontFamily: "Helvetica-Bold" },
-  summaryPar: { width: 34, textAlign: "center" },
-  summaryStroke: { width: 50, textAlign: "center" },
-  summaryYardage: { width: 50, textAlign: "right" },
-  summaryPlayer: { width: 160, fontSize: 8, fontFamily: "Helvetica-Bold" },
-  summaryHandicap: { width: 50, textAlign: "right" },
-  summaryAverage: { width: 50, textAlign: "right" },
+  summaryHole: { width: 32, textAlign: "center", fontFamily: "Helvetica-Bold" },
+  summaryPar: { width: 30, textAlign: "center" },
+  summaryStroke: { width: 45, textAlign: "center" },
+  summaryYardage: { width: 45, textAlign: "right" },
+  summaryPlayer: { width: 140, fontSize: 8, fontFamily: "Helvetica-Bold" },
+  summaryHandicap: { width: 46, textAlign: "right" },
+  summaryAverage: { width: 46, textAlign: "right" },
+  summaryRaw: {
+    width: 56,
+    textAlign: "right",
+    fontSize: 8,
+    fontFamily: "Helvetica-Bold",
+  },
   summaryValue: {
-    width: 68,
+    width: 60,
     textAlign: "right",
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
@@ -152,10 +158,10 @@ const s = StyleSheet.create({
   summaryBestValue: {
     color: COLORS.green,
   },
-  summaryConfidence: { width: 60, textAlign: "right" },
-  summaryScores: { width: 50, textAlign: "right" },
-  summaryField: { width: 60, textAlign: "right" },
-  summaryClub: { width: 76, textAlign: "right" },
+  summaryConfidence: { width: 56, textAlign: "right" },
+  summaryScores: { width: 42, textAlign: "right" },
+  summaryField: { width: 52, textAlign: "right" },
+  summaryClub: { width: 74, textAlign: "right" },
   note: {
     marginTop: 6,
     padding: 5,
@@ -182,7 +188,7 @@ const s = StyleSheet.create({
     borderColor: COLORS.gray300,
   },
   matrixRow: {
-    minHeight: 23,
+    minHeight: 27,
     flexDirection: "row",
   },
   matrixHeaderRow: {
@@ -395,6 +401,7 @@ function SummaryHeader({ view }: { view: HoleRankingView }) {
       </Text>
       <Text style={[s.cell, s.summaryHandicap]}>Current HI</Text>
       <Text style={[s.cell, s.summaryAverage]}>Avg Score</Text>
+      <Text style={[s.cell, s.summaryRaw]}>Raw Index</Text>
       <Text style={[s.cell, s.summaryValue]}>Adj. Index</Text>
       <Text style={[s.cell, s.summaryConfidence]}>Confidence</Text>
       <Text style={[s.cell, s.summaryScores]}>Scores</Text>
@@ -430,6 +437,9 @@ function SummaryRow({
       </Text>
       <Text style={[s.cell, s.summaryAverage]}>
         {performanceIndex(featured?.averageGrossScore ?? null, 2)}
+      </Text>
+      <Text style={[s.cell, s.summaryRaw]}>
+        {performanceIndex(featured?.rawPerformanceIndex ?? null)}
       </Text>
       <Text
         style={[
@@ -494,7 +504,10 @@ function MatrixCell({
         Avg {performanceIndex(ranking.averageGrossScore, 2)}
       </Text>
       <Text style={s.matrixValue}>
-        {performanceIndex(ranking.performanceIndex)}/
+        R{performanceIndex(ranking.rawPerformanceIndex)}
+      </Text>
+      <Text style={s.matrixValue}>
+        A{performanceIndex(ranking.performanceIndex)}/
         {confidence(ranking.performanceReliability)}
       </Text>
     </View>
@@ -575,17 +588,18 @@ export function HoleRankingsReport({
                   spreads the allowance continuously across all 18 holes in
                   proportion to par, and the hole expectations add up to tee par
                   plus Course Handicap; stroke index is informational only.
-                  The empirical-Bayes model is: Actual - Expected =
-                  abs(Expected - par) x performance effect + scoring noise.
-                  Adjusted Performance Index = 100 + 100 x the estimated effect.
-                  100 matches expectation, 120 is 20% worse, and 80 is 20%
-                  better. The raw percentage treats equal proportional
-                  performances equally at every handicap; the adjusted index
-                  ranks players after accounting for uncertainty. Scoring
-                  variance is learned separately for every tee and hole and
-                  partially pooled with the club. A {report.studentTDegreesOfFreedom}
-                  -degree-of-freedom Student-t model reduces the influence of one
-                  extreme score. The learned club prior is {performanceIndex(
+                  Raw Index = 100 + 100 x (aggregate strokes versus expected /
+                  aggregate expected strokes from par). It is calculated from
+                  the same underlying aggregate averages shown in the report,
+                  so 100 matches expectation,
+                  120 is 20% worse, and 80 is 20% better. Adjusted Index = club
+                  baseline + reliability x (Raw Index - club baseline), and the
+                  adjusted value ranks players. Reliability rises with more
+                  scores and falls with greater scoring variability or a smaller
+                  expected allowance. Player variance is partially pooled with
+                  the tee-and-hole variance. A {report.studentTDegreesOfFreedom}
+                  -degree-of-freedom Student-t model makes the learned club prior
+                  resistant to one unusual player. The learned club prior is {performanceIndex(
                     report.priorPerformanceIndex
                   )}, with a {performanceIndex(
                     report.priorStandardDeviationPoints
@@ -647,8 +661,8 @@ export function HoleRankingsReport({
                 </View>
 
                 <Text style={s.legend}>
-                  Each cell shows #{view} rank, actual average hole score,
-                  Adjusted Performance Index, and confidence as index/percent.
+                  Each cell shows #{view} rank, actual average hole score, Raw
+                  Index, and Adjusted Index/confidence as R value and A value/percent.
                   {isBest
                     ? " Green = best on that hole; blue = ranks 2-3;"
                     : " Red = worst on that hole; amber = ranks 2-3;"}{" "}

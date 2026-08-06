@@ -1,4 +1,10 @@
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
+import {
+  aggregateRawPerformanceEstimate,
+  shrinkPerformanceEstimate,
+  type AggregatePerformanceObservation,
+  type AggregateRawPerformanceEstimate,
+} from "@/lib/holeRankingMath";
 
 export const GOODRICH_TEE_COLORS = ["Red", "Gold", "White", "Blue"] as const;
 export const MINIMUM_HOLE_SCORES = 3;
@@ -53,6 +59,7 @@ export type PlayerGoodrichHoleRanking = {
   holeNumber: number;
   par: number | null;
   strokeIndex: number | null;
+  rawPerformanceIndex: number | null;
   adjustedPerformanceIndex: number;
   performanceReliability: number;
   performanceConfidence: "Low" | "Moderate" | "High";
@@ -155,10 +162,7 @@ type ScoreObservation = {
   deviationFromExpected: number;
 };
 
-export type BayesianPerformanceObservation = {
-  expectedAllowance: number;
-  deviationFromExpected: number;
-};
+export type BayesianPerformanceObservation = AggregatePerformanceObservation;
 
 export type BayesianPerformanceEstimate = {
   rawEffect: number | null;
@@ -167,10 +171,7 @@ export type BayesianPerformanceEstimate = {
   posteriorStandardError: number;
 };
 
-type RawPerformanceEstimate = {
-  effect: number;
-  measurementVariance: number;
-};
+type RawPerformanceEstimate = AggregateRawPerformanceEstimate;
 
 type EmpiricalBayesPrior = {
   mean: number;
@@ -178,7 +179,7 @@ type EmpiricalBayesPrior = {
 };
 
 const METHODOLOGY =
-  "Only hole scores from the latest 12 months are included. For each score, expected hole score equals hole par multiplied by (tee par plus the player's Course Handicap from that historical round) divided by tee par. The Adjusted Performance Index estimates the player's percentage above or below expected strokes from par with an empirical-Bayes model. An index of 100 matches expectation, 120 is 20% worse, and 80 is 20% better. Tee-and-hole scoring variance and the club-wide prior are learned from the imported scores. A four-degree-of-freedom Student-t weighting reduces the influence of a single unusually high or low score. Estimates with small handicap allowances, volatile holes, or few scores are automatically pulled toward the club baseline instead of being divided by an arbitrary fixed floor. Players need at least three scores on the same tee and hole during the 12-month window. Club averages give each qualifying player equal weight.";
+  "Only hole scores from the latest 12 months are included. For each score, expected hole score equals hole par multiplied by (tee par plus the player's Course Handicap from that historical round) divided by tee par. The Raw Performance Index is calculated directly from aggregate averages: 100 plus 100 times aggregate strokes versus expected divided by aggregate expected strokes from par. An index of 100 matches expectation, 120 is 20% worse, and 80 is 20% better. The Adjusted Performance Index shrinks that raw index toward the learned club baseline. Reliability rises with more scores and falls with greater scoring variability or a smaller handicap allowance. Player scoring variance is partially pooled with the tee-and-hole variance, and a robust empirical-Bayes prior prevents one unusual player from moving the club baseline excessively. Players need at least three scores on the same tee and hole during the 12-month window. Club averages give each qualifying player equal weight.";
 
 function finiteNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -228,58 +229,6 @@ function studentTWeight(standardizedResidual: number) {
     (STUDENT_T_DEGREES_OF_FREEDOM + 1) /
     (STUDENT_T_DEGREES_OF_FREEDOM + standardizedResidual ** 2)
   );
-}
-
-function robustRawPerformanceEstimate(
-  observations: BayesianPerformanceObservation[],
-  scoringSigma: number
-): RawPerformanceEstimate | null {
-  const initialDenominator = observations.reduce(
-    (sum, observation) => sum + observation.expectedAllowance ** 2,
-    0
-  );
-  if (initialDenominator <= MIN_NUMERIC_VARIANCE) return null;
-
-  let effect =
-    observations.reduce(
-      (sum, observation) =>
-        sum +
-        observation.expectedAllowance * observation.deviationFromExpected,
-      0
-    ) / initialDenominator;
-  let weightedDenominator = initialDenominator;
-
-  for (let iteration = 0; iteration < 8; iteration += 1) {
-    let numerator = 0;
-    weightedDenominator = 0;
-
-    for (const observation of observations) {
-      const residual =
-        observation.deviationFromExpected -
-        observation.expectedAllowance * effect;
-      const weight = studentTWeight(residual / scoringSigma);
-      numerator +=
-        weight *
-        observation.expectedAllowance *
-        observation.deviationFromExpected;
-      weightedDenominator +=
-        weight * observation.expectedAllowance ** 2;
-    }
-
-    if (weightedDenominator <= MIN_NUMERIC_VARIANCE) return null;
-    const updatedEffect = numerator / weightedDenominator;
-    if (Math.abs(updatedEffect - effect) < 1e-7) {
-      effect = updatedEffect;
-      break;
-    }
-    effect = updatedEffect;
-  }
-
-  return {
-    effect,
-    measurementVariance:
-      scoringSigma ** 2 / Math.max(weightedDenominator, MIN_NUMERIC_VARIANCE),
-  };
 }
 
 function empiricalBayesPrior(
@@ -367,51 +316,21 @@ export function calculateBayesianPerformanceEstimate(
   priorMean: number,
   priorStandardDeviation: number
 ): BayesianPerformanceEstimate {
-  const stableSigma = Math.max(scoringSigma, Math.sqrt(MIN_NUMERIC_VARIANCE));
-  const stablePriorStandardDeviation = Math.max(
-    priorStandardDeviation,
-    Math.sqrt(MIN_NUMERIC_VARIANCE)
+  const rawEstimate = aggregateRawPerformanceEstimate(
+    observations,
+    scoringSigma
   );
-  const priorPrecision = 1 / stablePriorStandardDeviation ** 2;
-  const rawEstimate = robustRawPerformanceEstimate(observations, stableSigma);
-  let adjustedEffect = priorMean;
-  let dataPrecision = 0;
+  const adjusted = shrinkPerformanceEstimate(
+    rawEstimate,
+    priorMean,
+    priorStandardDeviation
+  );
 
-  for (let iteration = 0; iteration < 8; iteration += 1) {
-    let dataTerm = 0;
-    dataPrecision = 0;
-
-    for (const observation of observations) {
-      const residual =
-        observation.deviationFromExpected -
-        observation.expectedAllowance * adjustedEffect;
-      const weight = studentTWeight(residual / stableSigma);
-      dataTerm +=
-        (weight *
-          observation.expectedAllowance *
-          observation.deviationFromExpected) /
-        stableSigma ** 2;
-      dataPrecision +=
-        (weight * observation.expectedAllowance ** 2) / stableSigma ** 2;
-    }
-
-    const updatedEffect =
-      (priorMean * priorPrecision + dataTerm) /
-      (priorPrecision + dataPrecision);
-    if (Math.abs(updatedEffect - adjustedEffect) < 1e-7) {
-      adjustedEffect = updatedEffect;
-      break;
-    }
-    adjustedEffect = updatedEffect;
-  }
-
-  const posteriorPrecision = priorPrecision + dataPrecision;
   return {
     rawEffect: rawEstimate?.effect ?? null,
-    adjustedEffect,
-    reliability:
-      posteriorPrecision > 0 ? dataPrecision / posteriorPrecision : 0,
-    posteriorStandardError: Math.sqrt(1 / posteriorPrecision),
+    adjustedEffect: adjusted.adjustedEffect,
+    reliability: adjusted.reliability,
+    posteriorStandardError: adjusted.posteriorStandardError,
   };
 }
 
@@ -485,6 +404,7 @@ export function goodrichHoleRankingsForPlayer(
           holeNumber: hole.holeNumber,
           par: hole.par,
           strokeIndex: hole.strokeIndex,
+          rawPerformanceIndex: ranking.rawPerformanceIndex,
           adjustedPerformanceIndex: ranking.performanceIndex,
           performanceReliability: ranking.performanceReliability,
           performanceConfidence: ranking.performanceConfidence,
@@ -684,7 +604,7 @@ export function buildHoleRankingReport(
   const rawEstimates = Array.from(priorObservationsByPlayer.values()).flatMap(
     (values) => {
       if (values.length < 18) return [];
-      const estimate = robustRawPerformanceEstimate(
+      const estimate = aggregateRawPerformanceEstimate(
         values,
         pooledScoringSigma
       );

@@ -323,11 +323,13 @@ function Scorecard({
         <div className="font-black">12-Month Handicap-Adjusted Club Ranking</div>
         <p className="mt-1 leading-relaxed">
           Ranking period: <strong>{rankingPeriodStart}</strong> through{" "}
-          <strong>{rankingPeriodEnd}</strong>. The Adjusted Performance Index
-          uses the same empirical-Bayes model as the club&apos;s Best and Worst by
-          Hole reports. <strong>100 matches expectation</strong>, lower is better,
-          and higher is worse. Confidence shows how much of the estimate comes
-          from this player&apos;s own scores instead of the learned club prior of{" "}
+          <strong>{rankingPeriodEnd}</strong>. The Raw Performance Index comes
+          directly from the aggregate average score versus aggregate expected
+          score. The Adjusted Index shrinks that raw value toward the club
+          baseline based on sample size and scoring variability. <strong>100
+          matches expectation</strong>, lower is better, and higher is worse.
+          Confidence shows how much of the adjusted estimate comes from this
+          player&apos;s own scores instead of the learned club prior of{" "}
           <strong>{rankingPriorPerformanceIndex.toFixed(1)}</strong>. A player
           needs at least three scores on the exact tee and hole. These 12-month
           ranking rows do not change when switching between Season and 30 Days.
@@ -357,7 +359,7 @@ function Scorecard({
             {teeName} Tee · {range === "30" ? "Last 30 Days" : "Season"}
           </div>
 
-          <table className="w-full min-w-[1250px] text-xs">
+          <table className="w-full min-w-[1320px] text-xs">
             <tbody>
               <ScorecardRow
                 label="Hole"
@@ -430,6 +432,26 @@ function Scorecard({
                     ? `${ranking.averageVsExpected > 0 ? "+" : ""}${ranking.averageVsExpected.toFixed(2)}`
                     : "-";
                 }}
+              />
+              <ScorecardRow
+                label="Raw Index"
+                rows={rows}
+                value={(hole) => {
+                  const ranking = rankingForHole(hole);
+                  return ranking?.rawPerformanceIndex !== null &&
+                    ranking?.rawPerformanceIndex !== undefined ? (
+                    <span
+                      className={adjustedIndexClass(
+                        ranking.rawPerformanceIndex
+                      )}
+                    >
+                      {ranking.rawPerformanceIndex.toFixed(1)}
+                    </span>
+                  ) : (
+                    "-"
+                  );
+                }}
+                bold
               />
               <ScorecardRow
                 label="Adjusted Index"

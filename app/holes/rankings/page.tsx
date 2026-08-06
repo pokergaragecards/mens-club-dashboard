@@ -158,19 +158,18 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
           1.243 round factor: expected scores are 3.73 on a par 3, 4.97 on a par
           4, and 6.21 on a par 5, adding up to 87 for the round. Stroke index is
           shown as course information but does not affect this calculation.{" "}
-          The ranking uses an <strong>empirical-Bayes Adjusted Performance
-          Index</strong>. The model is <strong>Actual - Expected = |Expected -
-          Par| × performance effect + scoring noise</strong>, and the displayed
-          index is <strong>100 + 100 × the estimated effect</strong>. A raw index
+          The <strong>Raw Performance Index</strong> is calculated directly from
+          the aggregate averages: <strong>100 + 100 × (aggregate strokes versus
+          expected ÷ aggregate expected strokes from par)</strong>. A raw index
           of 100 matches expectation, 120 is 20% worse, and 80 is 20% better;
-          therefore, a player expected to shoot 100 and one expected to shoot 80
-          receive the same raw index when both perform the same percentage above
-          or below their expected strokes from par. The adjusted index is used
-          for ranking. It applies Student-t outlier resistance and automatically
-          pulls uncertain results toward the club baseline when the handicap
-          allowance is small, the hole is volatile, or the player has few
-          scores. The scoring variance, club baseline, and amount of shrinkage
-          are learned from this report&apos;s data rather than a fixed denominator.
+          therefore, players at different handicaps receive the same raw index
+          when they perform the same percentage above or below their own
+          expectation. The <strong>Adjusted Index</strong> is used for ranking and
+          equals <strong>club baseline + reliability × (raw index - club
+          baseline)</strong>. Reliability rises with more scores and falls when
+          scoring is more variable or the player&apos;s expected allowance is small.
+          The scoring variance, club baseline, and amount of shrinkage are
+          learned from this report&apos;s data rather than a fixed denominator.
           The learned club prior is <strong>{performanceIndex(
             report.priorPerformanceIndex
           )}</strong>, with a between-player standard deviation of <strong>{performanceIndex(
@@ -261,6 +260,9 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
                     <div className="text-xs font-bold text-slate-500">
                       Adjusted Index
                     </div>
+                    <div className="mt-1 text-xs font-black text-slate-600">
+                      Raw {performanceIndex(featured.rawPerformanceIndex)}
+                    </div>
                   </>
                 ) : (
                   <div className="mt-3 text-sm font-semibold text-slate-500">
@@ -294,7 +296,7 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1430px] text-left">
+          <table className="w-full min-w-[1540px] text-left">
             <thead className="border-b border-slate-300 bg-slate-900 text-white">
               <tr>
                 <th className="p-3 text-center">
@@ -305,6 +307,7 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
                 <th className="p-3 text-right">Scores</th>
                 <th className="p-3 text-right">Avg Gross</th>
                 <th className="p-3 text-right">Expected Avg</th>
+                <th className="p-3 text-right">Raw Performance Index</th>
                 <th className="p-3 text-right">Adjusted Performance Index</th>
                 <th className="p-3 text-right">Confidence</th>
                 <th className="p-3 text-right">Avg Strokes vs Expected</th>
@@ -347,6 +350,15 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
                     {player.averageExpectedScore.toFixed(2)}
                   </td>
                   <td
+                    className={`p-3 text-right text-xl font-black ${
+                      player.rawPerformanceIndex === null
+                        ? "bg-slate-50 text-slate-500"
+                        : performanceClass(player.rawPerformanceIndex)
+                    }`}
+                  >
+                    {performanceIndex(player.rawPerformanceIndex)}
+                  </td>
+                  <td
                     className={`p-3 text-right text-2xl font-black ${performanceClass(
                       player.performanceIndex
                     )}`}
@@ -372,7 +384,7 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
               ))}
               {!hole.players.length && (
                 <tr>
-                  <td colSpan={11} className="p-10 text-center text-lg font-bold text-slate-500">
+                  <td colSpan={12} className="p-10 text-center text-lg font-bold text-slate-500">
                     No active player has three qualifying {tee}-tee scores on
                     this hole yet.
                   </td>
