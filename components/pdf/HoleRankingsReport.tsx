@@ -262,30 +262,22 @@ const s = StyleSheet.create({
     fontSize: 6.3,
     fontFamily: "Helvetica-Bold",
   },
-  matrixValue: {
-    marginTop: 1,
-    fontSize: 5.3,
-  },
   matrixAverage: {
     marginTop: 1,
     fontSize: 5.3,
     fontFamily: "Helvetica-Bold",
   },
-  rankWorst: {
+  playerWorstHole: {
     backgroundColor: "#fee2e2",
     color: "#991b1b",
   },
-  rankTopThree: {
-    backgroundColor: "#fef3c7",
-    color: "#92400e",
-  },
-  rankBest: {
+  playerBestHole: {
     backgroundColor: "#dcfce7",
     color: "#166534",
   },
-  rankBestThree: {
-    backgroundColor: "#dbeafe",
-    color: "#1e40af",
+  playerNextBestHole: {
+    backgroundColor: "#fef9c3",
+    color: "#854d0e",
   },
   missing: {
     color: COLORS.gray400,
@@ -318,6 +310,8 @@ const s = StyleSheet.create({
   },
 });
 
+type MatrixHoleTier = "best" | "nextBest" | "worst";
+
 type MatrixPlayer = {
   playerId: string;
   playerName: string;
@@ -325,6 +319,7 @@ type MatrixPlayer = {
   teeRoundCount: number;
   averagePercentile: number;
   cells: Map<number, PlayerHoleRanking>;
+  holeTiers: Map<number, MatrixHoleTier>;
 };
 
 function performanceIndex(value: number | null, decimals = 1) {
@@ -383,6 +378,7 @@ function matrixPlayers(
         teeRoundCount: ranking.teeRoundCount,
         averagePercentile: 0,
         cells: new Map<number, PlayerHoleRanking>(),
+        holeTiers: new Map<number, MatrixHoleTier>(),
       };
       current.cells.set(hole.holeNumber, ranking);
       players.set(ranking.playerId, current);
@@ -390,14 +386,43 @@ function matrixPlayers(
   }
 
   return Array.from(players.values())
-    .map((player) => ({
-      ...player,
-      averagePercentile:
-        Array.from(player.cells.values()).reduce(
-          (sum, cell) => sum + holeRankingPercentile(cell, view),
-          0
-        ) / player.cells.size,
-    }))
+    .map((player) => {
+      const orderedHoles = Array.from(player.cells.entries()).sort(
+        ([holeA, rankingA], [holeB, rankingB]) => {
+          if (rankingA.bestPercentile !== rankingB.bestPercentile) {
+            return rankingB.bestPercentile - rankingA.bestPercentile;
+          }
+          if (rankingA.performanceIndex !== rankingB.performanceIndex) {
+            return rankingA.performanceIndex - rankingB.performanceIndex;
+          }
+          return holeA - holeB;
+        }
+      );
+      const tierSize = Math.min(3, Math.floor(orderedHoles.length / 3));
+      const holeTiers = new Map<number, MatrixHoleTier>();
+
+      orderedHoles
+        .slice(0, tierSize)
+        .forEach(([holeNumber]) => holeTiers.set(holeNumber, "best"));
+      orderedHoles
+        .slice(tierSize, tierSize * 2)
+        .forEach(([holeNumber]) => holeTiers.set(holeNumber, "nextBest"));
+      if (tierSize) {
+        orderedHoles
+          .slice(-tierSize)
+          .forEach(([holeNumber]) => holeTiers.set(holeNumber, "worst"));
+      }
+
+      return {
+        ...player,
+        holeTiers,
+        averagePercentile:
+          Array.from(player.cells.values()).reduce(
+            (sum, cell) => sum + holeRankingPercentile(cell, view),
+            0
+          ) / player.cells.size,
+      };
+    })
     .sort((a, b) => {
       if (a.averagePercentile !== b.averagePercentile) {
         return b.averagePercentile - a.averagePercentile;
@@ -498,9 +523,11 @@ function SummaryRow({
 
 function MatrixCell({
   ranking,
+  tier,
   view,
 }: {
   ranking: PlayerHoleRanking | undefined;
+  tier: MatrixHoleTier | undefined;
   view: HoleRankingView;
 }) {
   if (!ranking) {
@@ -512,30 +539,19 @@ function MatrixCell({
   }
 
   const rank = holeRankingRank(ranking, view);
-  const isBest = view === "best";
 
   return (
     <View
       style={[
         s.matrixHole,
-        rank === 1 ? (isBest ? s.rankBest : s.rankWorst) : {},
-        rank > 1 && rank <= 3
-          ? isBest
-            ? s.rankBestThree
-            : s.rankTopThree
-          : {},
+        tier === "best" ? s.playerBestHole : {},
+        tier === "nextBest" ? s.playerNextBestHole : {},
+        tier === "worst" ? s.playerWorstHole : {},
       ]}
     >
       <Text style={s.matrixRank}>#{rank}</Text>
       <Text style={s.matrixAverage}>
         Avg {performanceIndex(ranking.averageGrossScore, 2)}
-      </Text>
-      <Text style={s.matrixValue}>
-        R{performanceIndex(ranking.rawPerformanceIndex)}
-      </Text>
-      <Text style={s.matrixValue}>
-        A{performanceIndex(ranking.performanceIndex)}/
-        {confidence(ranking.performanceReliability)}
       </Text>
     </View>
   );
@@ -692,20 +708,16 @@ export function HoleRankingsReport({
                 </View>
 
                 <Text style={s.legend}>
-                  Each cell shows #{view} rank, actual average hole score, Raw
-                  Index, and Adjusted Index/confidence as R value and A value/percent.
-                  {isBest
-                    ? " Green = best on that hole; blue = ranks 2-3;"
-                    : " Red = worst on that hole; amber = ranks 2-3;"}{" "}
-                  dash = fewer than
-                  {` ${report.minimumScores} `}qualifying scores. 100 matches
-                  expectation; lower values are better and higher values are
-                  worse. Uncertain values are pulled toward the learned club
-                  prior. Avg {isBest ? "Best" : "Worst"} %
-                  summarizes the holes
-                  on which the player qualifies; 100 is {view}. 12M Rds is the
-                  player&apos;s number of distinct imported rounds on this tee in
-                  the report period.
+                  Each cell shows #{view}{" "}club rank and actual average hole score.
+                  Colors compare holes within each player&apos;s row using club
+                  percentile: green = best 3, yellow = next-best 3, red = worst
+                  3, and all other holes are neutral. With fewer than 9 qualifying
+                  holes, the three groups are reduced evenly so colors never
+                  overlap. A dash means fewer than
+                  {` ${report.minimumScores} `}qualifying scores. Avg {isBest ? "Best" : "Worst"} %
+                  summarizes the holes on which the player qualifies; 100 is{" "}
+                  {view}. 12M Rds is the player&apos;s number of distinct imported
+                  rounds on this tee in the report period.
                 </Text>
 
                 <View style={s.matrixTable}>
@@ -761,6 +773,7 @@ export function HoleRankingsReport({
                           <MatrixCell
                             key={hole.holeNumber}
                             ranking={player.cells.get(hole.holeNumber)}
+                            tier={player.holeTiers.get(hole.holeNumber)}
                             view={view}
                           />
                         ))}
