@@ -59,6 +59,16 @@ function handicapIndex(value: number | null) {
   return value.toFixed(1);
 }
 
+function teeValue(value: number | null, decimals = 1) {
+  if (value === null || !Number.isFinite(value)) return "-";
+  return value.toFixed(decimals);
+}
+
+function slopeValue(value: number | null) {
+  if (value === null || !Number.isFinite(value)) return "-";
+  return value.toFixed(Number.isInteger(value) ? 0 : 1);
+}
+
 function signedIndexPoints(value: number | null, decimals = 1) {
   if (value === null || !Number.isFinite(value)) return "-";
   return `${value > 0 ? "+" : ""}${value.toFixed(decimals)} pts`;
@@ -151,13 +161,16 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
             Ranking period: {report.periodStart} through {report.periodEnd}.
           </strong>{" "}
           <strong>
-            Expected score = hole par × ((tee par + Course Handicap) / tee par).
+            Expected round = Course Rating + Current HI × (Slope Rating ÷ 113).
           </strong>{" "}
-          The handicap allowance is spread continuously across all 18 holes in
-          proportion to par. On a par-70 tee, a 17 Course Handicap produces a
-          1.243 round factor: expected scores are 3.73 on a par 3, 4.97 on a par
-          4, and 6.21 on a par 5, adding up to 87 for the round. Stroke index is
-          shown as course information but does not affect this calculation.{" "}
+          Expected hole score = hole par × (expected round ÷ tee par), without
+          rounding the tee conversion. This converts the same Current HI
+          differently for Red, Gold, White, and Blue according to the imported
+          Course Rating and Slope Rating. Each score uses its own round&apos;s tee
+          values; the displayed tee values are the medians from distinct
+          qualifying imported rounds. Stroke index is informational only. A
+          negative Handicap Index can still have an expected score above par
+          when that tee&apos;s Course Rating is above par.{" "}
           The <strong>Raw Performance Index</strong> is calculated directly from
           the aggregate averages: <strong>100 + 100 × (aggregate strokes versus
           expected ÷ aggregate expected strokes from par)</strong>. A raw index
@@ -188,17 +201,28 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
       </section>
 
       <nav aria-label="Tee selection" className="flex flex-wrap gap-3">
-        {GOODRICH_TEE_COLORS.map((option) => (
-          <Link
-            key={option}
-            href={`/holes/rankings?view=${view}&tee=${option}&hole=${holeNumber}`}
-            className={`min-w-24 rounded-lg border px-5 py-3 text-center text-lg font-black transition-colors ${
-              option === tee ? TEE_CLASSES[option].active : TEE_CLASSES[option].idle
-            }`}
-          >
-            {option}
-          </Link>
-        ))}
+        {GOODRICH_TEE_COLORS.map((option) => {
+          const optionReport = report.tees.find((item) => item.tee === option);
+
+          return (
+            <Link
+              key={option}
+              href={`/holes/rankings?view=${view}&tee=${option}&hole=${holeNumber}`}
+              className={`min-w-44 rounded-lg border px-5 py-3 text-center transition-colors ${
+                option === tee
+                  ? TEE_CLASSES[option].active
+                  : TEE_CLASSES[option].idle
+              }`}
+            >
+              <span className="block text-lg font-black">{option}</span>
+              <span className="mt-1 block text-xs font-bold">
+                Par {teeValue(optionReport?.teePar ?? null, 0)} · CR{" "}
+                {teeValue(optionReport?.courseRating ?? null)} · Slope{" "}
+                {slopeValue(optionReport?.slopeRating ?? null)}
+              </span>
+            </Link>
+          );
+        })}
       </nav>
 
       <section>
@@ -285,7 +309,10 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
             </h2>
             <p className="mt-1 font-semibold text-slate-600">
               Par {hole.par ?? "-"} | Stroke index {hole.strokeIndex ?? "-"} |{" "}
-              {hole.yardage ? `${hole.yardage} yards` : "Yardage unavailable"}
+              {hole.yardage ? `${hole.yardage} yards` : "Yardage unavailable"} | Tee par{" "}
+              {teeValue(teeReport.teePar, 0)} | Course Rating{" "}
+              {teeValue(teeReport.courseRating)} | Slope Rating{" "}
+              {slopeValue(teeReport.slopeRating)}
             </p>
           </div>
           <div

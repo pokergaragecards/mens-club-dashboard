@@ -41,7 +41,8 @@ const COLORS = {
 const MATRIX_PLAYER_WIDTH = 96;
 const MATRIX_OVERALL_WIDTH = 46;
 const MATRIX_HANDICAP_WIDTH = 34;
-const MATRIX_HOLE_WIDTH = 32;
+const MATRIX_ROUNDS_WIDTH = 32;
+const MATRIX_HOLE_WIDTH = 30;
 const PLAYERS_PER_MATRIX_PAGE = 16;
 
 const s = StyleSheet.create({
@@ -230,6 +231,17 @@ const s = StyleSheet.create({
     borderColor: COLORS.gray300,
     fontSize: 5.8,
   },
+  matrixRounds: {
+    width: MATRIX_ROUNDS_WIDTH,
+    flexShrink: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 2,
+    borderRightWidth: 0.5,
+    borderBottomWidth: 0.5,
+    borderColor: COLORS.gray300,
+    fontSize: 5.8,
+  },
   matrixHole: {
     width: MATRIX_HOLE_WIDTH,
     flexShrink: 0,
@@ -310,6 +322,7 @@ type MatrixPlayer = {
   playerId: string;
   playerName: string;
   currentHandicapIndex: number | null;
+  teeRoundCount: number;
   averagePercentile: number;
   cells: Map<number, PlayerHoleRanking>;
 };
@@ -322,6 +335,19 @@ function performanceIndex(value: number | null, decimals = 1) {
 function handicapIndex(value: number | null) {
   if (value === null || !Number.isFinite(value)) return "-";
   return value.toFixed(1);
+}
+
+function teeSpecifications(tee: TeeHoleRankings) {
+  const teePar = performanceIndex(tee.teePar, 0);
+  const courseRating = performanceIndex(tee.courseRating, 1);
+  const slopeRating =
+    tee.slopeRating === null
+      ? "-"
+      : performanceIndex(
+          tee.slopeRating,
+          Number.isInteger(tee.slopeRating) ? 0 : 1
+        );
+  return `Par ${teePar} | Course Rating ${courseRating} | Slope Rating ${slopeRating}`;
 }
 
 function confidence(value: number | null, label?: string) {
@@ -354,6 +380,7 @@ function matrixPlayers(
         playerId: ranking.playerId,
         playerName: ranking.playerName,
         currentHandicapIndex: ranking.currentHandicapIndex,
+        teeRoundCount: ranking.teeRoundCount,
         averagePercentile: 0,
         cells: new Map<number, PlayerHoleRanking>(),
       };
@@ -567,6 +594,7 @@ export function HoleRankingsReport({
                   </Text>
                   <Text style={s.subtitle}>
                     Handicap-adjusted club comparison - {teeDisplayName} tees only -{" "}
+                    {teeSpecifications(tee)} -{" "}
                     {report.periodStart} through {report.periodEnd}
                   </Text>
                 </View>
@@ -579,15 +607,15 @@ export function HoleRankingsReport({
                 <Text style={s.methodTitle}>METHOD AND ELIGIBILITY</Text>
                 <Text style={s.methodText}>
                   Only hole scores from the latest 12 months ({report.periodStart}
-                  {" "}through {report.periodEnd}) are included. Current HI is
-                  displayed for context; each expected score still uses the Course
-                  Handicap recorded for that historical round. {" "}
-                  Expected score = hole par multiplied by ((tee par + Course
-                  Handicap) / tee par), using the handicap from each historical
-                  round. This
-                  spreads the allowance continuously across all 18 holes in
-                  proportion to par, and the hole expectations add up to tee par
-                  plus Course Handicap; stroke index is informational only.
+                  {" "}through {report.periodEnd}) are included. Each expected
+                  score uses the player&apos;s current Handicap Index. Expected round
+                  = Course Rating + Current HI x (Slope Rating / 113), without
+                  rounding. Expected hole = hole par x (expected round / tee
+                  par). Each score uses its imported round rating and slope; the
+                  values shown above are the medians from distinct qualifying
+                  imported rounds for this tee. A negative index can still expect
+                  above par when Course Rating is above par. Stroke index is
+                  informational only.
                   Raw Index = 100 + 100 x (aggregate strokes versus expected /
                   aggregate expected strokes from par). It is calculated from
                   the same underlying aggregate averages shown in the report,
@@ -654,6 +682,7 @@ export function HoleRankingsReport({
                       Players {pageIndex * PLAYERS_PER_MATRIX_PAGE + 1}-
                       {pageIndex * PLAYERS_PER_MATRIX_PAGE + pagePlayers.length} of{" "}
                       {players.length}, ordered by average {view} percentile -{" "}
+                      {teeSpecifications(tee)} -{" "}
                       {report.periodStart} through {report.periodEnd}
                     </Text>
                   </View>
@@ -674,7 +703,9 @@ export function HoleRankingsReport({
                   worse. Uncertain values are pulled toward the learned club
                   prior. Avg {isBest ? "Best" : "Worst"} %
                   summarizes the holes
-                  on which the player qualifies; 100 is {view}.
+                  on which the player qualifies; 100 is {view}. 12M Rds is the
+                  player&apos;s number of distinct imported rounds on this tee in
+                  the report period.
                 </Text>
 
                 <View style={s.matrixTable}>
@@ -689,6 +720,9 @@ export function HoleRankingsReport({
                     </View>
                     <View style={s.matrixHandicap}>
                       <Text style={s.matrixHeaderText}>Current HI</Text>
+                    </View>
+                    <View style={s.matrixRounds}>
+                      <Text style={s.matrixHeaderText}>12M Rds</Text>
                     </View>
                     {tee.holes.map((hole) => (
                       <View key={hole.holeNumber} style={s.matrixHole}>
@@ -719,6 +753,9 @@ export function HoleRankingsReport({
                           <Text style={s.matrixRank}>
                             {handicapIndex(player.currentHandicapIndex)}
                           </Text>
+                        </View>
+                        <View style={s.matrixRounds}>
+                          <Text style={s.matrixRank}>{player.teeRoundCount}</Text>
                         </View>
                         {tee.holes.map((hole) => (
                           <MatrixCell

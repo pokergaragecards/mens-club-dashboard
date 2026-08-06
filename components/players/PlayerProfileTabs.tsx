@@ -38,6 +38,11 @@ function formatNumber(value: unknown, decimals = 1) {
   return number.toFixed(decimals);
 }
 
+function formatSlope(value: number | null) {
+  if (value === null || !Number.isFinite(value)) return "-";
+  return value.toFixed(Number.isInteger(value) ? 0 : 1);
+}
+
 function formatPercent(count: number, total: number) {
   if (!total) return "-";
   return `${Math.round((count / total) * 100)}%`;
@@ -325,7 +330,12 @@ function Scorecard({
           Ranking period: <strong>{rankingPeriodStart}</strong> through{" "}
           <strong>{rankingPeriodEnd}</strong>. The Raw Performance Index comes
           directly from the aggregate average score versus aggregate expected
-          score. The Adjusted Index moves that raw value toward the club
+          score. Expected round score is <strong>Course Rating + Current HI ×
+          (Slope Rating ÷ 113)</strong>, and expected hole score is hole par ×
+          (expected round ÷ tee par). The conversion is not rounded, and a
+          negative index can still expect above par from a tee rated above par.
+          The Adjusted Index
+          moves that raw value toward the club
           baseline by only 40% of the distance at 0% confidence, 20% at 50%
           confidence, and 0% at 100% confidence. <strong>100
           matches expectation</strong>, lower is better, and higher is worse.
@@ -352,17 +362,30 @@ function Scorecard({
         </div>
       </div>
 
-      {byTee.map(([teeName, rows]) => (
-        <div
-          key={teeName}
-          className="overflow-x-auto rounded-lg border border-gray-300"
-        >
-          <div className="border-b bg-gray-50 px-3 py-2 font-bold">
-            {teeName} Tee · {range === "30" ? "Last 30 Days" : "Season"}
-          </div>
+      {byTee.map(([teeName, rows]) => {
+        const normalizedTee = rankedTeeName(teeName);
+        const teeRanking = goodrichHoleRankings.find(
+          (ranking) => ranking.tee === normalizedTee
+        );
 
-          <table className="w-full min-w-[1320px] text-xs">
-            <tbody>
+        return (
+          <div
+            key={teeName}
+            className="overflow-x-auto rounded-lg border border-gray-300"
+          >
+            <div className="border-b bg-gray-50 px-3 py-2 font-bold">
+              {teeName} Tee · {range === "30" ? "Last 30 Days" : "Season"}
+              {teeRanking ? (
+                <span className="ml-3 text-gray-600">
+                  Tee par {formatNumber(teeRanking.teePar, 0)} · Course Rating{" "}
+                  {formatNumber(teeRanking.courseRating, 1)} · Slope Rating{" "}
+                  {formatSlope(teeRanking.slopeRating)}
+                </span>
+              ) : null}
+            </div>
+
+            <table className="w-full min-w-[1320px] text-xs">
+              <tbody>
               <ScorecardRow
                 label="Hole"
                 rows={rows}
@@ -516,10 +539,11 @@ function Scorecard({
                     : "-";
                 }}
               />
-            </tbody>
-          </table>
-        </div>
-      ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
     </div>
   );
 }

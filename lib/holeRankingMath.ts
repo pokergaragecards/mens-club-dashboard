@@ -42,6 +42,51 @@ export function priorShrinkageFraction(confidence: number) {
   return MAX_PRIOR_SHRINKAGE * (1 - boundedConfidence);
 }
 
+export function expectedRoundScoreFromHandicapIndex(
+  handicapIndex: number,
+  courseRating: number,
+  slopeRating: number
+) {
+  if (
+    !Number.isFinite(handicapIndex) ||
+    !Number.isFinite(courseRating) ||
+    !Number.isFinite(slopeRating) ||
+    courseRating <= 0 ||
+    slopeRating <= 0
+  ) {
+    return null;
+  }
+
+  return courseRating + handicapIndex * (slopeRating / 113);
+}
+
+export function expectedHoleScoreFromTeeRating(
+  par: number,
+  teePar: number,
+  handicapIndex: number,
+  courseRating: number,
+  slopeRating: number
+) {
+  const expectedRoundScore = expectedRoundScoreFromHandicapIndex(
+    handicapIndex,
+    courseRating,
+    slopeRating
+  );
+
+  if (
+    !Number.isFinite(par) ||
+    !Number.isFinite(teePar) ||
+    expectedRoundScore === null ||
+    par <= 0 ||
+    teePar <= 0 ||
+    expectedRoundScore <= 0
+  ) {
+    return null;
+  }
+
+  return par * (expectedRoundScore / teePar);
+}
+
 export function aggregateRawPerformanceEstimate(
   observations: AggregatePerformanceObservation[],
   clubScoringStandardDeviation: number,

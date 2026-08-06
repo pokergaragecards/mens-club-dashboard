@@ -3,10 +3,47 @@ import test from "node:test";
 
 import {
   aggregateRawPerformanceEstimate,
+  expectedHoleScoreFromTeeRating,
+  expectedRoundScoreFromHandicapIndex,
   golfSampleConfidence,
   priorShrinkageFraction,
   shrinkPerformanceEstimate,
 } from "../lib/holeRankingMath.ts";
+
+test("expected round score converts Current HI through tee rating and slope", () => {
+  const expectedRound = expectedRoundScoreFromHandicapIndex(-0.3, 71.2, 122);
+
+  assert.ok(expectedRound !== null);
+  assert.ok(Math.abs(expectedRound - 70.87610619469026) < 1e-12);
+});
+
+test("negative Current HI can still expect above par from a difficult tee", () => {
+  const expectedParFour = expectedHoleScoreFromTeeRating(
+    4,
+    70,
+    -0.3,
+    71.2,
+    122
+  );
+
+  assert.ok(expectedParFour !== null);
+  assert.ok(expectedParFour > 4);
+  assert.ok(Math.abs(expectedParFour - 4.050063211125158) < 1e-12);
+});
+
+test("same Current HI receives a different expectation from a lower-rated tee", () => {
+  const expectedParFour = expectedHoleScoreFromTeeRating(
+    4,
+    70,
+    -0.3,
+    68,
+    110
+  );
+
+  assert.ok(expectedParFour !== null);
+  assert.ok(expectedParFour < 4);
+  assert.ok(Math.abs(expectedParFour - 3.8690265486725663) < 1e-12);
+});
 
 test("raw performance index uses the ratio of aggregate averages", () => {
   const observations = Array.from({ length: 26 }, () => ({

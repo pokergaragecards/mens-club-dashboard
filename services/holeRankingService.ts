@@ -1,6 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import {
   aggregateRawPerformanceEstimate,
+  expectedHoleScoreFromTeeRating,
   shrinkPerformanceEstimate,
   type AggregatePerformanceObservation,
   type AggregateRawPerformanceEstimate,
@@ -19,6 +20,7 @@ export type HoleRankingView = "worst" | "best";
 export type PlayerHoleRanking = {
   playerId: string;
   playerName: string;
+  teeRoundCount: number;
   scoreCount: number;
   averageGrossScore: number;
   averageExpectedScore: number;
@@ -51,11 +53,18 @@ export type HoleRanking = {
 
 export type TeeHoleRankings = {
   tee: GoodrichTeeColor;
+  teePar: number | null;
+  courseRating: number | null;
+  slopeRating: number | null;
+  ratingRoundCount: number;
   holes: HoleRanking[];
 };
 
 export type PlayerGoodrichHoleRanking = {
   tee: GoodrichTeeColor;
+  teePar: number | null;
+  courseRating: number | null;
+  slopeRating: number | null;
   holeNumber: number;
   par: number | null;
   strokeIndex: number | null;
@@ -179,7 +188,7 @@ type EmpiricalBayesPrior = {
 };
 
 const METHODOLOGY =
-  "Only hole scores from the latest 12 months are included. For each score, expected hole score equals hole par multiplied by (tee par plus the player's Course Handicap from that historical round) divided by tee par. The Raw Performance Index is calculated directly from aggregate averages: 100 plus 100 times aggregate strokes versus expected divided by aggregate expected strokes from par. An index of 100 matches expectation, 120 is 20% worse, and 80 is 20% better. The Adjusted Performance Index moves the raw index only partway toward the learned club baseline: 40% of the distance at 0% confidence, 20% at 50% confidence, and 0% at 100% confidence. Confidence uses the greater of the statistical reliability and a golf sample-size floor: three scores equal 5%, four equal 15%, five equal 25%, and each additional score adds 10 percentage points up to 100%. Player scoring variance is partially pooled with the tee-and-hole variance, and a robust empirical-Bayes prior prevents one unusual player from moving the club baseline excessively. Players need at least three scores on the same tee and hole during the 12-month window. Club averages give each qualifying player equal weight.";
+  "Only hole scores from the latest 12 months are included. The player's current Handicap Index is converted for the tee without rounding: expected round score equals Course Rating plus Current HI multiplied by Slope Rating divided by 113. Expected hole score equals hole par multiplied by expected round score divided by tee par. The displayed Course Rating and Slope Rating are the median values from distinct qualifying imported Goodrich rounds for that tee; each score uses its own imported rating and slope when available. A negative Handicap Index can still produce an expected score above par when the tee's Course Rating is above par. If the current index is unavailable, the imported round index is used as a fallback. The Raw Performance Index is calculated directly from aggregate averages: 100 plus 100 times aggregate strokes versus expected divided by aggregate expected strokes from par. An index of 100 matches expectation, 120 is 20% worse, and 80 is 20% better. The Adjusted Performance Index moves the raw index only partway toward the learned club baseline: 40% of the distance at 0% confidence, 20% at 50% confidence, and 0% at 100% confidence. Confidence uses the greater of the statistical reliability and a golf sample-size floor: three scores equal 5%, four equal 15%, five equal 25%, and each additional score adds 10 percentage points up to 100%. Player scoring variance is partially pooled with the tee-and-hole variance, and a robust empirical-Bayes prior prevents one unusual player from moving the club baseline excessively. Players need at least three scores on the same tee and hole during the 12-month window. Club averages give each qualifying player equal weight.";
 
 function finiteNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -401,6 +410,9 @@ export function goodrichHoleRankingsForPlayer(
       return [
         {
           tee: tee.tee,
+          teePar: tee.teePar,
+          courseRating: tee.courseRating,
+          slopeRating: tee.slopeRating,
           holeNumber: hole.holeNumber,
           par: hole.par,
           strokeIndex: hole.strokeIndex,
@@ -441,28 +453,34 @@ export function normalizeGoodrichTee(
   return matches.length === 1 ? matches[0] : null;
 }
 
-function deriveCourseHandicap(
+function deriveExpectationHandicapIndex(
   row: HoleScoreRankingInput,
-  teePar: number | null
+  teePar: number | null,
+  courseRating: number | null,
+  slopeRating: number | null
 ) {
-  const importedCourseHandicap = finiteNumber(row.courseHandicap);
-  if (importedCourseHandicap !== null) return Math.round(importedCourseHandicap);
+  const currentHandicapIndex = finiteNumber(row.currentHandicapIndex);
+  if (currentHandicapIndex !== null) return currentHandicapIndex;
 
-  const handicapIndex = finiteNumber(row.handicapIndexUsed);
-  const slope = finiteNumber(row.slopeRating);
-  const rating = finiteNumber(row.courseRating);
+  const importedHandicapIndex = finiteNumber(row.handicapIndexUsed);
+  if (importedHandicapIndex !== null) return importedHandicapIndex;
+
+  const importedCourseHandicap = finiteNumber(row.courseHandicap);
+  if (importedCourseHandicap === null) return null;
 
   if (
-    handicapIndex === null ||
-    slope === null ||
-    rating === null ||
+    slopeRating === null ||
+    courseRating === null ||
     teePar === null ||
-    slope <= 0
+    slopeRating <= 0
   ) {
     return null;
   }
 
-  return Math.round(handicapIndex * (slope / 113) + (rating - teePar));
+  return (
+    (importedCourseHandicap - (courseRating - teePar)) *
+    (113 / slopeRating)
+  );
 }
 
 export function buildHoleRankingReport(
@@ -494,8 +512,58 @@ export function buildHoleRankingReport(
     );
   }
 
+  const teeRatingSamples = new Map<
+    GoodrichTeeColor,
+    Array<{ courseRating: number; slopeRating: number }>
+  >();
+  const seenRatingRounds = new Set<string>();
+
+  for (const row of scoreRows) {
+    const tee = normalizeGoodrichTee(row.teeName);
+    const playedAt = row.playedAt.slice(0, 10);
+    const courseRating = finiteNumber(row.courseRating);
+    const slopeRating = finiteNumber(row.slopeRating);
+    if (
+      !tee ||
+      playedAt < periodStart ||
+      playedAt > periodEnd ||
+      courseRating === null ||
+      courseRating <= 0 ||
+      slopeRating === null ||
+      slopeRating <= 0
+    ) {
+      continue;
+    }
+
+    const roundKey = `${row.roundId}|${row.playerId}|${tee}`;
+    if (seenRatingRounds.has(roundKey)) continue;
+    seenRatingRounds.add(roundKey);
+    const samples = teeRatingSamples.get(tee) ?? [];
+    samples.push({ courseRating, slopeRating });
+    teeRatingSamples.set(tee, samples);
+  }
+
+  const teeRatingProfiles = new Map(
+    GOODRICH_TEE_COLORS.map((tee) => {
+      const samples = teeRatingSamples.get(tee) ?? [];
+      return [
+        tee,
+        {
+          courseRating: samples.length
+            ? median(samples.map((sample) => sample.courseRating))
+            : null,
+          slopeRating: samples.length
+            ? median(samples.map((sample) => sample.slopeRating))
+            : null,
+          roundCount: samples.length,
+        },
+      ] as const;
+    })
+  );
+
   const observations = new Map<string, ScoreObservation[]>();
   const seenScores = new Set<string>();
+  const roundIdsByTeePlayer = new Map<string, Set<string>>();
 
   for (const row of scoreRows) {
     const tee = normalizeGoodrichTee(row.teeName);
@@ -524,11 +592,36 @@ export function buildHoleRankingReport(
     const par = finiteNumber(row.par) ?? finiteNumber(definition?.par);
     const storedTeePar = teePars.get(tee) ?? 0;
     const teePar = storedTeePar > 0 ? storedTeePar : null;
-    const courseHandicap = deriveCourseHandicap(row, teePar);
+    const teeRatingProfile = teeRatingProfiles.get(tee);
+    const courseRating =
+      finiteNumber(row.courseRating) ?? teeRatingProfile?.courseRating ?? null;
+    const slopeRating =
+      finiteNumber(row.slopeRating) ?? teeRatingProfile?.slopeRating ?? null;
+    const expectationHandicapIndex = deriveExpectationHandicapIndex(
+      row,
+      teePar,
+      courseRating,
+      slopeRating
+    );
 
-    if (par === null || courseHandicap === null || teePar === null) continue;
+    if (
+      par === null ||
+      expectationHandicapIndex === null ||
+      teePar === null ||
+      courseRating === null ||
+      slopeRating === null
+    ) {
+      continue;
+    }
 
-    const expectedScore = par * ((teePar + courseHandicap) / teePar);
+    const expectedScore = expectedHoleScoreFromTeeRating(
+      par,
+      teePar,
+      expectationHandicapIndex,
+      courseRating,
+      slopeRating
+    );
+    if (expectedScore === null) continue;
     const expectedAllowance = Math.abs(expectedScore - par);
     const deviationFromExpected = grossScore - expectedScore;
     const key = `${tee}|${holeNumber}|${row.playerId}`;
@@ -544,6 +637,11 @@ export function buildHoleRankingReport(
       deviationFromExpected,
     });
     observations.set(key, current);
+
+    const teePlayerKey = `${tee}|${row.playerId}`;
+    const roundIds = roundIdsByTeePlayer.get(teePlayerKey) ?? new Set<string>();
+    roundIds.add(row.roundId);
+    roundIdsByTeePlayer.set(teePlayerKey, roundIds);
   }
 
   const centeredResidualsByHole = new Map<string, number[]>();
@@ -615,6 +713,16 @@ export function buildHoleRankingReport(
 
   const tees = GOODRICH_TEE_COLORS.map<TeeHoleRankings>((tee) => ({
     tee,
+    teePar: (teePars.get(tee) ?? 0) || null,
+    courseRating:
+      teeRatingProfiles.get(tee)?.courseRating === null
+        ? null
+        : rounded(teeRatingProfiles.get(tee)?.courseRating ?? 0, 1),
+    slopeRating:
+      teeRatingProfiles.get(tee)?.slopeRating === null
+        ? null
+        : rounded(teeRatingProfiles.get(tee)?.slopeRating ?? 0, 1),
+    ratingRoundCount: teeRatingProfiles.get(tee)?.roundCount ?? 0,
     holes: Array.from({ length: 18 }, (_, index): HoleRanking => {
       const holeNumber = index + 1;
       const definition = courseHoleMap.get(`${tee}|${holeNumber}`);
@@ -650,6 +758,9 @@ export function buildHoleRankingReport(
             playerId: values[0].playerId,
             playerName: values[0].playerName,
             currentHandicapIndex: values[0].currentHandicapIndex,
+            teeRoundCount:
+              roundIdsByTeePlayer.get(`${tee}|${values[0].playerId}`)?.size ??
+              values.length,
             scoreCount: values.length,
             averageGrossScore: rounded(rawAverageGrossScore),
             averageExpectedScore: rounded(rawAverageExpectedScore),
