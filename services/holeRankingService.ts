@@ -1,6 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 
-export const GOODRICH_TEE_COLORS = ["Red", "Yellow", "White", "Blue"] as const;
+export const GOODRICH_TEE_COLORS = ["Red", "Gold", "White", "Blue"] as const;
 export const MINIMUM_HOLE_SCORES = 3;
 export const PERFORMANCE_INDEX_BASE = 100;
 export const STUDENT_T_DEGREES_OF_FREEDOM = 4;
@@ -511,7 +511,8 @@ export function normalizeGoodrichTee(
   const words = (teeName ?? "")
     .toLowerCase()
     .split(/[^a-z]+/)
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((word) => (word === "yellow" ? "gold" : word));
   const matches = GOODRICH_TEE_COLORS.filter((color) =>
     words.includes(color.toLowerCase())
   );

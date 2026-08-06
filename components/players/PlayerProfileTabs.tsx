@@ -78,13 +78,14 @@ function groupByTee(holes: HoleRow[]) {
   return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
 }
 
-const RANKED_TEES = ["Red", "Yellow", "White", "Blue"] as const;
+const RANKED_TEES = ["Red", "Gold", "White", "Blue"] as const;
 
 function rankedTeeName(value: string) {
   const words = value
     .toLowerCase()
     .split(/[^a-z]+/)
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((word) => (word === "yellow" ? "gold" : word));
   const matches = RANKED_TEES.filter((tee) =>
     words.includes(tee.toLowerCase())
   );

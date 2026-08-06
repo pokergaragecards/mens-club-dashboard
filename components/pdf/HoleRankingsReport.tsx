@@ -327,7 +327,7 @@ function teeBadgeStyle(tee: TeeHoleRankings["tee"]) {
   if (tee === "Red") {
     return { borderColor: "#b91c1c", backgroundColor: "#fee2e2", color: "#991b1b" };
   }
-  if (tee === "Yellow") {
+  if (tee === "Gold") {
     return { borderColor: "#d97706", backgroundColor: "#fef3c7", color: "#92400e" };
   }
   if (tee === "Blue") {

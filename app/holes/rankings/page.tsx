@@ -6,6 +6,7 @@ import {
   getGoodrichHoleRankingReport,
   holeRankingPercentile,
   holeRankingRank,
+  normalizeGoodrichTee,
   normalizeHoleRankingView,
   playersForHoleRankingView,
   type GoodrichTeeColor,
@@ -20,7 +21,7 @@ const TEE_CLASSES: Record<GoodrichTeeColor, { active: string; idle: string }> = 
     active: "border-red-700 bg-red-700 text-white",
     idle: "border-red-200 bg-red-50 text-red-800 hover:bg-red-100",
   },
-  Yellow: {
+  Gold: {
     active: "border-amber-500 bg-amber-400 text-slate-950",
     idle: "border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100",
   },
@@ -35,11 +36,7 @@ const TEE_CLASSES: Record<GoodrichTeeColor, { active: string; idle: string }> = 
 };
 
 function selectedTee(value: string | undefined): GoodrichTeeColor {
-  return (
-    GOODRICH_TEE_COLORS.find(
-      (tee) => tee.toLowerCase() === value?.toLowerCase()
-    ) ?? "Red"
-  );
+  return normalizeGoodrichTee(value) ?? "Red";
 }
 
 function selectedHole(value: string | undefined) {
@@ -119,7 +116,7 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
             </span>
           </div>
           <p className="mt-2 max-w-4xl text-lg text-slate-600">
-            Red, Yellow, White, and Blue tees are compared separately. Every
+            Red, Gold, White, and Blue tees are compared separately. Every
             score is measured against the number of handicap strokes the player
             was expected to receive on that hole. Only scores from the latest
             12 months are included.
@@ -251,7 +248,8 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
                       {featured.playerName}
                     </div>
                     <div className="mt-1 text-xs font-bold text-slate-600">
-                      Current HI {handicapIndex(featured.currentHandicapIndex)}
+                      Current HI {handicapIndex(featured.currentHandicapIndex)} | Avg score{" "}
+                      {featured.averageGrossScore.toFixed(2)}
                     </div>
                     <div
                       className={`mt-2 text-2xl font-black ${
