@@ -325,13 +325,13 @@ function Scorecard({
           Ranking period: <strong>{rankingPeriodStart}</strong> through{" "}
           <strong>{rankingPeriodEnd}</strong>. The Raw Performance Index comes
           directly from the aggregate average score versus aggregate expected
-          score. The Adjusted Index shrinks that raw value toward the club
-          baseline based on sample size and scoring variability. <strong>100
+          score. The Adjusted Index moves that raw value toward the club
+          baseline by only 40% of the distance at 0% confidence, 20% at 50%
+          confidence, and 0% at 100% confidence. <strong>100
           matches expectation</strong>, lower is better, and higher is worse.
           Confidence is never lower than the golf sample schedule: 3 scores =
           5%, 4 = 15%, 5 = 25%, then +10 percentage points per additional score,
-          capped at 100%. It shows how much of the adjusted estimate comes from
-          this player&apos;s own scores instead of the learned club prior of{" "}
+          capped at 100%. The learned club prior is{" "}
           <strong>{rankingPriorPerformanceIndex.toFixed(1)}</strong>. A player
           needs at least three scores on the exact tee and hole. These 12-month
           ranking rows do not change when switching between Season and 30 Days.

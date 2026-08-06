@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   aggregateRawPerformanceEstimate,
   golfSampleConfidence,
+  priorShrinkageFraction,
   shrinkPerformanceEstimate,
 } from "../lib/holeRankingMath.ts";
 
@@ -19,7 +20,7 @@ test("raw performance index uses the ratio of aggregate averages", () => {
   assert.ok(Math.abs(rawIndex - 128.8888888889) < 1e-9);
 });
 
-test("adjusted effect shrinks the raw effect toward the club baseline", () => {
+test("adjusted effect uses the gentler confidence-based shrinkage", () => {
   const estimate = shrinkPerformanceEstimate(
     {
       effect: 0.5,
@@ -32,8 +33,27 @@ test("adjusted effect shrinks the raw effect toward the club baseline", () => {
   );
 
   assert.equal(estimate.reliability, 0.5);
-  assert.ok(Math.abs(estimate.adjustedEffect - 0.3) < 1e-12);
+  assert.equal(priorShrinkageFraction(0), 0.4);
+  assert.equal(priorShrinkageFraction(0.5), 0.2);
+  assert.equal(priorShrinkageFraction(1), 0);
+  assert.ok(Math.abs(estimate.adjustedEffect - 0.42) < 1e-12);
   assert.ok(Math.abs(estimate.posteriorStandardError - Math.sqrt(0.02)) < 1e-12);
+});
+
+test("low-confidence Goodrich table values retain most of the raw index", () => {
+  const estimate = shrinkPerformanceEstimate(
+    {
+      effect: 2.044,
+      measurementVariance: 0.76,
+      scoringStandardDeviation: 0.8,
+      observationCount: 3,
+    },
+    0.265,
+    0.2
+  );
+
+  assert.ok(Math.abs(estimate.reliability - 0.05) < 1e-12);
+  assert.ok(Math.abs(100 + 100 * estimate.adjustedEffect - 236.798) < 1e-9);
 });
 
 test("golf confidence starts at 25 percent for five scores and adds ten points", () => {

@@ -1,4 +1,5 @@
 const MIN_NUMERIC_VARIANCE = 1e-8;
+const MAX_PRIOR_SHRINKAGE = 0.4;
 
 export type AggregatePerformanceObservation = {
   expectedAllowance: number;
@@ -34,6 +35,11 @@ export function golfSampleConfidence(scoreCount: number) {
   if (!Number.isFinite(scoreCount) || scoreCount <= 0) return 0;
   const confidence = Math.round((0.25 + 0.1 * (scoreCount - 5)) * 100) / 100;
   return Math.min(1, Math.max(0, confidence));
+}
+
+export function priorShrinkageFraction(confidence: number) {
+  const boundedConfidence = Math.min(1, Math.max(0, confidence));
+  return MAX_PRIOR_SHRINKAGE * (1 - boundedConfidence);
 }
 
 export function aggregateRawPerformanceEstimate(
@@ -110,8 +116,10 @@ export function shrinkPerformanceEstimate(
     statisticalReliability,
     golfSampleConfidence(rawEstimate.observationCount)
   );
+  const shrinkageFraction = priorShrinkageFraction(reliability);
   const adjustedEffect =
-    priorMean + reliability * (rawEstimate.effect - priorMean);
+    rawEstimate.effect +
+    shrinkageFraction * (priorMean - rawEstimate.effect);
   const posteriorVariance = priorVariance * (1 - reliability);
 
   return {

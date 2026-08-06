@@ -165,8 +165,10 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
           therefore, players at different handicaps receive the same raw index
           when they perform the same percentage above or below their own
           expectation. The <strong>Adjusted Index</strong> is used for ranking and
-          equals <strong>club baseline + reliability × (raw index - club
-          baseline)</strong>. Confidence uses the greater of the statistical
+          moves the raw index toward the club baseline by <strong>40% × (1 −
+          confidence)</strong>. That means 0% confidence moves 40% toward the
+          baseline, 50% moves 20%, and 100% does not move the raw index.
+          Confidence uses the greater of the statistical
           reliability and a golf sample-size floor: <strong>3 scores = 5%, 4 =
           15%, 5 = 25%, then +10 percentage points for every additional score,
           capped at 100%</strong>. The statistical calculation still recognizes
@@ -176,9 +178,7 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
             report.priorPerformanceIndex
           )}</strong>, with a between-player standard deviation of <strong>{performanceIndex(
             report.priorStandardDeviationPoints
-          )} index points</strong>. Confidence is the percentage of the final
-          estimate supplied by the player&apos;s own hole scores instead of the
-          prior. This view ranks the <strong>{isBest ? "lowest" : "highest"}
+          )} index points</strong>. This view ranks the <strong>{isBest ? "lowest" : "highest"}
           adjusted index first</strong>.
           A player must have at least{" "}
           <strong>{report.minimumScores} scores on the exact tee and hole</strong>.

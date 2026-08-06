@@ -592,9 +592,10 @@ export function HoleRankingsReport({
                   aggregate expected strokes from par). It is calculated from
                   the same underlying aggregate averages shown in the report,
                   so 100 matches expectation,
-                  120 is 20% worse, and 80 is 20% better. Adjusted Index = club
-                  baseline + reliability x (Raw Index - club baseline), and the
-                  adjusted value ranks players. Confidence uses the greater of
+                  120 is 20% worse, and 80 is 20% better. Adjusted Index moves
+                  Raw Index toward the club baseline by 40% x (1 - confidence):
+                  0% confidence moves 40%, 50% moves 20%, and 100% moves 0%.
+                  The adjusted value ranks players. Confidence uses the greater of
                   statistical reliability and this golf sample floor: 3 scores =
                   5%, 4 = 15%, 5 = 25%, then +10 points per additional score,
                   capped at 100%. Player variance is partially pooled with the
@@ -604,9 +605,9 @@ export function HoleRankingsReport({
                     report.priorPerformanceIndex
                   )}, with a {performanceIndex(
                     report.priorStandardDeviationPoints
-                  )}-point standard deviation. Confidence is the share of the
-                  estimate supplied by the player&apos;s scores; small allowances,
-                  volatile holes, and small samples shrink toward the prior.
+                  )}-point standard deviation. Small allowances, volatile holes,
+                  and small samples receive more of the limited adjustment toward
+                  the prior.
                   Rank #1 is the {isBest ? "lowest" : "highest"} adjusted index.
                   Each player needs at least
                   {` ${report.minimumScores} `}scores on this exact tee and hole.
