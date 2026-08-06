@@ -1,6 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useMemo, useState, type ReactNode } from "react";
+
+import type { PlayerGoodrichHoleRanking } from "@/services/holeRankingService";
 
 type RoundRow = {
   id: string;
@@ -75,14 +78,46 @@ function groupByTee(holes: HoleRow[]) {
   return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
 }
 
+const RANKED_TEES = ["Red", "Yellow", "White", "Blue"] as const;
+
+function rankedTeeName(value: string) {
+  const words = value
+    .toLowerCase()
+    .split(/[^a-z]+/)
+    .filter(Boolean);
+  const matches = RANKED_TEES.filter((tee) =>
+    words.includes(tee.toLowerCase())
+  );
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function signedIndexPoints(value: number) {
+  return `${value > 0 ? "+" : ""}${value.toFixed(1)}`;
+}
+
+function adjustedIndexClass(value: number) {
+  if (value >= 120) return "font-black text-red-700";
+  if (value > 100) return "font-black text-amber-700";
+  if (value <= 80) return "font-black text-green-700";
+  return "font-black text-slate-900";
+}
+
 export function PlayerProfileTabs({
   rounds,
   seasonHoles,
   thirtyDayHoles,
+  goodrichHoleRankings,
+  rankingPeriodStart,
+  rankingPeriodEnd,
+  rankingPriorPerformanceIndex,
 }: {
   rounds: RoundRow[];
   seasonHoles: HoleRow[];
   thirtyDayHoles: HoleRow[];
+  goodrichHoleRankings: PlayerGoodrichHoleRanking[];
+  rankingPeriodStart: string;
+  rankingPeriodEnd: string;
+  rankingPriorPerformanceIndex: number;
 }) {
   const [tab, setTab] = useState<"rounds" | "scorecard">("rounds");
   const [range, setRange] = useState<"season" | "30">("season");
@@ -148,7 +183,14 @@ export function PlayerProfileTabs({
       {tab === "rounds" ? (
         <HandicapRounds rounds={rounds} />
       ) : (
-        <Scorecard holes={holes} range={range} />
+        <Scorecard
+          holes={holes}
+          range={range}
+          goodrichHoleRankings={goodrichHoleRankings}
+          rankingPeriodStart={rankingPeriodStart}
+          rankingPeriodEnd={rankingPeriodEnd}
+          rankingPriorPerformanceIndex={rankingPriorPerformanceIndex}
+        />
       )}
     </section>
   );
@@ -205,11 +247,65 @@ function HandicapRounds({ rounds }: { rounds: RoundRow[] }) {
 function Scorecard({
   holes,
   range,
+  goodrichHoleRankings,
+  rankingPeriodStart,
+  rankingPeriodEnd,
+  rankingPriorPerformanceIndex,
 }: {
   holes: HoleRow[];
   range: "season" | "30";
+  goodrichHoleRankings: PlayerGoodrichHoleRanking[];
+  rankingPeriodStart: string;
+  rankingPeriodEnd: string;
+  rankingPriorPerformanceIndex: number;
 }) {
-  const byTee = useMemo(() => groupByTee(holes), [holes]);
+  const rankingByTeeAndHole = useMemo(
+    () =>
+      new Map(
+        goodrichHoleRankings.map((ranking) => [
+          `${ranking.tee}|${ranking.holeNumber}`,
+          ranking,
+        ])
+    ),
+    [goodrichHoleRankings]
+  );
+  const displayHoles = useMemo(() => {
+    const holesByTeeAndNumber = new Map<string, HoleRow>();
+
+    holes.forEach((hole) => {
+      const tee = rankedTeeName(hole.teeName) ?? hole.teeName;
+      holesByTeeAndNumber.set(`${tee}|${hole.holeNumber}`, hole);
+    });
+
+    goodrichHoleRankings.forEach((ranking) => {
+      const key = `${ranking.tee}|${ranking.holeNumber}`;
+      if (holesByTeeAndNumber.has(key)) return;
+
+      holesByTeeAndNumber.set(key, {
+        teeName: ranking.tee,
+        holeNumber: ranking.holeNumber,
+        par: ranking.par ?? 0,
+        handicap: ranking.strokeIndex ?? 0,
+        rounds: 0,
+        average: Number.NaN,
+        best: 0,
+        worst: 0,
+        birdies: 0,
+        pars: 0,
+        bogeys: 0,
+        doubles: 0,
+      });
+    });
+
+    return Array.from(holesByTeeAndNumber.values());
+  }, [goodrichHoleRankings, holes]);
+  const byTee = useMemo(() => groupByTee(displayHoles), [displayHoles]);
+  const rankingForHole = (hole: HoleRow) => {
+    const tee = rankedTeeName(hole.teeName);
+    return tee
+      ? rankingByTeeAndHole.get(`${tee}|${hole.holeNumber}`)
+      : undefined;
+  };
 
   if (!byTee.length) {
     return (
@@ -222,6 +318,35 @@ function Scorecard({
 
   return (
     <div className="mt-4 space-y-4">
+      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+        <div className="font-black">12-Month Handicap-Adjusted Club Ranking</div>
+        <p className="mt-1 leading-relaxed">
+          Ranking period: <strong>{rankingPeriodStart}</strong> through{" "}
+          <strong>{rankingPeriodEnd}</strong>. The Adjusted Performance Index
+          uses the same empirical-Bayes model as the club&apos;s Best and Worst by
+          Hole reports. <strong>100 matches expectation</strong>, lower is better,
+          and higher is worse. Confidence shows how much of the estimate comes
+          from this player&apos;s own scores instead of the learned club prior of{" "}
+          <strong>{rankingPriorPerformanceIndex.toFixed(1)}</strong>. A player
+          needs at least three scores on the exact tee and hole. These 12-month
+          ranking rows do not change when switching between Season and 30 Days.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-bold">
+          <Link
+            href="/holes/rankings?view=best"
+            className="text-blue-800 hover:underline"
+          >
+            View Best by Hole
+          </Link>
+          <Link
+            href="/holes/rankings?view=worst"
+            className="text-blue-800 hover:underline"
+          >
+            View Worst by Hole
+          </Link>
+        </div>
+      </div>
+
       {byTee.map(([teeName, rows]) => (
         <div
           key={teeName}
@@ -231,7 +356,7 @@ function Scorecard({
             {teeName} Tee · {range === "30" ? "Last 30 Days" : "Season"}
           </div>
 
-          <table className="w-full min-w-[1100px] text-xs">
+          <table className="w-full min-w-[1250px] text-xs">
             <tbody>
               <ScorecardRow
                 label="Hole"
@@ -247,7 +372,7 @@ function Scorecard({
               <ScorecardRow
                 label="Rounds"
                 rows={rows}
-                value={(h) => h.rounds}
+                value={(h) => h.rounds || "-"}
               />
               <ScorecardRow
                 label="Avg"
@@ -275,6 +400,97 @@ function Scorecard({
                 rows={rows}
                 value={(h) => formatPercent(h.doubles, h.rounds)}
               />
+              <ScorecardRow
+                label="12M Scores"
+                rows={rows}
+                value={(hole) => rankingForHole(hole)?.scoreCount ?? "-"}
+                sectionStart
+              />
+              <ScorecardRow
+                label="12M Avg Score"
+                rows={rows}
+                value={(hole) =>
+                  formatNumber(rankingForHole(hole)?.averageGrossScore, 2)
+                }
+              />
+              <ScorecardRow
+                label="12M Expected"
+                rows={rows}
+                value={(hole) =>
+                  formatNumber(rankingForHole(hole)?.averageExpectedScore, 2)
+                }
+              />
+              <ScorecardRow
+                label="12M vs Expected"
+                rows={rows}
+                value={(hole) => {
+                  const ranking = rankingForHole(hole);
+                  return ranking
+                    ? `${ranking.averageVsExpected > 0 ? "+" : ""}${ranking.averageVsExpected.toFixed(2)}`
+                    : "-";
+                }}
+              />
+              <ScorecardRow
+                label="Adjusted Index"
+                rows={rows}
+                value={(hole) => {
+                  const ranking = rankingForHole(hole);
+                  return ranking ? (
+                    <span
+                      className={adjustedIndexClass(
+                        ranking.adjustedPerformanceIndex
+                      )}
+                    >
+                      {ranking.adjustedPerformanceIndex.toFixed(1)}
+                    </span>
+                  ) : (
+                    "-"
+                  );
+                }}
+                bold
+              />
+              <ScorecardRow
+                label="Confidence"
+                rows={rows}
+                value={(hole) => {
+                  const ranking = rankingForHole(hole);
+                  return ranking
+                    ? `${ranking.performanceConfidence} ${Math.round(
+                        ranking.performanceReliability * 100
+                      )}%`
+                    : "-";
+                }}
+              />
+              <ScorecardRow
+                label="Worst Rank"
+                rows={rows}
+                value={(hole) => {
+                  const ranking = rankingForHole(hole);
+                  return ranking
+                    ? `#${ranking.worstRank}/${ranking.qualifyingPlayers}`
+                    : "-";
+                }}
+              />
+              <ScorecardRow
+                label="Best Rank"
+                rows={rows}
+                value={(hole) => {
+                  const ranking = rankingForHole(hole);
+                  return ranking
+                    ? `#${ranking.bestRank}/${ranking.qualifyingPlayers}`
+                    : "-";
+                }}
+              />
+              <ScorecardRow
+                label="Vs Club Index"
+                rows={rows}
+                value={(hole) => {
+                  const ranking = rankingForHole(hole);
+                  return ranking
+                    ? signedIndexPoints(ranking.vsClubIndex)
+                    : "-";
+                }}
+              />
             </tbody>
           </table>
         </div>
@@ -288,17 +504,29 @@ function ScorecardRow({
   rows,
   value,
   bold = false,
+  sectionStart = false,
 }: {
   label: string;
   rows: HoleRow[];
-  value: (hole: HoleRow) => string | number;
+  value: (hole: HoleRow) => ReactNode;
   bold?: boolean;
+  sectionStart?: boolean;
 }) {
   const ordered = [...rows].sort((a, b) => a.holeNumber - b.holeNumber);
 
   return (
-    <tr className="border-b last:border-b-0">
-      <td className="sticky left-0 bg-white p-2 font-bold">{label}</td>
+    <tr
+      className={`border-b last:border-b-0 ${
+        sectionStart ? "border-t-4 border-t-blue-200 bg-blue-50/40" : ""
+      }`}
+    >
+      <td
+        className={`sticky left-0 p-2 font-bold ${
+          sectionStart ? "bg-blue-50" : "bg-white"
+        }`}
+      >
+        {label}
+      </td>
       {ordered.map((hole) => (
         <td
           key={`${label}-${hole.holeNumber}`}

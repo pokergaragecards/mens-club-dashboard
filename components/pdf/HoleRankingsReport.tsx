@@ -17,6 +17,7 @@ import {
   type PlayerHoleRanking,
   type TeeHoleRankings,
 } from "@/services/holeRankingService";
+import { goodrichTeeDisplayName } from "@/lib/goodrichTeeDisplay";
 
 const COLORS = {
   navy: "#172554",
@@ -41,7 +42,7 @@ const MATRIX_PLAYER_WIDTH = 96;
 const MATRIX_OVERALL_WIDTH = 46;
 const MATRIX_HANDICAP_WIDTH = 34;
 const MATRIX_HOLE_WIDTH = 32;
-const PLAYERS_PER_MATRIX_PAGE = 20;
+const PLAYERS_PER_MATRIX_PAGE = 16;
 
 const s = StyleSheet.create({
   page: {
@@ -136,10 +137,11 @@ const s = StyleSheet.create({
   summaryPar: { width: 34, textAlign: "center" },
   summaryStroke: { width: 50, textAlign: "center" },
   summaryYardage: { width: 50, textAlign: "right" },
-  summaryPlayer: { width: 180, fontSize: 8, fontFamily: "Helvetica-Bold" },
-  summaryHandicap: { width: 55, textAlign: "right" },
+  summaryPlayer: { width: 160, fontSize: 8, fontFamily: "Helvetica-Bold" },
+  summaryHandicap: { width: 50, textAlign: "right" },
+  summaryAverage: { width: 50, textAlign: "right" },
   summaryValue: {
-    width: 78,
+    width: 68,
     textAlign: "right",
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
@@ -150,10 +152,10 @@ const s = StyleSheet.create({
   summaryBestValue: {
     color: COLORS.green,
   },
-  summaryConfidence: { width: 68, textAlign: "right" },
+  summaryConfidence: { width: 60, textAlign: "right" },
   summaryScores: { width: 50, textAlign: "right" },
   summaryField: { width: 60, textAlign: "right" },
-  summaryClub: { width: 83, textAlign: "right" },
+  summaryClub: { width: 76, textAlign: "right" },
   note: {
     marginTop: 6,
     padding: 5,
@@ -180,7 +182,7 @@ const s = StyleSheet.create({
     borderColor: COLORS.gray300,
   },
   matrixRow: {
-    minHeight: 18,
+    minHeight: 23,
     flexDirection: "row",
   },
   matrixHeaderRow: {
@@ -245,6 +247,11 @@ const s = StyleSheet.create({
   matrixValue: {
     marginTop: 1,
     fontSize: 5.3,
+  },
+  matrixAverage: {
+    marginTop: 1,
+    fontSize: 5.3,
+    fontFamily: "Helvetica-Bold",
   },
   rankWorst: {
     backgroundColor: "#fee2e2",
@@ -387,6 +394,7 @@ function SummaryHeader({ view }: { view: HoleRankingView }) {
         {isBest ? "Best" : "Worst"} by Index
       </Text>
       <Text style={[s.cell, s.summaryHandicap]}>Current HI</Text>
+      <Text style={[s.cell, s.summaryAverage]}>Avg Score</Text>
       <Text style={[s.cell, s.summaryValue]}>Adj. Index</Text>
       <Text style={[s.cell, s.summaryConfidence]}>Confidence</Text>
       <Text style={[s.cell, s.summaryScores]}>Scores</Text>
@@ -419,6 +427,9 @@ function SummaryRow({
       </Text>
       <Text style={[s.cell, s.summaryHandicap]}>
         {handicapIndex(featured?.currentHandicapIndex ?? null)}
+      </Text>
+      <Text style={[s.cell, s.summaryAverage]}>
+        {performanceIndex(featured?.averageGrossScore ?? null, 2)}
       </Text>
       <Text
         style={[
@@ -479,6 +490,9 @@ function MatrixCell({
       ]}
     >
       <Text style={s.matrixRank}>#{rank}</Text>
+      <Text style={s.matrixAverage}>
+        Avg {performanceIndex(ranking.averageGrossScore, 2)}
+      </Text>
       <Text style={s.matrixValue}>
         {performanceIndex(ranking.performanceIndex)}/
         {confidence(ranking.performanceReliability)}
@@ -528,6 +542,7 @@ export function HoleRankingsReport({
       {report.tees.map((tee) => {
         const players = matrixPlayers(tee, view);
         const playerPages = chunks(players, PLAYERS_PER_MATRIX_PAGE);
+        const teeDisplayName = goodrichTeeDisplayName(tee.tee);
 
         return (
           <React.Fragment key={tee.tee}>
@@ -538,12 +553,12 @@ export function HoleRankingsReport({
                     {isBest ? "Best" : "Worst"} Player by Goodrich Hole
                   </Text>
                   <Text style={s.subtitle}>
-                    Handicap-adjusted club comparison - {tee.tee} tees only -{" "}
+                    Handicap-adjusted club comparison - {teeDisplayName} tees only -{" "}
                     {report.periodStart} through {report.periodEnd}
                   </Text>
                 </View>
                 <Text style={[s.teeBadge, teeBadgeStyle(tee.tee)]}>
-                  {tee.tee.toUpperCase()} TEES
+                  {teeDisplayName.toUpperCase()} TEES
                 </Text>
               </View>
 
@@ -617,7 +632,7 @@ export function HoleRankingsReport({
                 <View style={s.header}>
                   <View>
                     <Text style={s.matrixTitle}>
-                      {tee.tee} Tees - Every Player on Every Hole
+                      {teeDisplayName} Tees - Every Player on Every Hole
                     </Text>
                     <Text style={s.subtitle}>
                       Players {pageIndex * PLAYERS_PER_MATRIX_PAGE + 1}-
@@ -627,13 +642,13 @@ export function HoleRankingsReport({
                     </Text>
                   </View>
                   <Text style={[s.teeBadge, teeBadgeStyle(tee.tee)]}>
-                    {tee.tee.toUpperCase()} TEES
+                    {teeDisplayName.toUpperCase()} TEES
                   </Text>
                 </View>
 
                 <Text style={s.legend}>
-                  Each cell shows #{view} rank, Adjusted Performance Index, and
-                  confidence as index/percent.
+                  Each cell shows #{view} rank, actual average hole score,
+                  Adjusted Performance Index, and confidence as index/percent.
                   {isBest
                     ? " Green = best on that hole; blue = ranks 2-3;"
                     : " Red = worst on that hole; amber = ranks 2-3;"}{" "}

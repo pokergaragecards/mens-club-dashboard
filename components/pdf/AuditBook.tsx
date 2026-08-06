@@ -11,6 +11,7 @@ import type {
   AuditPlayerReport,
   AuditReport,
 } from "@/lib/auditReportService";
+import { roundTeeDisplayName } from "@/lib/goodrichTeeDisplay";
 
 const COLORS = {
   green900: "#14532d",
@@ -1279,7 +1280,9 @@ function OfficialRoundsTable({ player }: { player: AuditPlayerReport }) {
           <View style={rowStyle} key={round.id} wrap={false}>
             <Text style={dateStyle}>{shortDate(round.playedAt)}</Text>
             <Text style={courseStyle}>{round.courseName}</Text>
-            <Text style={teeStyle}>{round.teeName}</Text>
+            <Text style={teeStyle}>
+              {roundTeeDisplayName(round.courseName, round.teeName)}
+            </Text>
             <Text style={scoreStyle}>{round.score ?? "-"}</Text>
             <Text style={diffStyle}>{round.differential.toFixed(1)}</Text>
             <Text style={typeStyle}>

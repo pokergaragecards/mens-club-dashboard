@@ -2,6 +2,10 @@ import Link from "next/link";
 import { playerStatsService } from "@/services/playerStatsService";
 import { PlayerProfileTabs } from "@/components/players/PlayerProfileTabs";
 import { HandicapHistoryChart } from "@/components/players/HandicapHistoryChart";
+import {
+  getGoodrichHoleRankingReport,
+  goodrichHoleRankingsForPlayer,
+} from "@/services/holeRankingService";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -158,14 +162,21 @@ function StatSection({ stat }: { stat: StatSet }) {
 export default async function PlayerDetailPage({ params }: PageProps) {
   const { id } = await params;
 
-  const [summary, rounds, seasonHoles, thirtyDayHoles, scoring] =
-    await Promise.all([
-      playerStatsService.getSummary(id),
-      playerStatsService.getRoundHistory(id, 500, "DISPLAY"),
-      playerStatsService.getHoleStats(id, getSeasonStart()),
-      playerStatsService.getHoleStats(id, getThirtyDaysAgo()),
-      playerStatsService.getScoringBreakdown(id),
-    ]);
+  const [
+    summary,
+    rounds,
+    seasonHoles,
+    thirtyDayHoles,
+    scoring,
+    holeRankingReport,
+  ] = await Promise.all([
+    playerStatsService.getSummary(id),
+    playerStatsService.getRoundHistory(id, 500, "DISPLAY"),
+    playerStatsService.getHoleStats(id, getSeasonStart()),
+    playerStatsService.getHoleStats(id, getThirtyDaysAgo()),
+    playerStatsService.getScoringBreakdown(id),
+    getGoodrichHoleRankingReport(),
+  ]);
 
   if (!summary) {
     return (
@@ -189,6 +200,10 @@ export default async function PlayerDetailPage({ params }: PageProps) {
       date: round.played_at,
       handicapIndex: Number(round.handicap_index_used),
     }));
+  const goodrichHoleRankings = goodrichHoleRankingsForPlayer(
+    holeRankingReport,
+    id
+  );
 
   return (
     <main className="space-y-5 p-4 text-gray-900 md:space-y-6 md:p-8">
@@ -253,6 +268,12 @@ export default async function PlayerDetailPage({ params }: PageProps) {
         rounds={rounds}
         seasonHoles={seasonHoles}
         thirtyDayHoles={thirtyDayHoles}
+        goodrichHoleRankings={goodrichHoleRankings}
+        rankingPeriodStart={holeRankingReport.periodStart}
+        rankingPeriodEnd={holeRankingReport.periodEnd}
+        rankingPriorPerformanceIndex={
+          holeRankingReport.priorPerformanceIndex
+        }
       />
     </main>
   );

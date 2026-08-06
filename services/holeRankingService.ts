@@ -48,6 +48,27 @@ export type TeeHoleRankings = {
   holes: HoleRanking[];
 };
 
+export type PlayerGoodrichHoleRanking = {
+  tee: GoodrichTeeColor;
+  holeNumber: number;
+  par: number | null;
+  strokeIndex: number | null;
+  adjustedPerformanceIndex: number;
+  performanceReliability: number;
+  performanceConfidence: "Low" | "Moderate" | "High";
+  scoreCount: number;
+  averageGrossScore: number;
+  averageExpectedScore: number;
+  averageVsExpected: number;
+  clubAverageIndex: number;
+  vsClubIndex: number;
+  worstRank: number;
+  bestRank: number;
+  qualifyingPlayers: number;
+  worstPercentile: number;
+  bestPercentile: number;
+};
+
 export type HoleRankingReport = {
   generatedAt: string;
   periodStart: string;
@@ -445,6 +466,43 @@ export function playersForHoleRankingView(
     }
     return a.playerName.localeCompare(b.playerName);
   });
+}
+
+export function goodrichHoleRankingsForPlayer(
+  report: HoleRankingReport,
+  playerId: string
+): PlayerGoodrichHoleRanking[] {
+  return report.tees.flatMap((tee) =>
+    tee.holes.flatMap((hole) => {
+      const ranking = hole.players.find(
+        (candidate) => candidate.playerId === playerId
+      );
+      if (!ranking) return [];
+
+      return [
+        {
+          tee: tee.tee,
+          holeNumber: hole.holeNumber,
+          par: hole.par,
+          strokeIndex: hole.strokeIndex,
+          adjustedPerformanceIndex: ranking.performanceIndex,
+          performanceReliability: ranking.performanceReliability,
+          performanceConfidence: ranking.performanceConfidence,
+          scoreCount: ranking.scoreCount,
+          averageGrossScore: ranking.averageGrossScore,
+          averageExpectedScore: ranking.averageExpectedScore,
+          averageVsExpected: ranking.averageVsHandicap,
+          clubAverageIndex: ranking.clubAverageIndex,
+          vsClubIndex: ranking.vsClubIndex,
+          worstRank: ranking.rank,
+          bestRank: ranking.bestRank,
+          qualifyingPlayers: ranking.qualifyingPlayers,
+          worstPercentile: ranking.worstPercentile,
+          bestPercentile: ranking.bestPercentile,
+        },
+      ];
+    })
+  );
 }
 
 export function normalizeGoodrichTee(
