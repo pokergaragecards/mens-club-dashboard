@@ -41,12 +41,12 @@ const MATRIX_PLAYER_WIDTH = 96;
 const MATRIX_OVERALL_WIDTH = 46;
 const MATRIX_HANDICAP_WIDTH = 34;
 const MATRIX_HOLE_WIDTH = 32;
-const PLAYERS_PER_MATRIX_PAGE = 24;
+const PLAYERS_PER_MATRIX_PAGE = 20;
 
 const s = StyleSheet.create({
   page: {
-    paddingTop: 22,
-    paddingBottom: 22,
+    paddingTop: 18,
+    paddingBottom: 18,
     paddingHorizontal: 24,
     fontFamily: "Helvetica",
     fontSize: 7,
@@ -91,8 +91,8 @@ const s = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
   },
   method: {
-    marginBottom: 9,
-    padding: 8,
+    marginBottom: 7,
+    padding: 6,
     borderWidth: 1,
     borderColor: "#bfdbfe",
     backgroundColor: COLORS.blue50,
@@ -104,8 +104,8 @@ const s = StyleSheet.create({
     color: COLORS.navy,
   },
   methodText: {
-    fontSize: 6.7,
-    lineHeight: 1.35,
+    fontSize: 6.2,
+    lineHeight: 1.25,
     color: COLORS.gray700,
   },
   table: {
@@ -113,13 +113,14 @@ const s = StyleSheet.create({
     borderColor: COLORS.gray300,
   },
   summaryRow: {
-    minHeight: 20,
+    minHeight: 19,
     flexDirection: "row",
     alignItems: "center",
     borderBottomWidth: 0.5,
     borderBottomColor: COLORS.gray300,
   },
   headerRow: {
+    minHeight: 24,
     backgroundColor: COLORS.navy,
     color: COLORS.white,
     fontFamily: "Helvetica-Bold",
@@ -131,14 +132,14 @@ const s = StyleSheet.create({
     paddingHorizontal: 4,
     flexShrink: 0,
   },
-  summaryHole: { width: 44, textAlign: "center", fontFamily: "Helvetica-Bold" },
-  summaryPar: { width: 42, textAlign: "center" },
-  summaryStroke: { width: 54, textAlign: "center" },
-  summaryYardage: { width: 54, textAlign: "right" },
-  summaryPlayer: { width: 176, fontSize: 8, fontFamily: "Helvetica-Bold" },
-  summaryHandicap: { width: 64, textAlign: "right" },
+  summaryHole: { width: 36, textAlign: "center", fontFamily: "Helvetica-Bold" },
+  summaryPar: { width: 34, textAlign: "center" },
+  summaryStroke: { width: 50, textAlign: "center" },
+  summaryYardage: { width: 50, textAlign: "right" },
+  summaryPlayer: { width: 180, fontSize: 8, fontFamily: "Helvetica-Bold" },
+  summaryHandicap: { width: 55, textAlign: "right" },
   summaryValue: {
-    width: 82,
+    width: 78,
     textAlign: "right",
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
@@ -149,17 +150,18 @@ const s = StyleSheet.create({
   summaryBestValue: {
     color: COLORS.green,
   },
-  summaryScores: { width: 64, textAlign: "right" },
-  summaryField: { width: 72, textAlign: "right" },
-  summaryClub: { width: 92, textAlign: "right" },
+  summaryConfidence: { width: 68, textAlign: "right" },
+  summaryScores: { width: 50, textAlign: "right" },
+  summaryField: { width: 60, textAlign: "right" },
+  summaryClub: { width: 83, textAlign: "right" },
   note: {
-    marginTop: 8,
-    padding: 6,
+    marginTop: 6,
+    padding: 5,
     borderLeftWidth: 3,
     borderLeftColor: COLORS.amber,
     backgroundColor: COLORS.amber50,
-    fontSize: 6.4,
-    lineHeight: 1.3,
+    fontSize: 6.1,
+    lineHeight: 1.2,
     color: COLORS.gray700,
   },
   legend: {
@@ -309,6 +311,11 @@ function handicapIndex(value: number | null) {
   return value.toFixed(1);
 }
 
+function confidence(value: number | null, label?: string) {
+  if (value === null || !Number.isFinite(value)) return "-";
+  return `${label ? `${label} ` : ""}${Math.round(value * 100)}%`;
+}
+
 function teeBadgeStyle(tee: TeeHoleRankings["tee"]) {
   if (tee === "Red") {
     return { borderColor: "#b91c1c", backgroundColor: "#fee2e2", color: "#991b1b" };
@@ -380,7 +387,8 @@ function SummaryHeader({ view }: { view: HoleRankingView }) {
         {isBest ? "Best" : "Worst"} by Index
       </Text>
       <Text style={[s.cell, s.summaryHandicap]}>Current HI</Text>
-      <Text style={[s.cell, s.summaryValue]}>Perf. Index</Text>
+      <Text style={[s.cell, s.summaryValue]}>Adj. Index</Text>
+      <Text style={[s.cell, s.summaryConfidence]}>Confidence</Text>
       <Text style={[s.cell, s.summaryScores]}>Scores</Text>
       <Text style={[s.cell, s.summaryField]}>Players</Text>
       <Text style={[s.cell, s.summaryClub]}>Club Index</Text>
@@ -420,6 +428,14 @@ function SummaryRow({
         ]}
       >
         {performanceIndex(featured?.performanceIndex ?? null)}
+      </Text>
+      <Text style={[s.cell, s.summaryConfidence]}>
+        {featured
+          ? confidence(
+              featured.performanceReliability,
+              featured.performanceConfidence
+            )
+          : "-"}
       </Text>
       <Text style={[s.cell, s.summaryScores]}>
         {featured?.scoreCount ?? "-"}
@@ -464,7 +480,8 @@ function MatrixCell({
     >
       <Text style={s.matrixRank}>#{rank}</Text>
       <Text style={s.matrixValue}>
-        {performanceIndex(ranking.performanceIndex)}
+        {performanceIndex(ranking.performanceIndex)}/
+        {confidence(ranking.performanceReliability)}
       </Text>
     </View>
   );
@@ -543,16 +560,25 @@ export function HoleRankingsReport({
                   spreads the allowance continuously across all 18 holes in
                   proportion to par, and the hole expectations add up to tee par
                   plus Course Handicap; stroke index is informational only.
-                  Performance Index = 100 + 100 x (Average Gross - Expected
-                  Average) / max(abs(Expected Average - par), 0.25). For normal
-                  positive allowances, this equals 100 x (Average Gross - par) /
-                  (Expected Average - par). 100 matches expectation, 120 is 20%
-                  worse, and 80 is 20% better. Players of any handicap receive
-                  the same index when they perform the same percentage above or
-                  below their own expectation. The minimum denominator stabilizes
-                  scratch and plus expectations near par. Rank #1 is
-                  the {isBest ? "lowest" : "highest"}
-                  {" "}index in this report. Each player needs at least
+                  The empirical-Bayes model is: Actual - Expected =
+                  abs(Expected - par) x performance effect + scoring noise.
+                  Adjusted Performance Index = 100 + 100 x the estimated effect.
+                  100 matches expectation, 120 is 20% worse, and 80 is 20%
+                  better. The raw percentage treats equal proportional
+                  performances equally at every handicap; the adjusted index
+                  ranks players after accounting for uncertainty. Scoring
+                  variance is learned separately for every tee and hole and
+                  partially pooled with the club. A {report.studentTDegreesOfFreedom}
+                  -degree-of-freedom Student-t model reduces the influence of one
+                  extreme score. The learned club prior is {performanceIndex(
+                    report.priorPerformanceIndex
+                  )}, with a {performanceIndex(
+                    report.priorStandardDeviationPoints
+                  )}-point standard deviation. Confidence is the share of the
+                  estimate supplied by the player&apos;s scores; small allowances,
+                  volatile holes, and small samples shrink toward the prior.
+                  Rank #1 is the {isBest ? "lowest" : "highest"} adjusted index.
+                  Each player needs at least
                   {` ${report.minimumScores} `}scores on this exact tee and hole.
                   Club averages weight each qualifying player equally. Combo tees
                   are excluded from these four single-tee groups.
@@ -586,6 +612,7 @@ export function HoleRankingsReport({
                 size="LETTER"
                 orientation="landscape"
                 style={s.matrixPage}
+                wrap={false}
               >
                 <View style={s.header}>
                   <View>
@@ -605,15 +632,16 @@ export function HoleRankingsReport({
                 </View>
 
                 <Text style={s.legend}>
-                  Each cell shows #{view} rank and the Performance Index.
+                  Each cell shows #{view} rank, Adjusted Performance Index, and
+                  confidence as index/percent.
                   {isBest
                     ? " Green = best on that hole; blue = ranks 2-3;"
                     : " Red = worst on that hole; amber = ranks 2-3;"}{" "}
                   dash = fewer than
                   {` ${report.minimumScores} `}qualifying scores. 100 matches
                   expectation; lower values are better and higher values are
-                  worse. 120 is 20% worse and 80 is 20% better relative to
-                  expected strokes from par. Avg {isBest ? "Best" : "Worst"} %
+                  worse. Uncertain values are pulled toward the learned club
+                  prior. Avg {isBest ? "Best" : "Worst"} %
                   summarizes the holes
                   on which the player qualifies; 100 is {view}.
                 </Text>

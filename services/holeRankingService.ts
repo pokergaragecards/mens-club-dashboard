@@ -3,7 +3,9 @@ import { createSupabaseServerClient } from "@/lib/supabaseServer";
 export const GOODRICH_TEE_COLORS = ["Red", "Yellow", "White", "Blue"] as const;
 export const MINIMUM_HOLE_SCORES = 3;
 export const PERFORMANCE_INDEX_BASE = 100;
-export const MIN_EXPECTED_DISTANCE_FROM_PAR = 0.25;
+export const STUDENT_T_DEGREES_OF_FREEDOM = 4;
+const ROBUST_VARIANCE_PRIOR_OBSERVATIONS = 30;
+const MIN_NUMERIC_VARIANCE = 1e-8;
 
 export type GoodrichTeeColor = (typeof GOODRICH_TEE_COLORS)[number];
 export type HoleRankingView = "worst" | "best";
@@ -15,7 +17,11 @@ export type PlayerHoleRanking = {
   averageGrossScore: number;
   averageExpectedScore: number;
   averageVsHandicap: number;
+  rawPerformanceIndex: number | null;
   performanceIndex: number;
+  performanceReliability: number;
+  performanceConfidence: "Low" | "Moderate" | "High";
+  posteriorStandardError: number;
   currentHandicapIndex: number | null;
   clubAverageIndex: number;
   vsClubIndex: number;
@@ -32,6 +38,7 @@ export type HoleRanking = {
   par: number | null;
   strokeIndex: number | null;
   yardage: number | null;
+  robustScoringSigma: number | null;
   clubAverageIndex: number | null;
   players: PlayerHoleRanking[];
 };
@@ -46,6 +53,9 @@ export type HoleRankingReport = {
   periodStart: string;
   periodEnd: string;
   minimumScores: number;
+  priorPerformanceIndex: number;
+  priorStandardDeviationPoints: number;
+  studentTDegreesOfFreedom: number;
   tees: TeeHoleRankings[];
   methodology: string;
 };
@@ -120,10 +130,34 @@ type ScoreObservation = {
   par: number;
   grossScore: number;
   expectedScore: number;
+  expectedAllowance: number;
+  deviationFromExpected: number;
+};
+
+export type BayesianPerformanceObservation = {
+  expectedAllowance: number;
+  deviationFromExpected: number;
+};
+
+export type BayesianPerformanceEstimate = {
+  rawEffect: number | null;
+  adjustedEffect: number;
+  reliability: number;
+  posteriorStandardError: number;
+};
+
+type RawPerformanceEstimate = {
+  effect: number;
+  measurementVariance: number;
+};
+
+type EmpiricalBayesPrior = {
+  mean: number;
+  standardDeviation: number;
 };
 
 const METHODOLOGY =
-  "Only hole scores from the latest 12 months are included. For each score, expected hole score equals hole par multiplied by (tee par plus the player's Course Handicap from that historical round) divided by tee par. This spreads the handicap allowance continuously across all 18 holes in proportion to par, and the hole expectations add up to tee par plus Course Handicap; stroke index is informational and does not affect the calculation. The Performance Index measures actual strokes from par as a percentage of expected strokes from par: 100 matches expectation, 120 is 20% worse, and 80 is 20% better. A 0.25-stroke minimum denominator prevents unstable results for scratch and plus expectations near par. Players need at least three scores on the same tee and hole during the 12-month window. Club averages give each qualifying player equal weight.";
+  "Only hole scores from the latest 12 months are included. For each score, expected hole score equals hole par multiplied by (tee par plus the player's Course Handicap from that historical round) divided by tee par. The Adjusted Performance Index estimates the player's percentage above or below expected strokes from par with an empirical-Bayes model. An index of 100 matches expectation, 120 is 20% worse, and 80 is 20% better. Tee-and-hole scoring variance and the club-wide prior are learned from the imported scores. A four-degree-of-freedom Student-t weighting reduces the influence of a single unusually high or low score. Estimates with small handicap allowances, volatile holes, or few scores are automatically pulled toward the club baseline instead of being divided by an arbitrary fixed floor. Players need at least three scores on the same tee and hole during the 12-month window. Club averages give each qualifying player equal weight.";
 
 function finiteNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -145,21 +179,225 @@ function average(values: number[]) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-export function calculateOverParPerformanceIndex(
-  actualAverage: number,
-  expectedAverage: number,
-  par: number
-) {
-  const expectedDistanceFromPar = expectedAverage - par;
-  const denominator = Math.max(
-    Math.abs(expectedDistanceFromPar),
-    MIN_EXPECTED_DISTANCE_FROM_PAR
-  );
+function median(values: number[]) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2
+    ? sorted[middle]
+    : (sorted[middle - 1] + sorted[middle]) / 2;
+}
 
-  return (
-    PERFORMANCE_INDEX_BASE +
-    ((actualAverage - expectedAverage) / denominator) * PERFORMANCE_INDEX_BASE
+function robustStandardDeviation(values: number[], fallback: number) {
+  if (values.length < 2) return fallback;
+  const center = median(values);
+  const mad = median(values.map((value) => Math.abs(value - center)));
+  const madSigma = mad * 1.4826;
+  if (madSigma > MIN_NUMERIC_VARIANCE) return madSigma;
+
+  const rms = Math.sqrt(
+    values.reduce((sum, value) => sum + (value - center) ** 2, 0) /
+      Math.max(values.length - 1, 1)
   );
+  return rms > MIN_NUMERIC_VARIANCE ? rms : fallback;
+}
+
+function studentTWeight(standardizedResidual: number) {
+  return (
+    (STUDENT_T_DEGREES_OF_FREEDOM + 1) /
+    (STUDENT_T_DEGREES_OF_FREEDOM + standardizedResidual ** 2)
+  );
+}
+
+function robustRawPerformanceEstimate(
+  observations: BayesianPerformanceObservation[],
+  scoringSigma: number
+): RawPerformanceEstimate | null {
+  const initialDenominator = observations.reduce(
+    (sum, observation) => sum + observation.expectedAllowance ** 2,
+    0
+  );
+  if (initialDenominator <= MIN_NUMERIC_VARIANCE) return null;
+
+  let effect =
+    observations.reduce(
+      (sum, observation) =>
+        sum +
+        observation.expectedAllowance * observation.deviationFromExpected,
+      0
+    ) / initialDenominator;
+  let weightedDenominator = initialDenominator;
+
+  for (let iteration = 0; iteration < 8; iteration += 1) {
+    let numerator = 0;
+    weightedDenominator = 0;
+
+    for (const observation of observations) {
+      const residual =
+        observation.deviationFromExpected -
+        observation.expectedAllowance * effect;
+      const weight = studentTWeight(residual / scoringSigma);
+      numerator +=
+        weight *
+        observation.expectedAllowance *
+        observation.deviationFromExpected;
+      weightedDenominator +=
+        weight * observation.expectedAllowance ** 2;
+    }
+
+    if (weightedDenominator <= MIN_NUMERIC_VARIANCE) return null;
+    const updatedEffect = numerator / weightedDenominator;
+    if (Math.abs(updatedEffect - effect) < 1e-7) {
+      effect = updatedEffect;
+      break;
+    }
+    effect = updatedEffect;
+  }
+
+  return {
+    effect,
+    measurementVariance:
+      scoringSigma ** 2 / Math.max(weightedDenominator, MIN_NUMERIC_VARIANCE),
+  };
+}
+
+function empiricalBayesPrior(
+  estimates: RawPerformanceEstimate[]
+): EmpiricalBayesPrior {
+  if (!estimates.length) {
+    return { mean: 0, standardDeviation: 0.5 };
+  }
+
+  const effects = estimates.map((estimate) => estimate.effect);
+  const initialMean = median(effects);
+  const observedScale = robustStandardDeviation(effects, 0.5);
+  const largestMeasurementSigma = Math.sqrt(
+    Math.max(...estimates.map((estimate) => estimate.measurementVariance))
+  );
+  const minimumPriorSigma = 0.01;
+  const maximumPriorSigma = Math.max(
+    0.2,
+    observedScale * 4,
+    largestMeasurementSigma
+  );
+  let bestPrior: EmpiricalBayesPrior = {
+    mean: initialMean,
+    standardDeviation: observedScale,
+  };
+  let bestObjective = Number.POSITIVE_INFINITY;
+
+  for (let index = 0; index <= 160; index += 1) {
+    const fraction = index / 160;
+    const standardDeviation =
+      minimumPriorSigma *
+      (maximumPriorSigma / minimumPriorSigma) ** fraction;
+    const priorVariance = standardDeviation ** 2;
+    let mean = initialMean;
+
+    for (let iteration = 0; iteration < 8; iteration += 1) {
+      let numerator = 0;
+      let denominator = 0;
+
+      for (const estimate of estimates) {
+        const marginalVariance =
+          priorVariance + estimate.measurementVariance;
+        const standardizedResidual =
+          (estimate.effect - mean) / Math.sqrt(marginalVariance);
+        const precision =
+          studentTWeight(standardizedResidual) / marginalVariance;
+        numerator += precision * estimate.effect;
+        denominator += precision;
+      }
+
+      if (denominator <= MIN_NUMERIC_VARIANCE) break;
+      const updatedMean = numerator / denominator;
+      if (Math.abs(updatedMean - mean) < 1e-7) {
+        mean = updatedMean;
+        break;
+      }
+      mean = updatedMean;
+    }
+
+    const objective = estimates.reduce((sum, estimate) => {
+      const marginalVariance = priorVariance + estimate.measurementVariance;
+      const standardizedSquared = (estimate.effect - mean) ** 2 / marginalVariance;
+      return (
+        sum +
+        0.5 * Math.log(marginalVariance) +
+        ((STUDENT_T_DEGREES_OF_FREEDOM + 1) / 2) *
+          Math.log1p(
+            standardizedSquared / STUDENT_T_DEGREES_OF_FREEDOM
+          )
+      );
+    }, 0);
+
+    if (objective < bestObjective) {
+      bestObjective = objective;
+      bestPrior = { mean, standardDeviation };
+    }
+  }
+
+  return bestPrior;
+}
+
+export function calculateBayesianPerformanceEstimate(
+  observations: BayesianPerformanceObservation[],
+  scoringSigma: number,
+  priorMean: number,
+  priorStandardDeviation: number
+): BayesianPerformanceEstimate {
+  const stableSigma = Math.max(scoringSigma, Math.sqrt(MIN_NUMERIC_VARIANCE));
+  const stablePriorStandardDeviation = Math.max(
+    priorStandardDeviation,
+    Math.sqrt(MIN_NUMERIC_VARIANCE)
+  );
+  const priorPrecision = 1 / stablePriorStandardDeviation ** 2;
+  const rawEstimate = robustRawPerformanceEstimate(observations, stableSigma);
+  let adjustedEffect = priorMean;
+  let dataPrecision = 0;
+
+  for (let iteration = 0; iteration < 8; iteration += 1) {
+    let dataTerm = 0;
+    dataPrecision = 0;
+
+    for (const observation of observations) {
+      const residual =
+        observation.deviationFromExpected -
+        observation.expectedAllowance * adjustedEffect;
+      const weight = studentTWeight(residual / stableSigma);
+      dataTerm +=
+        (weight *
+          observation.expectedAllowance *
+          observation.deviationFromExpected) /
+        stableSigma ** 2;
+      dataPrecision +=
+        (weight * observation.expectedAllowance ** 2) / stableSigma ** 2;
+    }
+
+    const updatedEffect =
+      (priorMean * priorPrecision + dataTerm) /
+      (priorPrecision + dataPrecision);
+    if (Math.abs(updatedEffect - adjustedEffect) < 1e-7) {
+      adjustedEffect = updatedEffect;
+      break;
+    }
+    adjustedEffect = updatedEffect;
+  }
+
+  const posteriorPrecision = priorPrecision + dataPrecision;
+  return {
+    rawEffect: rawEstimate?.effect ?? null,
+    adjustedEffect,
+    reliability:
+      posteriorPrecision > 0 ? dataPrecision / posteriorPrecision : 0,
+    posteriorStandardError: Math.sqrt(1 / posteriorPrecision),
+  };
+}
+
+function performanceConfidence(reliability: number) {
+  if (reliability >= 2 / 3) return "High" as const;
+  if (reliability >= 1 / 3) return "Moderate" as const;
+  return "Low" as const;
 }
 
 export function twelveMonthHoleRankingPeriod(generatedAt: string) {
@@ -312,6 +550,8 @@ export function buildHoleRankingReport(
     if (par === null || courseHandicap === null || teePar === null) continue;
 
     const expectedScore = par * ((teePar + courseHandicap) / teePar);
+    const expectedAllowance = Math.abs(expectedScore - par);
+    const deviationFromExpected = grossScore - expectedScore;
     const key = `${tee}|${holeNumber}|${row.playerId}`;
     const current = observations.get(key) ?? [];
     current.push({
@@ -321,9 +561,78 @@ export function buildHoleRankingReport(
       par,
       grossScore,
       expectedScore,
+      expectedAllowance,
+      deviationFromExpected,
     });
     observations.set(key, current);
   }
+
+  const centeredResidualsByHole = new Map<string, number[]>();
+  const pooledCenteredResiduals: number[] = [];
+
+  for (const [key, values] of observations) {
+    if (values.length < 2) continue;
+    const [tee, holeNumber] = key.split("|");
+    const holeKey = `${tee}|${holeNumber}`;
+    const playerCenter = median(
+      values.map((value) => value.deviationFromExpected)
+    );
+    const holeResiduals = centeredResidualsByHole.get(holeKey) ?? [];
+
+    for (const value of values) {
+      const centered = value.deviationFromExpected - playerCenter;
+      holeResiduals.push(centered);
+      pooledCenteredResiduals.push(centered);
+    }
+    centeredResidualsByHole.set(holeKey, holeResiduals);
+  }
+
+  const pooledScoringSigma = robustStandardDeviation(
+    pooledCenteredResiduals,
+    1
+  );
+  const scoringSigmaByHole = new Map<string, number>();
+
+  for (const tee of GOODRICH_TEE_COLORS) {
+    for (let holeNumber = 1; holeNumber <= 18; holeNumber += 1) {
+      const holeKey = `${tee}|${holeNumber}`;
+      const residuals = centeredResidualsByHole.get(holeKey) ?? [];
+      const holeSigma = robustStandardDeviation(
+        residuals,
+        pooledScoringSigma
+      );
+      const holeWeight =
+        residuals.length /
+        (residuals.length + ROBUST_VARIANCE_PRIOR_OBSERVATIONS);
+      const partiallyPooledVariance =
+        holeWeight * holeSigma ** 2 +
+        (1 - holeWeight) * pooledScoringSigma ** 2;
+      scoringSigmaByHole.set(
+        holeKey,
+        Math.sqrt(Math.max(partiallyPooledVariance, MIN_NUMERIC_VARIANCE))
+      );
+    }
+  }
+
+  const priorObservationsByPlayer = new Map<string, ScoreObservation[]>();
+  for (const values of observations.values()) {
+    const playerId = values[0]?.playerId;
+    if (!playerId) continue;
+    const current = priorObservationsByPlayer.get(playerId) ?? [];
+    current.push(...values);
+    priorObservationsByPlayer.set(playerId, current);
+  }
+  const rawEstimates = Array.from(priorObservationsByPlayer.values()).flatMap(
+    (values) => {
+      if (values.length < 18) return [];
+      const estimate = robustRawPerformanceEstimate(
+        values,
+        pooledScoringSigma
+      );
+      return estimate ? [estimate] : [];
+    }
+  );
+  const prior = empiricalBayesPrior(rawEstimates);
 
   const tees = GOODRICH_TEE_COLORS.map<TeeHoleRankings>((tee) => ({
     tee,
@@ -346,9 +655,17 @@ export function buildHoleRankingReport(
           const rawAverageExpectedScore = average(
             values.map((value) => value.expectedScore)
           );
-          const rawAveragePar = average(values.map((value) => value.par));
           const rawAverageVsExpected =
             rawAverageGrossScore - rawAverageExpectedScore;
+          const scoringSigma =
+            scoringSigmaByHole.get(`${tee}|${holeNumber}`) ??
+            pooledScoringSigma;
+          const estimate = calculateBayesianPerformanceEstimate(
+            values,
+            scoringSigma,
+            prior.mean,
+            prior.standardDeviation
+          );
 
           return {
             playerId: values[0].playerId,
@@ -358,13 +675,24 @@ export function buildHoleRankingReport(
             averageGrossScore: rounded(rawAverageGrossScore),
             averageExpectedScore: rounded(rawAverageExpectedScore),
             averageVsHandicap: rounded(rawAverageVsExpected),
+            rawPerformanceIndex:
+              estimate.rawEffect === null
+                ? null
+                : rounded(
+                    PERFORMANCE_INDEX_BASE +
+                      PERFORMANCE_INDEX_BASE * estimate.rawEffect,
+                    2
+                  ),
             performanceIndex: rounded(
-              calculateOverParPerformanceIndex(
-                rawAverageGrossScore,
-                rawAverageExpectedScore,
-                rawAveragePar
-              ),
+              PERFORMANCE_INDEX_BASE +
+                PERFORMANCE_INDEX_BASE * estimate.adjustedEffect,
               2
+            ),
+            performanceReliability: rounded(estimate.reliability, 4),
+            performanceConfidence: performanceConfidence(estimate.reliability),
+            posteriorStandardError: rounded(
+              estimate.posteriorStandardError,
+              4
             ),
           };
         })
@@ -441,6 +769,11 @@ export function buildHoleRankingReport(
         par: finiteNumber(definition?.par),
         strokeIndex: finiteNumber(definition?.strokeIndex),
         yardage: finiteNumber(definition?.yardage),
+        robustScoringSigma: rounded(
+          scoringSigmaByHole.get(`${tee}|${holeNumber}`) ??
+            pooledScoringSigma,
+          3
+        ),
         clubAverageIndex,
         players,
       };
@@ -452,6 +785,15 @@ export function buildHoleRankingReport(
     periodStart,
     periodEnd,
     minimumScores: MINIMUM_HOLE_SCORES,
+    priorPerformanceIndex: rounded(
+      PERFORMANCE_INDEX_BASE + PERFORMANCE_INDEX_BASE * prior.mean,
+      2
+    ),
+    priorStandardDeviationPoints: rounded(
+      PERFORMANCE_INDEX_BASE * prior.standardDeviation,
+      2
+    ),
+    studentTDegreesOfFreedom: STUDENT_T_DEGREES_OF_FREEDOM,
     tees,
     methodology: METHODOLOGY,
   };
