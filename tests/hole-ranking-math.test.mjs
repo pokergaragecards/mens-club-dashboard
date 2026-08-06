@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   aggregateRawPerformanceEstimate,
+  golfSampleConfidence,
   shrinkPerformanceEstimate,
 } from "../lib/holeRankingMath.ts";
 
@@ -24,6 +25,7 @@ test("adjusted effect shrinks the raw effect toward the club baseline", () => {
       effect: 0.5,
       measurementVariance: 0.04,
       scoringStandardDeviation: 0.8,
+      observationCount: 5,
     },
     0.1,
     0.2
@@ -32,6 +34,17 @@ test("adjusted effect shrinks the raw effect toward the club baseline", () => {
   assert.equal(estimate.reliability, 0.5);
   assert.ok(Math.abs(estimate.adjustedEffect - 0.3) < 1e-12);
   assert.ok(Math.abs(estimate.posteriorStandardError - Math.sqrt(0.02)) < 1e-12);
+});
+
+test("golf confidence starts at 25 percent for five scores and adds ten points", () => {
+  assert.equal(golfSampleConfidence(3), 0.05);
+  assert.equal(golfSampleConfidence(4), 0.15);
+  assert.equal(golfSampleConfidence(5), 0.25);
+  assert.equal(golfSampleConfidence(6), 0.35);
+  assert.equal(golfSampleConfidence(10), 0.75);
+  assert.equal(golfSampleConfidence(12), 0.95);
+  assert.equal(golfSampleConfidence(13), 1);
+  assert.equal(golfSampleConfidence(30), 1);
 });
 
 test("more scores increase reliability when allowance and variability match", () => {

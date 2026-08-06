@@ -594,10 +594,11 @@ export function HoleRankingsReport({
                   so 100 matches expectation,
                   120 is 20% worse, and 80 is 20% better. Adjusted Index = club
                   baseline + reliability x (Raw Index - club baseline), and the
-                  adjusted value ranks players. Reliability rises with more
-                  scores and falls with greater scoring variability or a smaller
-                  expected allowance. Player variance is partially pooled with
-                  the tee-and-hole variance. A {report.studentTDegreesOfFreedom}
+                  adjusted value ranks players. Confidence uses the greater of
+                  statistical reliability and this golf sample floor: 3 scores =
+                  5%, 4 = 15%, 5 = 25%, then +10 points per additional score,
+                  capped at 100%. Player variance is partially pooled with the
+                  tee-and-hole variance. A {report.studentTDegreesOfFreedom}
                   -degree-of-freedom Student-t model makes the learned club prior
                   resistant to one unusual player. The learned club prior is {performanceIndex(
                     report.priorPerformanceIndex

@@ -328,8 +328,10 @@ function Scorecard({
           score. The Adjusted Index shrinks that raw value toward the club
           baseline based on sample size and scoring variability. <strong>100
           matches expectation</strong>, lower is better, and higher is worse.
-          Confidence shows how much of the adjusted estimate comes from this
-          player&apos;s own scores instead of the learned club prior of{" "}
+          Confidence is never lower than the golf sample schedule: 3 scores =
+          5%, 4 = 15%, 5 = 25%, then +10 percentage points per additional score,
+          capped at 100%. It shows how much of the adjusted estimate comes from
+          this player&apos;s own scores instead of the learned club prior of{" "}
           <strong>{rankingPriorPerformanceIndex.toFixed(1)}</strong>. A player
           needs at least three scores on the exact tee and hole. These 12-month
           ranking rows do not change when switching between Season and 30 Days.

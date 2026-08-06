@@ -179,7 +179,7 @@ type EmpiricalBayesPrior = {
 };
 
 const METHODOLOGY =
-  "Only hole scores from the latest 12 months are included. For each score, expected hole score equals hole par multiplied by (tee par plus the player's Course Handicap from that historical round) divided by tee par. The Raw Performance Index is calculated directly from aggregate averages: 100 plus 100 times aggregate strokes versus expected divided by aggregate expected strokes from par. An index of 100 matches expectation, 120 is 20% worse, and 80 is 20% better. The Adjusted Performance Index shrinks that raw index toward the learned club baseline. Reliability rises with more scores and falls with greater scoring variability or a smaller handicap allowance. Player scoring variance is partially pooled with the tee-and-hole variance, and a robust empirical-Bayes prior prevents one unusual player from moving the club baseline excessively. Players need at least three scores on the same tee and hole during the 12-month window. Club averages give each qualifying player equal weight.";
+  "Only hole scores from the latest 12 months are included. For each score, expected hole score equals hole par multiplied by (tee par plus the player's Course Handicap from that historical round) divided by tee par. The Raw Performance Index is calculated directly from aggregate averages: 100 plus 100 times aggregate strokes versus expected divided by aggregate expected strokes from par. An index of 100 matches expectation, 120 is 20% worse, and 80 is 20% better. The Adjusted Performance Index shrinks that raw index toward the learned club baseline. Confidence uses the greater of the statistical reliability and a golf sample-size floor: three scores equal 5%, four equal 15%, five equal 25%, and each additional score adds 10 percentage points up to 100%. Player scoring variance is partially pooled with the tee-and-hole variance, and a robust empirical-Bayes prior prevents one unusual player from moving the club baseline excessively. Players need at least three scores on the same tee and hole during the 12-month window. Club averages give each qualifying player equal weight.";
 
 function finiteNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -335,8 +335,8 @@ export function calculateBayesianPerformanceEstimate(
 }
 
 function performanceConfidence(reliability: number) {
-  if (reliability >= 2 / 3) return "High" as const;
-  if (reliability >= 1 / 3) return "Moderate" as const;
+  if (reliability >= 0.8) return "High" as const;
+  if (reliability >= 0.5) return "Moderate" as const;
   return "Low" as const;
 }
 

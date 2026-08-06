@@ -9,6 +9,7 @@ export type AggregateRawPerformanceEstimate = {
   effect: number;
   measurementVariance: number;
   scoringStandardDeviation: number;
+  observationCount: number;
 };
 
 export type ShrunkPerformanceEstimate = {
@@ -27,6 +28,12 @@ function sampleStandardDeviation(values: number[], fallback: number) {
   return standardDeviation > MIN_NUMERIC_VARIANCE
     ? standardDeviation
     : fallback;
+}
+
+export function golfSampleConfidence(scoreCount: number) {
+  if (!Number.isFinite(scoreCount) || scoreCount <= 0) return 0;
+  const confidence = Math.round((0.25 + 0.1 * (scoreCount - 5)) * 100) / 100;
+  return Math.min(1, Math.max(0, confidence));
 }
 
 export function aggregateRawPerformanceEstimate(
@@ -70,6 +77,7 @@ export function aggregateRawPerformanceEstimate(
       (pooledScoringVariance * observations.length) /
       Math.max(totalAllowance ** 2, MIN_NUMERIC_VARIANCE),
     scoringStandardDeviation: Math.sqrt(pooledScoringVariance),
+    observationCount: observations.length,
   };
 }
 
@@ -96,12 +104,15 @@ export function shrinkPerformanceEstimate(
     rawEstimate.measurementVariance,
     MIN_NUMERIC_VARIANCE
   );
-  const reliability = priorVariance / (priorVariance + measurementVariance);
+  const statisticalReliability =
+    priorVariance / (priorVariance + measurementVariance);
+  const reliability = Math.max(
+    statisticalReliability,
+    golfSampleConfidence(rawEstimate.observationCount)
+  );
   const adjustedEffect =
     priorMean + reliability * (rawEstimate.effect - priorMean);
-  const posteriorVariance =
-    (priorVariance * measurementVariance) /
-    (priorVariance + measurementVariance);
+  const posteriorVariance = priorVariance * (1 - reliability);
 
   return {
     adjustedEffect,

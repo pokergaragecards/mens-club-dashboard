@@ -166,10 +166,12 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
           when they perform the same percentage above or below their own
           expectation. The <strong>Adjusted Index</strong> is used for ranking and
           equals <strong>club baseline + reliability × (raw index - club
-          baseline)</strong>. Reliability rises with more scores and falls when
-          scoring is more variable or the player&apos;s expected allowance is small.
-          The scoring variance, club baseline, and amount of shrinkage are
-          learned from this report&apos;s data rather than a fixed denominator.
+          baseline)</strong>. Confidence uses the greater of the statistical
+          reliability and a golf sample-size floor: <strong>3 scores = 5%, 4 =
+          15%, 5 = 25%, then +10 percentage points for every additional score,
+          capped at 100%</strong>. The statistical calculation still recognizes
+          scoring variability and small expected allowances. The scoring
+          variance and club baseline are learned from this report&apos;s data.
           The learned club prior is <strong>{performanceIndex(
             report.priorPerformanceIndex
           )}</strong>, with a between-player standard deviation of <strong>{performanceIndex(
