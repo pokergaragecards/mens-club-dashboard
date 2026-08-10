@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { shouldShowPrepareEmail } from "../lib/auditEmailEligibility.ts";
 
-test("Prepare Email is limited to decisions that apply an adjustment now", () => {
+test("Prepare Email appears for every audit with a suggested index", () => {
   assert.equal(
     shouldShowPrepareEmail({
       code: "adjustment_supported",
@@ -13,24 +13,29 @@ test("Prepare Email is limited to decisions that apply an adjustment now", () =>
   );
   assert.equal(
     shouldShowPrepareEmail({
-      code: "provisional_adjustment",
-      suggestedIndex: 22,
+      code: "manual_review",
+      suggestedIndex: 13,
     }),
     true
   );
 
-  for (const code of [
-    "monitor",
-    "no_adjustment",
-    "no_action",
-    "manual_review",
-  ]) {
+  for (const code of ["monitor", "no_adjustment", "no_action"]) {
     assert.equal(
       shouldShowPrepareEmail({ code, suggestedIndex: null }),
       false,
       code
     );
   }
+});
+
+test("Prepare Email rejects non-finite suggestions", () => {
+  assert.equal(
+    shouldShowPrepareEmail({
+      code: "adjustment_supported",
+      suggestedIndex: Number.NaN,
+    }),
+    false
+  );
 });
 
 test("Prepare Email stays hidden when an adjustment has no suggested index", () => {

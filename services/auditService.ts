@@ -6,6 +6,7 @@ import {
   type AuditEvidence,
   type AuditEvidenceRound,
 } from "@/lib/auditEvidence";
+import { roundHandicapUpToHalf } from "@/lib/handicapRounding";
 
 const supabase = createSupabaseServerClient();
 
@@ -81,12 +82,7 @@ function confidenceFromEvidence(evidence: AuditEvidence) {
   return "Low";
 }
 
-function roundUpToHalf(value: number) {
-  return Math.ceil(value * 2) / 2;
-}
-
 function buildDecision(params: {
-  playerId: string;
   overallHi: number | null;
   generalPlayHi: number | null;
   evidenceModel: AuditEvidence;
@@ -94,7 +90,6 @@ function buildDecision(params: {
   reviewComparisonBasisLabel: string;
 }): AuditDecision {
   const {
-    playerId,
     overallHi,
     generalPlayHi,
     evidenceModel,
@@ -143,17 +138,6 @@ function buildDecision(params: {
     };
   }
 
-  if (playerId === "d32518c3-09fc-412c-9555-9f4fa6513b98") {
-    return {
-      code: "manual_review",
-      label: "Manual exception - 13.0",
-      suggestedIndex: 13,
-      summary:
-        "The documented committee exception excludes the 8.8 competition outlier from Wyatt's limited sample and retains a committee value of 13.0.",
-      evidence,
-    };
-  }
-
   if (evidenceModel.basis === "goodrich_general_monitor") {
     return {
       code: "monitor",
@@ -195,7 +179,7 @@ function buildDecision(params: {
       evidenceModel.basis === "all_competition") &&
     (evidenceModel.sensitivity ?? 0) <= 1.5
   ) {
-    const suggestedIndex = roundUpToHalf(competitionHi!);
+    const suggestedIndex = roundHandicapUpToHalf(competitionHi!);
     return {
       code: "adjustment_supported",
       label: `Adjustment supported - ${suggestedIndex.toFixed(1)}`,
@@ -210,7 +194,7 @@ function buildDecision(params: {
     evidenceModel.basis === "blended_competition_general" &&
     (evidenceModel.sensitivity ?? 0) <= 1.5
   ) {
-    const suggestedIndex = roundUpToHalf(competitionHi!);
+    const suggestedIndex = roundHandicapUpToHalf(competitionHi!);
     return {
       code: "provisional_adjustment",
       label: `Provisional - ${suggestedIndex.toFixed(1)}`,
@@ -335,7 +319,6 @@ export const auditService = {
             ["C", "CH", "CA", "ECH"].includes(round.score_type ?? "")
         );
         const decision = buildDecision({
-          playerId: row.player_id,
           overallHi,
           generalPlayHi,
           evidenceModel,

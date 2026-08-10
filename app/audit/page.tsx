@@ -13,9 +13,6 @@ type PageProps = {
 
 const ACTION_BUTTON =
   "inline-flex min-h-10 w-full items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-gray-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700";
-const MANUAL_EMAIL_PLAYER_IDS = new Set([
-  "d32518c3-09fc-412c-9555-9f4fa6513b98",
-]);
 
 function formatNumber(value: unknown, decimals = 1) {
   if (value === null || value === undefined) return "-";
@@ -201,18 +198,14 @@ export default async function AuditPage({ searchParams }: PageProps) {
                       Audit
                     </Link>
 
-                    {MANUAL_EMAIL_PLAYER_IDS.has(row.id) &&
-                    row.decision.code === "manual_review" ? (
-                      <span className="inline-flex min-h-10 items-center justify-center rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-center text-sm font-semibold text-amber-800">
-                        Manual Exception
-                      </span>
-                    ) : shouldShowPrepareEmail(row.decision) ? (
+                    {shouldShowPrepareEmail(row.decision) ? (
                       <PrepareEmailButton
                         playerId={row.id}
                         playerName={row.full_name}
                         currentIndex={row.overallHi}
                         evidenceIndex={row.reviewComparisonHi}
                         evidenceGap={row.competitionVsOverallGap}
+                        suggestedIndex={row.decision.suggestedIndex}
                       />
                     ) : (
                       <span aria-hidden="true" />
@@ -311,18 +304,14 @@ export default async function AuditPage({ searchParams }: PageProps) {
                     Audit
                   </Link>
 
-                  {MANUAL_EMAIL_PLAYER_IDS.has(row.id) &&
-                  row.decision.code === "manual_review" ? (
-                    <span className="inline-flex min-h-10 items-center justify-center rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-center text-sm font-semibold text-amber-800">
-                      Manual Exception
-                    </span>
-                  ) : shouldShowPrepareEmail(row.decision) ? (
+                  {shouldShowPrepareEmail(row.decision) ? (
                     <PrepareEmailButton
                       playerId={row.id}
                       playerName={row.full_name}
                       currentIndex={row.overallHi}
                       evidenceIndex={row.reviewComparisonHi}
                       evidenceGap={row.competitionVsOverallGap}
+                      suggestedIndex={row.decision.suggestedIndex}
                     />
                   ) : (
                     <span aria-hidden="true" />

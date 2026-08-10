@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { roundHandicapUpToHalf } from "@/lib/handicapRounding";
 
 type Props = {
   playerId: string;
@@ -8,14 +9,11 @@ type Props = {
   currentIndex: number | null;
   evidenceIndex: number | null;
   evidenceGap: number | null;
+  suggestedIndex: number | null;
 };
 
 function valueOrDash(value: number | null) {
   return value == null ? "-" : value.toFixed(1);
-}
-
-function roundedUpHalf(value: number) {
-  return Math.ceil(value * 2) / 2;
 }
 
 function escapeHtml(value: string) {
@@ -32,17 +30,12 @@ function safeFileName(value: string) {
 }
 
 function buildEmailBody(props: Props) {
-  const qualifies =
-    props.evidenceIndex != null &&
-    props.evidenceGap != null &&
-    props.evidenceGap >= 2;
-
   const adjustedIndex =
-    qualifies && props.evidenceIndex != null
-      ? roundedUpHalf(props.evidenceIndex)
+    props.suggestedIndex != null
+      ? roundHandicapUpToHalf(props.suggestedIndex)
       : null;
 
-  const adjustment = qualifies
+  const adjustment = adjustedIndex != null
     ? `\nBecause your Conservative Committee Review HI is at least 2.0 strokes lower than your official handicap, a Committee-Adjusted Handicap Index of ${adjustedIndex?.toFixed(
         1
       )} will be used for Goodrich Men's Club competitive events and matches. This review value gives you the benefit of the higher Last 20 Competition HI or Two-Year Committee Evidence HI when fewer than 10 recent Goodrich competition rounds are available, then rounds upward to the next half-stroke.`
@@ -68,16 +61,12 @@ Goodrich Men's Club Handicap Committee`;
 }
 
 function buildEmailHtml(props: Props) {
-  const qualifies =
-    props.evidenceIndex != null &&
-    props.evidenceGap != null &&
-    props.evidenceGap >= 2;
   const adjustedIndex =
-    qualifies && props.evidenceIndex != null
-      ? roundedUpHalf(props.evidenceIndex)
+    props.suggestedIndex != null
+      ? roundHandicapUpToHalf(props.suggestedIndex)
       : null;
 
-  const adjustment = qualifies
+  const adjustment = adjustedIndex != null
     ? `<p>Because your Conservative Committee Review HI is at least <strong>2.0 strokes lower</strong> than your official handicap, a <strong>Committee-Adjusted Handicap Index of ${adjustedIndex?.toFixed(
         1
       )}</strong> will be used for Goodrich Men's Club competitive events and matches. This review value gives you the benefit of the <strong>higher Last 20 Competition HI or Two-Year Committee Evidence HI</strong> when fewer than 10 recent Goodrich competition rounds are available, then rounds upward to the next half-stroke.</p>`
