@@ -73,17 +73,116 @@ const s = StyleSheet.create({
     color: COLORS.gray700,
   },
   meta: {
-    marginTop: 28,
-    width: 340,
-    padding: 16,
+    marginTop: 24,
+    width: 430,
+    padding: 18,
     borderWidth: 1,
     borderColor: "#86a88f",
     backgroundColor: COLORS.white,
   },
   metaText: {
-    marginBottom: 7,
-    fontSize: 11,
+    fontSize: 9,
+    lineHeight: 1.3,
+    color: COLORS.gray600,
+  },
+  coverMetaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingBottom: 9,
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.gray200,
+  },
+  coverSectionTitle: {
+    marginBottom: 9,
+    fontSize: 12,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.green900,
+    textAlign: "center",
+  },
+  coverStep: {
+    flexDirection: "row",
+    marginBottom: 9,
+    alignItems: "flex-start",
+  },
+  coverStepNumber: {
+    width: 22,
+    height: 22,
+    marginRight: 9,
+    paddingTop: 4,
+    borderRadius: 11,
+    backgroundColor: COLORS.green900,
+    color: COLORS.white,
+    fontSize: 10,
+    fontFamily: "Helvetica-Bold",
+    textAlign: "center",
+  },
+  coverStepText: {
+    flexGrow: 1,
+    flexBasis: 0,
+    fontSize: 10,
     lineHeight: 1.35,
+    color: COLORS.gray900,
+  },
+  coverStepStrong: {
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.green900,
+  },
+  coverFormula: {
+    marginTop: 3,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: COLORS.blue700,
+    backgroundColor: COLORS.blue50,
+    alignItems: "center",
+  },
+  coverFormulaLabel: {
+    marginBottom: 4,
+    fontSize: 7,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.blue700,
+  },
+  coverFormulaValue: {
+    fontSize: 13,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.gray950,
+    textAlign: "center",
+  },
+  coverAlert: {
+    marginTop: 16,
+    width: 430,
+    paddingVertical: 13,
+    paddingHorizontal: 18,
+    borderWidth: 3,
+    borderColor: COLORS.red700,
+    backgroundColor: COLORS.red50,
+    alignItems: "center",
+  },
+  coverAlertThreshold: {
+    fontSize: 15,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.red700,
+  },
+  coverAlertTitle: {
+    marginTop: 4,
+    fontSize: 13,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.red800,
+  },
+  coverAlertText: {
+    marginTop: 6,
+    fontSize: 8.5,
+    lineHeight: 1.35,
+    color: COLORS.gray700,
+    textAlign: "center",
+  },
+  coverDisclaimer: {
+    marginTop: 12,
+    width: 430,
+    fontSize: 8,
+    lineHeight: 1.35,
+    color: COLORS.gray600,
     textAlign: "center",
   },
   header: {
@@ -1674,38 +1773,74 @@ export function AuditBook({
         <Text style={s.subtitle}>Current Handicap Review Sheet</Text>
 
         <View style={s.meta}>
-          <Text style={s.metaText}>
-            Generated: {new Date(report.generatedAt).toLocaleString("en-US")}
-          </Text>
-          <Text style={s.metaText}>
-            Players reviewed: {report.players.length}
-          </Text>
-          <Text style={s.metaText}>
-            Includes players with at least five all-time competition scores,
-            ranked from highest to lowest Stroke Discrepancy.
-          </Text>
-          <Text style={s.metaText}>
-            Evidence hierarchy: use 10 or more Goodrich competition rounds,
-            otherwise 10 or more total competition rounds. With 3-9 total
-            competition rounds, blend the competition HI with the last 10
-            available Goodrich general-play rounds. Fewer than three
-            competition rounds are monitoring context only.
-          </Text>
-          <Text style={s.metaText}>
-            Benefit of the doubt: with fewer than 10 Goodrich competition
-            rounds in the two-year window, Stroke Discrepancy uses the higher
-            of the Last 20 Competition HI and Two-Year Committee Evidence HI.
-          </Text>
-          <Text style={s.metaText}>
-            Category Handicap Indexes are committee screening tools and do not
-            replace the player&apos;s official GHIN Handicap Index.
-          </Text>
-          <Text style={s.metaText}>
-            A Stroke Discrepancy of 2.0 or greater is labeled Needing a
-            Handicap Review. This public label is not a decision, a suggested
-            handicap, or an automatic adjustment.
+          <View style={s.coverMetaRow}>
+            <Text style={s.metaText}>
+              Generated: {new Date(report.generatedAt).toLocaleString("en-US")}
+            </Text>
+            <Text style={s.metaText}>
+              Players reviewed: {report.players.length}
+            </Text>
+          </View>
+
+          <Text style={s.coverSectionTitle}>HOW WE CALCULATE IT</Text>
+
+          <View style={s.coverStep}>
+            <Text style={s.coverStepNumber}>1</Text>
+            <Text style={s.coverStepText}>
+              Start with the player&apos;s official{" "}
+              <Text style={s.coverStepStrong}>Current GHIN Handicap Index.</Text>
+            </Text>
+          </View>
+
+          <View style={s.coverStep}>
+            <Text style={s.coverStepNumber}>2</Text>
+            <Text style={s.coverStepText}>
+              Build a <Text style={s.coverStepStrong}>Review HI</Text> from the
+              last two years of scores. We prefer Goodrich competition scores;
+              if that sample is small, we add other competition and Goodrich
+              general-play scores as needed.
+            </Text>
+          </View>
+
+          <View style={s.coverStep}>
+            <Text style={s.coverStepNumber}>3</Text>
+            <Text style={s.coverStepText}>
+              <Text style={s.coverStepStrong}>Benefit of the doubt:</Text> with
+              fewer than 10 Goodrich competition rounds, use the higher of the
+              Last 20 Competition HI or the Two-Year Evidence HI. The higher
+              HI is more favorable to the player.
+            </Text>
+          </View>
+
+          <View style={s.coverStep}>
+            <Text style={s.coverStepNumber}>4</Text>
+            <Text style={s.coverStepText}>
+              Subtract the Review HI from the Current GHIN Handicap Index.
+            </Text>
+          </View>
+
+          <View style={s.coverFormula}>
+            <Text style={s.coverFormulaLabel}>THE ONE FORMULA TO REMEMBER</Text>
+            <Text style={s.coverFormulaValue}>
+              STROKE DISCREPANCY = CURRENT GHIN HI - REVIEW HI
+            </Text>
+          </View>
+        </View>
+
+        <View style={s.coverAlert}>
+          <Text style={s.coverAlertThreshold}>2.0 STROKES OR MORE</Text>
+          <Text style={s.coverAlertTitle}>NEEDING A HANDICAP REVIEW</Text>
+          <Text style={s.coverAlertText}>
+            This means review the scoring history. It is not an automatic
+            handicap adjustment and it does not change the player&apos;s official
+            GHIN Handicap Index.
           </Text>
         </View>
+
+        <Text style={s.coverDisclaimer}>
+          Players on this sheet have at least five all-time competition scores
+          and are ranked from highest to lowest Stroke Discrepancy.
+        </Text>
       </Page>
 
       <Summary
