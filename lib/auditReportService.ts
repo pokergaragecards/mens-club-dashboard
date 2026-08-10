@@ -14,6 +14,11 @@ export type AuditRound = {
   usedInCalculation?: boolean;
 };
 
+export type AuditScoreHistoryRound = AuditRound & {
+  overallIndexAfterRound: number | null;
+  categoryIndexAfterRound: number | null;
+};
+
 export type AuditBreakdownRow = {
   label: string;
   rounds: number;
@@ -74,6 +79,7 @@ export type AuditPlayerReport = {
   competitionTrend: AuditTrendPoint[];
   generalTrend: AuditTrendPoint[];
   rounds: AuditRound[];
+  scoreHistory: AuditScoreHistoryRound[];
   breakdown: AuditBreakdownRow[];
   decision: AuditReportDecision;
 };

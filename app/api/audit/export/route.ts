@@ -20,6 +20,7 @@ import type {
   AuditReport,
   AuditReportDecision,
   AuditRound,
+  AuditScoreHistoryRound,
   AuditTrendPoint,
 } from "@/lib/auditReportService";
 import { auditService } from "@/services/auditService";
@@ -206,7 +207,10 @@ function scoreOf(round: RoundRow): number | null {
   return null;
 }
 
-function mapRound(round: RoundRow, usedDiffs: number[]): AuditRound {
+function mapRound(
+  round: RoundRow,
+  usedRoundIds: ReadonlySet<string>
+): AuditRound {
   const differential = Number(round.differential);
 
   return {
@@ -219,8 +223,48 @@ function mapRound(round: RoundRow, usedDiffs: number[]): AuditRound {
     category: isCompetition(round.score_type)
       ? "Competition"
       : "General Play",
-    usedInCalculation: usedDiffs.includes(differential),
+    usedInCalculation: usedRoundIds.has(round.id),
   };
+}
+
+function buildScoreHistory(
+  rounds: RoundRow[],
+  usedRoundIds: ReadonlySet<string>
+): AuditScoreHistoryRound[] {
+  const chronological = [...rounds]
+    .filter(
+      (round) =>
+        round.counts_for_hi === true &&
+        round.differential !== null &&
+        Number.isFinite(Number(round.differential))
+    )
+    .sort(
+      (a, b) =>
+        new Date(a.played_at).getTime() -
+          new Date(b.played_at).getTime() || a.id.localeCompare(b.id)
+    );
+  const overallWindow: RoundRow[] = [];
+  const competitionWindow: RoundRow[] = [];
+  const generalWindow: RoundRow[] = [];
+
+  const history = chronological.map((round) => {
+    overallWindow.push(round);
+    if (overallWindow.length > 20) overallWindow.shift();
+
+    const categoryWindow = isCompetition(round.score_type)
+      ? competitionWindow
+      : generalWindow;
+    categoryWindow.push(round);
+    if (categoryWindow.length > 20) categoryWindow.shift();
+
+    return {
+      ...mapRound(round, usedRoundIds),
+      overallIndexAfterRound: calculateCategoryHi(overallWindow),
+      categoryIndexAfterRound: calculateCategoryHi(categoryWindow),
+    };
+  });
+
+  return history.reverse().slice(0, 50);
 }
 
 function buildBreakdownRow(
@@ -420,9 +464,14 @@ export async function GET(request: Request) {
         const overallSortedDiffs = overallSelected
           .map((round) => Number(round.differential))
           .sort((a, b) => a - b);
-        const overallUsedDiffs = overallSortedDiffs.slice(
-          0,
-          whsUsedCount(overallSortedDiffs.length)
+        const overallUsedRoundIds = new Set(
+          [...overallSelected]
+            .sort(
+              (a, b) =>
+                Number(a.differential) - Number(b.differential)
+            )
+            .slice(0, whsUsedCount(overallSortedDiffs.length))
+            .map((round) => round.id)
         );
 
         const currentIndex =
@@ -559,7 +608,11 @@ export async function GET(request: Request) {
           competitionTrend: buildTrend(competitionRounds),
           generalTrend: buildTrend(generalRounds),
           rounds: overallSelected.map((round) =>
-            mapRound(round, overallUsedDiffs)
+            mapRound(round, overallUsedRoundIds)
+          ),
+          scoreHistory: buildScoreHistory(
+            playerRounds,
+            overallUsedRoundIds
           ),
           breakdown: [
             buildBreakdownRow("Overall Handicap Rounds", playerRounds),
@@ -618,6 +671,7 @@ export async function GET(request: Request) {
 
     const document = React.createElement(AuditBook, {
       report,
+      includeScoreHistory: Boolean(playerId),
     }) as unknown as React.ReactElement<DocumentProps>;
 
     const buffer = await renderToBuffer(document);

@@ -734,10 +734,109 @@ const s = StyleSheet.create({
   summaryPlayer: { width: "21%", padding: 4 },
   summaryNum: { width: "8%", padding: 4, textAlign: "right" },
   summaryDecision: { width: "31%", padding: 4 },
+  historyPageHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    paddingBottom: 7,
+    marginBottom: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: COLORS.green800,
+  },
+  historyEyebrow: {
+    marginBottom: 2,
+    fontSize: 6.5,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.green700,
+  },
+  historyTitle: {
+    fontSize: 17,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.green900,
+  },
+  historyPlayer: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.gray700,
+    textAlign: "right",
+  },
+  historyIntro: {
+    marginBottom: 8,
+    padding: 7,
+    borderWidth: 1,
+    borderColor: COLORS.green200,
+    backgroundColor: COLORS.green50,
+    fontSize: 6.4,
+    lineHeight: 1.35,
+    color: COLORS.gray700,
+  },
+  historyCards: {
+    flexDirection: "row",
+    marginBottom: 8,
+  },
+  historyCard: {
+    width: "25%",
+    minHeight: 36,
+    marginRight: 4,
+    padding: 5,
+    borderWidth: 1,
+    borderColor: COLORS.gray300,
+    backgroundColor: COLORS.gray50,
+  },
+  historyCardLast: {
+    marginRight: 0,
+  },
+  historyCardLabel: {
+    marginBottom: 3,
+    fontSize: 5.6,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.gray600,
+  },
+  historyCardValue: {
+    fontSize: 11,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.gray950,
+  },
+  historyTable: {
+    borderWidth: 1,
+    borderColor: COLORS.gray300,
+  },
+  historyRow: {
+    minHeight: 19,
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: 0.5,
+    borderBottomColor: COLORS.gray300,
+    fontSize: 6.1,
+  },
+  historyHead: {
+    minHeight: 22,
+    backgroundColor: COLORS.green900,
+    color: COLORS.white,
+    fontFamily: "Helvetica-Bold",
+  },
+  historySequence: { width: "5%", padding: 3, textAlign: "right" },
+  historyDate: { width: "10%", padding: 3 },
+  historyCourse: { width: "25%", padding: 3 },
+  historyTee: { width: "10%", padding: 3 },
+  historyScore: { width: "7%", padding: 3, textAlign: "right" },
+  historyDiff: { width: "8%", padding: 3, textAlign: "right" },
+  historyCategory: { width: "13%", padding: 3 },
+  historyOverallHi: { width: "11%", padding: 3, textAlign: "right" },
+  historyCategoryHi: { width: "11%", padding: 3, textAlign: "right" },
+  historyEmpty: {
+    padding: 24,
+    fontSize: 9,
+    color: COLORS.gray600,
+    textAlign: "center",
+  },
 });
 
 const n = (value: number | null) =>
   value == null || !Number.isFinite(value) ? "-" : value.toFixed(1);
+
+const historyNumber = (value: number | null) =>
+  value == null || !Number.isFinite(value) ? "N/A" : value.toFixed(1);
 
 function safeDate(value: string) {
   return new Date(value.includes("T") ? value : `${value}T00:00:00`);
@@ -1371,6 +1470,141 @@ function DecisionAnalysis({ player }: { player: AuditPlayerReport }) {
   );
 }
 
+function historyAverage(values: Array<number | null>) {
+  const available = values.filter(
+    (value): value is number => value != null && Number.isFinite(value)
+  );
+
+  if (!available.length) return null;
+  return available.reduce((sum, value) => sum + value, 0) / available.length;
+}
+
+function HandicapScoreHistoryPage({
+  player,
+  generatedAt,
+  pageIndex,
+}: {
+  player: AuditPlayerReport;
+  generatedAt: string;
+  pageIndex: 0 | 1;
+}) {
+  const pageSize = 25;
+  const start = pageIndex * pageSize;
+  const rows = player.scoreHistory.slice(start, start + pageSize);
+  const competitionCount = rows.filter(
+    (round) => round.category === "Competition"
+  ).length;
+  const generalCount = rows.length - competitionCount;
+  const averageScore = historyAverage(rows.map((round) => round.score));
+  const averageDifferential = historyAverage(
+    rows.map((round) => round.differential)
+  );
+
+  return (
+    <Page size="LETTER" style={s.page} wrap={false}>
+      <View style={s.historyPageHeader}>
+        <View>
+          <Text style={s.historyEyebrow}>SUPPORTING SCORE EVIDENCE</Text>
+          <Text style={s.historyTitle}>
+            Handicap Score History {pageIndex + 1} of 2
+          </Text>
+        </View>
+        <View>
+          <Text style={s.historyPlayer}>{player.name}</Text>
+          <Text style={s.muted}>GHIN #{player.ghinNumber ?? "N/A"}</Text>
+        </View>
+      </View>
+
+      <Text style={s.historyIntro}>
+        Official handicap-counting rounds are listed newest first. Overall HI
+        After Round recalculates from the latest 20 overall differentials
+        available on that date. Category HI After Round independently uses the
+        latest 20 Competition or General Play differentials. Green rows marked
+        USED are part of the player&apos;s current overall Handicap Index
+        calculation.
+      </Text>
+
+      <View style={s.historyCards}>
+        <View style={s.historyCard}>
+          <Text style={s.historyCardLabel}>ROUNDS ON THIS PAGE</Text>
+          <Text style={s.historyCardValue}>{rows.length}</Text>
+        </View>
+        <View style={s.historyCard}>
+          <Text style={s.historyCardLabel}>COMPETITION / GENERAL</Text>
+          <Text style={s.historyCardValue}>
+            {competitionCount} / {generalCount}
+          </Text>
+        </View>
+        <View style={s.historyCard}>
+          <Text style={s.historyCardLabel}>AVERAGE SCORE</Text>
+          <Text style={s.historyCardValue}>{historyNumber(averageScore)}</Text>
+        </View>
+        <View style={[s.historyCard, s.historyCardLast]}>
+          <Text style={s.historyCardLabel}>AVERAGE DIFFERENTIAL</Text>
+          <Text style={s.historyCardValue}>
+            {historyNumber(averageDifferential)}
+          </Text>
+        </View>
+      </View>
+
+      <View style={s.historyTable}>
+        <View style={[s.historyRow, s.historyHead]}>
+          <Text style={s.historySequence}>#</Text>
+          <Text style={s.historyDate}>Date</Text>
+          <Text style={s.historyCourse}>Course</Text>
+          <Text style={s.historyTee}>Tee</Text>
+          <Text style={s.historyScore}>Score</Text>
+          <Text style={s.historyDiff}>Diff</Text>
+          <Text style={s.historyCategory}>Category</Text>
+          <Text style={s.historyOverallHi}>Overall HI</Text>
+          <Text style={s.historyCategoryHi}>Category HI</Text>
+        </View>
+
+        {rows.length ? (
+          rows.map((round, index) => (
+            <View
+              key={round.id}
+              style={
+                round.usedInCalculation
+                  ? [s.historyRow, s.usedRound]
+                  : s.historyRow
+              }
+            >
+              <Text style={s.historySequence}>{start + index + 1}</Text>
+              <Text style={s.historyDate}>{shortDate(round.playedAt)}</Text>
+              <Text style={s.historyCourse}>{round.courseName}</Text>
+              <Text style={s.historyTee}>
+                {roundTeeDisplayName(round.courseName, round.teeName)}
+              </Text>
+              <Text style={s.historyScore}>{round.score ?? "N/A"}</Text>
+              <Text style={s.historyDiff}>
+                {round.differential.toFixed(1)}
+              </Text>
+              <Text style={s.historyCategory}>
+                {round.category}
+                {round.usedInCalculation ? " - USED" : ""}
+              </Text>
+              <Text style={s.historyOverallHi}>
+                {historyNumber(round.overallIndexAfterRound)}
+              </Text>
+              <Text style={s.historyCategoryHi}>
+                {historyNumber(round.categoryIndexAfterRound)}
+              </Text>
+            </View>
+          ))
+        ) : (
+          <Text style={s.historyEmpty}>
+            No additional official handicap score history is available for
+            this page.
+          </Text>
+        )}
+      </View>
+
+      <Footer generatedAt={generatedAt} />
+    </Page>
+  );
+}
+
 function PlayerPage({
   player,
   generatedAt,
@@ -1469,7 +1703,13 @@ function Summary({ report, title }: { report: AuditReport; title: string }) {
   );
 }
 
-export function AuditBook({ report }: { report: AuditReport }) {
+export function AuditBook({
+  report,
+  includeScoreHistory = false,
+}: {
+  report: AuditReport;
+  includeScoreHistory?: boolean;
+}) {
   return (
     <Document title="Goodrich Men's Club Handicap Committee Audit">
       <Page size="LETTER" style={s.cover}>
@@ -1515,12 +1755,27 @@ export function AuditBook({ report }: { report: AuditReport }) {
       />
 
       {report.players.map((player, index) => (
-        <PlayerPage
-          key={player.id}
-          player={player}
-          generatedAt={report.generatedAt}
-          rank={index + 1}
-        />
+        <React.Fragment key={player.id}>
+          <PlayerPage
+            player={player}
+            generatedAt={report.generatedAt}
+            rank={index + 1}
+          />
+          {includeScoreHistory ? (
+            <>
+              <HandicapScoreHistoryPage
+                player={player}
+                generatedAt={report.generatedAt}
+                pageIndex={0}
+              />
+              <HandicapScoreHistoryPage
+                player={player}
+                generatedAt={report.generatedAt}
+                pageIndex={1}
+              />
+            </>
+          ) : null}
+        </React.Fragment>
       ))}
 
       <Summary report={report} title="Final Committee Summary" />
