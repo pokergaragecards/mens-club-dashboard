@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { parseHoleByHoleText } from "../utils/holeByHoleParser.ts";
-import { parseScoresPostedText } from "../utils/scoresPostedParser.ts";
+import {
+  normalizeScoresPostedCourseName,
+  parseScoresPostedText,
+} from "../utils/scoresPostedParser.ts";
 
 const holes = [4, 4, 4, 5, 4, 3, 4, 3, 4, 35, 5, 4, 3, 4, 4, 5, 3, 3, 4, 35, 70];
 
@@ -23,6 +26,36 @@ test("Scores Posted does not treat slope ratings as GHIN numbers", () => {
       ["2180209", "Robert Casura"],
     ]
   );
+});
+
+test("Scores Posted normalizes wrapped New Richmond course variants", () => {
+  assert.equal(
+    normalizeScoresPostedCourseName("New Richmond GC - New Richmond GC - Old"),
+    "New Richmond GC - Old"
+  );
+  assert.equal(
+    normalizeScoresPostedCourseName("- Old New Richmond GC - New Richmond GC"),
+    "New Richmond GC - Old"
+  );
+  assert.equal(
+    normalizeScoresPostedCourseName(
+      "Monticello Country Club New Richmond GC - New Richmond GC -"
+    ),
+    "Monticello Country Club"
+  );
+});
+
+test("Scores Posted recovers a PCC displaced before a wrapped course tail", () => {
+  const text = [
+    "11733617 Wyatt Sommers Active 17.1 1",
+    "H 8/1/2026 90 71.1 125 17.1 17.5 -0.4 +1 - Old",
+  ].join(" ");
+
+  const result = parseScoresPostedText(text);
+
+  assert.equal(result.validRounds.length, 1);
+  assert.equal(result.validRounds[0].courseName, "New Richmond GC - Old");
+  assert.equal(result.validRounds[0].pcc, 1);
 });
 
 test("Hole-by-hole import skips a slope-rating boundary and finds the real golfer", () => {

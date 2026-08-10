@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:parsers": "node --test tests/parser-boundaries.test.mjs"
+    "test:parsers": "node --test tests/parser-boundaries.test.mjs",
+    "test:python-parsers": "python -m unittest tests.test_scores_posted_pdf"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.5.1",

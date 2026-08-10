@@ -2,10 +2,14 @@ import os
 import re
 import sys
 import time
-import pdfplumber
 from dotenv import load_dotenv
 from supabase import create_client
-from utils.parser_utils import clean_course_name, normalize_course_name
+from utils.parser_utils import (
+    clean_course_name,
+    normalize_course_name,
+    split_scores_posted_course_and_pcc,
+)
+from utils.scores_posted_pdf import pdf_to_coordinate_text
 
 load_dotenv(".env.local")
 
@@ -30,11 +34,7 @@ supabase = get_client()
 
 
 def pdf_to_text(path: str) -> str:
-    parts = []
-    with pdfplumber.open(path) as pdf:
-        for page in pdf.pages:
-            parts.append(page.extract_text() or "")
-    return "\n".join(parts)
+    return pdf_to_coordinate_text(path)
 
 
 def normalize_text(text: str) -> str:
@@ -135,10 +135,10 @@ def parse_course_name(tokens):
 
     if re.match(r"^[+-]\d+$", last):
         course_name = " ".join(tokens[:-1]).strip()
-        return clean_course_name(course_name), int(last)
+        return split_scores_posted_course_and_pcc(course_name, int(last))
 
     course_name = " ".join(tokens).strip()
-    return clean_course_name(course_name), None
+    return split_scores_posted_course_and_pcc(course_name)
 
 
 def is_player_start(tokens, index):

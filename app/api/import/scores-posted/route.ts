@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
-import { extractPdfText } from "@/utils/pdfTextExtractor";
+import { extractScoresPostedPdfText } from "@/utils/pdfTextExtractor";
 import { parseScoresPostedText } from "@/utils/scoresPostedParser";
 import { importScoresPostedReport } from "@/services/scoresPostedImportService";
 import {
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
       stage: "Extracting PDF text",
     });
 
-    const text = await extractPdfText(buffer);
+    const text = await extractScoresPostedPdfText(buffer);
 
     await updateImportJob(jobId, {
       progress: 35,

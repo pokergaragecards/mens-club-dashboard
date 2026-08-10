@@ -97,6 +97,34 @@ function cleanName(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+export function normalizeScoresPostedCourseName(value: string) {
+  let cleaned = value.replace(/\s+/g, " ").trim();
+
+  if (
+    /^New Richmond GC\s*-\s*New Richmond GC\s*-\s*Old$/i.test(cleaned) ||
+    /^(?:[+-]\d+\s+)?-\s*Old(?:\s+New Richmond GC\s*-\s*New Richmond GC\s*-?)?$/i.test(
+      cleaned
+    )
+  ) {
+    return "New Richmond GC - Old";
+  }
+
+  const withoutLeakedSuffix = cleaned
+    .replace(/\s+New Richmond GC\s*-\s*New Richmond GC\s*-?$/i, "")
+    .replace(/[\s-]+$/g, "")
+    .trim();
+
+  if (withoutLeakedSuffix && withoutLeakedSuffix !== cleaned.replace(/[\s-]+$/g, "")) {
+    cleaned = withoutLeakedSuffix;
+  }
+
+  if (/^Goodrich Golf Course\s+/i.test(cleaned)) {
+    return "Goodrich Golf Course";
+  }
+
+  return cleaned;
+}
+
 function isGhinNumber(value: string | undefined) {
   return !!value && /^\d{6,8}$/.test(value);
 }
@@ -129,13 +157,25 @@ function parseUsgaCourseName(tokens: string[]) {
 
   if (/^[+-]\d+$/.test(last)) {
     return {
-      courseName: tokens.slice(0, -1).join(" ").trim(),
+      courseName: normalizeScoresPostedCourseName(
+        tokens.slice(0, -1).join(" ").trim()
+      ),
       pcc: Number(last),
     };
   }
 
+  const rawCourseName = tokens.join(" ").trim();
+  const displacedPcc = rawCourseName.match(/^([+-]\d+)\s+(-\s*Old\b.*)$/i);
+
+  if (displacedPcc) {
+    return {
+      courseName: normalizeScoresPostedCourseName(displacedPcc[2]),
+      pcc: Number(displacedPcc[1]),
+    };
+  }
+
   return {
-    courseName: tokens.join(" ").trim(),
+    courseName: normalizeScoresPostedCourseName(rawCourseName),
     pcc: null,
   };
 }
