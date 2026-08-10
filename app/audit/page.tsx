@@ -15,10 +15,25 @@ const ACTION_BUTTON =
   "inline-flex min-h-10 w-full items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-gray-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700";
 
 function formatNumber(value: unknown, decimals = 1) {
-  if (value === null || value === undefined) return "-";
+  if (value === null || value === undefined) return "N/A";
   const number = Number(value);
-  if (Number.isNaN(number)) return "-";
+  if (!Number.isFinite(number)) return "N/A";
   return number.toFixed(decimals);
+}
+
+function formatInteger(value: unknown) {
+  if (value === null || value === undefined) return "N/A";
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.trunc(number).toString() : "N/A";
+}
+
+function formatWeight(value: number | null) {
+  return value == null ? "N/A" : `${Math.round(value * 100)}%`;
+}
+
+function formatBoolean(value: boolean | null) {
+  if (value == null) return "N/A";
+  return value ? "Yes" : "No";
 }
 
 function flagClass(flag: string) {
@@ -73,7 +88,9 @@ export default async function AuditPage({ searchParams }: PageProps) {
             and Goodrich general-play rounds when the competition sample is
             thin. With fewer than 10 recent Goodrich competition rounds, the
             gap uses the higher of Last 20 Competition HI or Two-Year Committee
-            Evidence HI.
+            Evidence HI. Every input and intermediate calculation is shown;
+            N/A means that value was unavailable or that stage of the equation
+            was not reached.
           </p>
         </div>
 
@@ -107,10 +124,10 @@ export default async function AuditPage({ searchParams }: PageProps) {
       </div>
 
       <div className="mt-6 hidden max-h-[75vh] overflow-auto rounded-xl border border-gray-300 bg-white shadow-sm lg:block">
-        <table className="w-full min-w-[4450px] text-left text-base text-gray-900">
+        <table className="w-full min-w-[9800px] text-left text-base text-gray-900">
           <thead className="sticky top-0 z-20 border-b border-gray-300 bg-gray-200 text-gray-950 shadow-sm">
             <tr>
-              <th className="min-w-[540px] p-4 text-base font-bold leading-snug">
+              <th className="sticky left-0 z-30 min-w-[540px] bg-gray-200 p-4 text-base font-bold leading-snug">
                 Player
               </th>
               <th className="min-w-[190px] p-4 text-right text-base font-bold leading-snug">
@@ -122,6 +139,60 @@ export default async function AuditPage({ searchParams }: PageProps) {
               <th className="min-w-[250px] p-4 text-right text-base font-bold leading-snug">
                 Last 20 Competition HI
               </th>
+              <th className="min-w-[220px] p-4 text-center text-base font-bold leading-snug">
+                Evidence Window Starts
+              </th>
+              <th className="min-w-[250px] p-4 text-right text-base font-bold leading-snug">
+                Last 12 Months Competition HI
+              </th>
+              <th className="min-w-[250px] p-4 text-right text-base font-bold leading-snug">
+                Last 12 Months Competition Rounds
+              </th>
+              <th className="min-w-[270px] p-4 text-right text-base font-bold leading-snug">
+                24-Month Goodrich Competition HI
+              </th>
+              <th className="min-w-[290px] p-4 text-right text-base font-bold leading-snug">
+                24-Month Goodrich Competition Rounds
+              </th>
+              <th className="min-w-[270px] p-4 text-right text-base font-bold leading-snug">
+                24-Month All Competition HI
+              </th>
+              <th className="min-w-[270px] p-4 text-right text-base font-bold leading-snug">
+                24-Month All Competition Rounds
+              </th>
+              <th className="min-w-[270px] p-4 text-right text-base font-bold leading-snug">
+                Last-10 Goodrich General HI
+              </th>
+              <th className="min-w-[270px] p-4 text-right text-base font-bold leading-snug">
+                Goodrich General Rounds Used
+              </th>
+              <th className="min-w-[250px] p-4 text-right text-base font-bold leading-snug">
+                Competition HI Input
+              </th>
+              <th className="min-w-[210px] p-4 text-right text-base font-bold leading-snug">
+                Competition Weight
+              </th>
+              <th className="min-w-[210px] p-4 text-right text-base font-bold leading-snug">
+                General-Play Weight
+              </th>
+              <th className="min-w-[270px] p-4 text-right text-base font-bold leading-snug">
+                Two-Year Committee Evidence HI
+              </th>
+              <th className="min-w-[300px] p-4 text-base font-bold leading-snug">
+                Evidence Basis
+              </th>
+              <th className="min-w-[280px] p-4 text-base font-bold leading-snug">
+                Evidence Basis Code
+              </th>
+              <th className="min-w-[520px] p-4 text-base font-bold leading-snug">
+                Evidence Formula
+              </th>
+              <th className="min-w-[260px] p-4 text-center text-base font-bold leading-snug">
+                Benefit-of-Doubt Rule Applied
+              </th>
+              <th className="min-w-[360px] p-4 text-base font-bold leading-snug">
+                Conservative Review Source
+              </th>
               <th className="min-w-[280px] p-4 text-right text-base font-bold leading-snug">
                 Conservative Committee Review HI
               </th>
@@ -130,6 +201,24 @@ export default async function AuditPage({ searchParams }: PageProps) {
               </th>
               <th className="min-w-[280px] border-x-2 border-red-300 bg-red-100 p-4 text-right text-base font-bold leading-snug text-red-800">
                 Stroke Discrepancy
+              </th>
+              <th className="min-w-[220px] p-4 text-center text-base font-bold leading-snug">
+                2.0-Stroke Threshold Met
+              </th>
+              <th className="min-w-[300px] p-4 text-right text-base font-bold leading-snug">
+                Goodrich General vs Competition Gap
+              </th>
+              <th className="min-w-[260px] p-4 text-right text-base font-bold leading-snug">
+                Single-Low-Score Sensitivity
+              </th>
+              <th className="min-w-[240px] p-4 text-right text-base font-bold leading-snug">
+                Suggested Committee HI
+              </th>
+              <th className="min-w-[250px] p-4 text-right text-base font-bold leading-snug">
+                Stroke Discrepancy Points
+              </th>
+              <th className="min-w-[270px] p-4 text-right text-base font-bold leading-snug">
+                Goodrich Comparison Points
               </th>
               <th className="min-w-[260px] p-4 text-base font-bold leading-snug">
                 Committee Decision
@@ -163,8 +252,8 @@ export default async function AuditPage({ searchParams }: PageProps) {
 
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id} className="border-b border-gray-200 hover:bg-blue-50">
-                <td className="min-w-[540px] p-3 font-bold">
+              <tr key={row.id} className="group border-b border-gray-200 hover:bg-blue-50">
+                <td className="sticky left-0 z-10 min-w-[540px] bg-white p-3 font-bold group-hover:bg-blue-50">
                   <div className="grid grid-cols-[minmax(190px,1fr)_80px_80px_140px] items-center gap-3">
                     <span className="text-2xl">{row.full_name}</span>
 
@@ -192,6 +281,60 @@ export default async function AuditPage({ searchParams }: PageProps) {
                 <td className="p-3 text-right text-2xl font-bold">
                   {formatNumber(row.last20CompetitionHi)}
                 </td>
+                <td className="p-3 text-center text-xl font-bold">
+                  {row.evidenceCutoffDate || "N/A"}
+                </td>
+                <td className="p-3 text-right text-2xl font-bold">
+                  {formatNumber(row.last12MonthsCompetitionHi)}
+                </td>
+                <td className="p-3 text-right text-2xl font-bold">
+                  {formatInteger(row.last12MonthsCompetitionRounds)}
+                </td>
+                <td className="p-3 text-right text-2xl font-bold">
+                  {formatNumber(row.goodrichCompetition24MonthsHi)}
+                </td>
+                <td className="p-3 text-right text-2xl font-bold">
+                  {formatInteger(row.goodrichCompetition24MonthsRounds)}
+                </td>
+                <td className="p-3 text-right text-2xl font-bold">
+                  {formatNumber(row.allCompetition24MonthsHi)}
+                </td>
+                <td className="p-3 text-right text-2xl font-bold">
+                  {formatInteger(row.allCompetition24MonthsRounds)}
+                </td>
+                <td className="p-3 text-right text-2xl font-bold">
+                  {formatNumber(row.goodrichGeneralLast10Hi)}
+                </td>
+                <td className="p-3 text-right text-2xl font-bold">
+                  {formatInteger(row.goodrichGeneralLast10Rounds)}
+                </td>
+                <td className="p-3 text-right text-2xl font-bold">
+                  {formatNumber(row.competitionHiForComparison)}
+                </td>
+                <td className="p-3 text-right text-2xl font-bold">
+                  {formatWeight(row.evidenceCompetitionWeight)}
+                </td>
+                <td className="p-3 text-right text-2xl font-bold">
+                  {formatWeight(row.evidenceGeneralWeight)}
+                </td>
+                <td className="p-3 text-right text-2xl font-bold">
+                  {formatNumber(row.committeeEvidenceHi)}
+                </td>
+                <td className="p-3 text-base font-bold">
+                  {row.committeeEvidenceBasisLabel || "N/A"}
+                </td>
+                <td className="p-3 text-base font-bold">
+                  {row.committeeEvidenceBasis || "N/A"}
+                </td>
+                <td className="p-3 text-base font-medium text-gray-800">
+                  {row.committeeEvidenceFormula || "N/A"}
+                </td>
+                <td className="p-3 text-center text-2xl font-bold">
+                  {formatBoolean(row.reviewUsedBenefitOfDoubt)}
+                </td>
+                <td className="p-3 text-base font-bold">
+                  {row.reviewComparisonBasisLabel || "N/A"}
+                </td>
                 <td className="p-3 text-right font-bold">
                   <div className="text-2xl">
                     {formatNumber(row.reviewComparisonHi)}
@@ -205,6 +348,24 @@ export default async function AuditPage({ searchParams }: PageProps) {
                 </td>
                 <td className="border-x-2 border-red-200 bg-red-50 p-3 text-right text-3xl font-black text-red-700">
                   {formatNumber(row.competitionVsOverallGap)}
+                </td>
+                <td className="p-3 text-center text-2xl font-bold">
+                  {formatBoolean(row.strokeDiscrepancyThresholdMet)}
+                </td>
+                <td className="p-3 text-right text-2xl font-bold">
+                  {formatNumber(row.competitionVsGoodrichGeneralGap)}
+                </td>
+                <td className="p-3 text-right text-2xl font-bold">
+                  {formatNumber(row.evidenceSensitivity)}
+                </td>
+                <td className="p-3 text-right text-2xl font-black">
+                  {formatNumber(row.decision.suggestedIndex)}
+                </td>
+                <td className="p-3 text-right text-2xl font-bold">
+                  {formatInteger(row.strokeDiscrepancyPoints)}
+                </td>
+                <td className="p-3 text-right text-2xl font-bold">
+                  {formatInteger(row.goodrichComparisonPoints)}
                 </td>
                 <td className="p-3 text-lg font-bold">
                   <Link
@@ -317,23 +478,133 @@ export default async function AuditPage({ searchParams }: PageProps) {
               </div>
             </div>
 
-            <Section title="Handicap Index Comparison">
+            <Section title="Evidence Inputs">
               <MobileStat label="Current HI" value={formatNumber(row.overallHi)} />
               <MobileStat
                 label="Last 20 Competition HI"
                 value={formatNumber(row.last20CompetitionHi)}
               />
               <MobileStat
-                label="Conservative Committee Review HI"
-                value={formatNumber(row.reviewComparisonHi)}
+                label="Evidence Window Starts"
+                value={row.evidenceCutoffDate || "N/A"}
+              />
+              <MobileStat
+                label="Last 12 Months Competition HI"
+                value={formatNumber(row.last12MonthsCompetitionHi)}
+              />
+              <MobileStat
+                label="Last 12 Months Competition Rounds"
+                value={formatInteger(row.last12MonthsCompetitionRounds)}
+              />
+              <MobileStat
+                label="24-Month Goodrich Competition HI"
+                value={formatNumber(row.goodrichCompetition24MonthsHi)}
+              />
+              <MobileStat
+                label="24-Month Goodrich Competition Rounds"
+                value={formatInteger(row.goodrichCompetition24MonthsRounds)}
+              />
+              <MobileStat
+                label="24-Month All Competition HI"
+                value={formatNumber(row.allCompetition24MonthsHi)}
+              />
+              <MobileStat
+                label="24-Month All Competition Rounds"
+                value={formatInteger(row.allCompetition24MonthsRounds)}
+              />
+              <MobileStat
+                label="Last-10 Goodrich General HI"
+                value={formatNumber(row.goodrichGeneralLast10Hi)}
+              />
+              <MobileStat
+                label="Goodrich General Rounds Used"
+                value={formatInteger(row.goodrichGeneralLast10Rounds)}
               />
               <MobileStat
                 label="Last 20 General Play HI"
                 value={formatNumber(row.last20GeneralPlayHi)}
               />
+            </Section>
+
+            <Section title="Evidence Equation and Selection">
+              <MobileStat
+                label="Competition HI Input"
+                value={formatNumber(row.competitionHiForComparison)}
+              />
+              <MobileStat
+                label="Competition Weight"
+                value={formatWeight(row.evidenceCompetitionWeight)}
+              />
+              <MobileStat
+                label="General-Play Weight"
+                value={formatWeight(row.evidenceGeneralWeight)}
+              />
+              <MobileStat
+                label="Two-Year Committee Evidence HI"
+                value={formatNumber(row.committeeEvidenceHi)}
+              />
+              <MobileStat
+                label="Evidence Basis"
+                value={row.committeeEvidenceBasisLabel || "N/A"}
+                wide
+              />
+              <MobileStat
+                label="Evidence Basis Code"
+                value={row.committeeEvidenceBasis || "N/A"}
+                wide
+              />
+              <MobileStat
+                label="Evidence Formula"
+                value={row.committeeEvidenceFormula || "N/A"}
+                wide
+              />
+              <MobileStat
+                label="Benefit-of-Doubt Rule Applied"
+                value={formatBoolean(row.reviewUsedBenefitOfDoubt)}
+              />
+              <MobileStat
+                label="Conservative Review Source"
+                value={row.reviewComparisonBasisLabel || "N/A"}
+                wide
+              />
+              <MobileStat
+                label="Conservative Committee Review HI"
+                value={formatNumber(row.reviewComparisonHi)}
+              />
+              <MobileStat
+                label="Single-Low-Score Sensitivity"
+                value={formatNumber(row.evidenceSensitivity)}
+              />
+            </Section>
+
+            <Section title="Calculated Results">
               <MobileStat
                 label="Stroke Discrepancy"
                 value={formatNumber(row.competitionVsOverallGap)}
+              />
+              <MobileStat
+                label="2.0-Stroke Threshold Met"
+                value={formatBoolean(row.strokeDiscrepancyThresholdMet)}
+              />
+              <MobileStat
+                label="Goodrich General vs Competition Gap"
+                value={formatNumber(row.competitionVsGoodrichGeneralGap)}
+              />
+              <MobileStat
+                label="Suggested Committee HI"
+                value={formatNumber(row.decision.suggestedIndex)}
+              />
+              <MobileStat
+                label="Stroke Discrepancy Points"
+                value={formatInteger(row.strokeDiscrepancyPoints)}
+              />
+              <MobileStat
+                label="Goodrich Comparison Points"
+                value={formatInteger(row.goodrichComparisonPoints)}
+              />
+              <MobileStat
+                label="Sandbag Score"
+                value={formatInteger(row.sandbagIndex)}
               />
             </Section>
 
@@ -360,12 +631,24 @@ export default async function AuditPage({ searchParams }: PageProps) {
             </div>
 
             <Section title="Official Handicap Round Counts">
-              <MobileStat label="Competition Rounds" value={row.competitionRounds} />
-              <MobileStat label="General Play Rounds" value={row.casualRounds} />
-              <MobileStat label="Total Rounds" value={row.totalRounds} />
+              <MobileStat label="Competition Rounds" value={formatInteger(row.competitionRounds)} />
+              <MobileStat label="General Play Rounds" value={formatInteger(row.casualRounds)} />
+              <MobileStat label="Total Rounds" value={formatInteger(row.totalRounds)} />
               <MobileStat
-                label="Comp Avg Diff"
+                label="Competition Avg Differential"
                 value={formatNumber(row.competitionAvgDiff)}
+              />
+              <MobileStat
+                label="General Play Avg Differential"
+                value={formatNumber(row.casualAvgDiff)}
+              />
+              <MobileStat
+                label="Competition Avg Score"
+                value={formatNumber(row.competitionScoringAverage)}
+              />
+              <MobileStat
+                label="General Play Avg Score"
+                value={formatNumber(row.casualScoringAverage)}
               />
             </Section>
 
@@ -402,12 +685,18 @@ function Section({
 function MobileStat({
   label,
   value,
+  wide = false,
 }: {
   label: string;
   value: string | number;
+  wide?: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-3">
+    <div
+      className={`rounded-lg border border-gray-200 bg-white p-3 ${
+        wide ? "col-span-2" : ""
+      }`}
+    >
       <div className="text-xs font-bold text-gray-500">{label}</div>
       <div className="mt-1 text-lg font-bold text-gray-950">{value}</div>
     </div>

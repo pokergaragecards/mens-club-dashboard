@@ -299,9 +299,17 @@ export const auditService = {
               )
             : null;
 
+        const strokeDiscrepancyPoints =
+          competitionVsOverallGap == null
+            ? null
+            : pointsFromGap(competitionVsOverallGap);
+        const goodrichComparisonPoints =
+          competitionVsGeneralGap == null
+            ? null
+            : pointsFromGap(competitionVsGeneralGap);
         const sandbagIndex =
-          pointsFromGap(competitionVsOverallGap) +
-          pointsFromGap(competitionVsGeneralGap);
+          (strokeDiscrepancyPoints ?? 0) +
+          (goodrichComparisonPoints ?? 0);
 
         const competitionRounds = Number(row.competition_rounds ?? 0);
         const casualRounds = Number(row.casual_rounds ?? 0);
@@ -376,6 +384,11 @@ export const auditService = {
           committeeEvidenceBasis: evidenceModel.basis,
           committeeEvidenceBasisLabel: evidenceModel.basisLabel,
           committeeEvidenceFormula: evidenceModel.formula,
+          evidenceCompetitionWeight: evidenceModel.competitionWeight,
+          evidenceGeneralWeight: evidenceModel.generalWeight,
+          competitionHiForComparison:
+            evidenceModel.competitionHiForComparison,
+          evidenceSensitivity: evidenceModel.sensitivity,
           reviewComparisonHi: reviewSelection.index,
           reviewComparisonBasisLabel: reviewSelection.basisLabel,
           reviewUsedBenefitOfDoubt:
@@ -383,6 +396,12 @@ export const auditService = {
           last20GeneralPlayHi: generalPlayHi,
           competitionVsOverallGap,
           competitionVsGoodrichGeneralGap: competitionVsGeneralGap,
+          strokeDiscrepancyThresholdMet:
+            competitionVsOverallGap == null
+              ? null
+              : competitionVsOverallGap >= 2,
+          strokeDiscrepancyPoints,
+          goodrichComparisonPoints,
           decision,
 
           competitionRounds,
