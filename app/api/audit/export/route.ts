@@ -10,6 +10,7 @@ import {
   calculateHandicapIndex,
   isCompetitionScoreType,
   isGoodrichCourse,
+  selectConservativeReviewHi,
   whsUsedDifferentialCount,
 } from "@/lib/auditEvidence";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
@@ -451,6 +452,17 @@ export async function GET(request: Request) {
         const committeeEvidenceIndex =
           toNumber(summary?.committeeEvidenceHi) ??
           evidenceModel.committeeEvidenceHi;
+        const reviewSelection = selectConservativeReviewHi({
+          goodrichCompetitionRounds:
+            evidenceModel.goodrichCompetitionRounds,
+          last20CompetitionHi: competitionIndex,
+          committeeEvidenceHi: committeeEvidenceIndex,
+        });
+        const reviewComparisonIndex =
+          toNumber(summary?.reviewComparisonHi) ?? reviewSelection.index;
+        const reviewComparisonBasisLabel =
+          summary?.reviewComparisonBasisLabel ??
+          reviewSelection.basisLabel;
 
         const baseDecision: Omit<AuditReportDecision, "nextSteps"> = summary
           ? {
@@ -476,11 +488,11 @@ export async function GET(request: Request) {
         };
 
         // Positive means the player's current GHIN Handicap Index is higher
-        // than the selected two-year Committee Evidence HI. This is the
+        // than the conservative Committee Review HI. This is the
         // report's ranking and review variable.
         const currentVsCompetitionDifference =
-          currentIndex !== null && committeeEvidenceIndex !== null
-            ? Number((currentIndex - committeeEvidenceIndex).toFixed(1))
+          currentIndex !== null && reviewComparisonIndex !== null
+            ? Number((currentIndex - reviewComparisonIndex).toFixed(1))
             : null;
         const competitionVsGoodrichGeneralGap =
           toNumber(summary?.competitionVsGoodrichGeneralGap) ??
@@ -527,6 +539,8 @@ export async function GET(request: Request) {
             evidenceModel.basisLabel,
           committeeEvidenceFormula:
             summary?.committeeEvidenceFormula ?? evidenceModel.formula,
+          reviewComparisonIndex,
+          reviewComparisonBasisLabel,
           generalIndex,
           difference: currentVsCompetitionDifference,
           competitionVsGoodrichGeneralGap,

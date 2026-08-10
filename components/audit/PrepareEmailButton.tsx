@@ -43,9 +43,9 @@ function buildEmailBody(props: Props) {
       : null;
 
   const adjustment = qualifies
-    ? `\nBecause your two-year Committee Evidence HI is at least 2.0 strokes lower than your official handicap, a Committee-Adjusted Handicap Index of ${adjustedIndex?.toFixed(
+    ? `\nBecause your Conservative Committee Review HI is at least 2.0 strokes lower than your official handicap, a Committee-Adjusted Handicap Index of ${adjustedIndex?.toFixed(
         1
-      )} will be used for Goodrich Men's Club competitive events and matches. This value is the selected two-year Committee Evidence HI rounded upward to the next half-stroke.`
+      )} will be used for Goodrich Men's Club competitive events and matches. This review value gives you the benefit of the higher Last 20 Competition HI or Two-Year Committee Evidence HI when fewer than 10 recent Goodrich competition rounds are available, then rounds upward to the next half-stroke.`
     : "\nThis audit is being provided for review. No competition-only adjustment is indicated by the current 2.0-stroke threshold.";
 
   return `Hello ${props.playerName},
@@ -53,7 +53,7 @@ function buildEmailBody(props: Props) {
 The Goodrich Men's Club Handicap Committee has completed its current review of your competition scoring history.
 
 Official GHIN Handicap Index: ${valueOrDash(props.currentIndex)}
-Two-Year Committee Evidence HI: ${valueOrDash(props.evidenceIndex)}
+Conservative Committee Review HI: ${valueOrDash(props.evidenceIndex)}
 Difference: ${valueOrDash(props.evidenceGap)} strokes
 ${adjustment}
 
@@ -78,9 +78,9 @@ function buildEmailHtml(props: Props) {
       : null;
 
   const adjustment = qualifies
-    ? `<p>Because your two-year Committee Evidence HI is at least <strong>2.0 strokes lower</strong> than your official handicap, a <strong>Committee-Adjusted Handicap Index of ${adjustedIndex?.toFixed(
+    ? `<p>Because your Conservative Committee Review HI is at least <strong>2.0 strokes lower</strong> than your official handicap, a <strong>Committee-Adjusted Handicap Index of ${adjustedIndex?.toFixed(
         1
-      )}</strong> will be used for Goodrich Men's Club competitive events and matches. This value is the selected Committee Evidence HI rounded upward to the next half-stroke.</p>`
+      )}</strong> will be used for Goodrich Men's Club competitive events and matches. This review value gives you the benefit of the <strong>higher Last 20 Competition HI or Two-Year Committee Evidence HI</strong> when fewer than 10 recent Goodrich competition rounds are available, then rounds upward to the next half-stroke.</p>`
     : "<p>This audit is being provided for review. <strong>No competition-only adjustment</strong> is indicated by the current 2.0-stroke threshold.</p>";
 
   return `<p>Hello ${escapeHtml(props.playerName)},</p>
@@ -88,7 +88,7 @@ function buildEmailHtml(props: Props) {
 <p><strong>Official GHIN Handicap Index: ${valueOrDash(
     props.currentIndex
   )}</strong><br>
-<strong>Two-Year Committee Evidence HI: ${valueOrDash(
+<strong>Conservative Committee Review HI: ${valueOrDash(
     props.evidenceIndex
   )}</strong><br>
 <strong>Difference: ${valueOrDash(props.evidenceGap)} strokes</strong></p>

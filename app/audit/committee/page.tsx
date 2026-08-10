@@ -59,7 +59,7 @@ export default async function CommitteeAuditPage() {
             <tr>
               <th className="p-3 font-bold">Player</th>
               <th className="p-3 text-right font-bold">Current Handicap Index</th>
-              <th className="p-3 text-right font-bold">Committee Evidence HI</th>
+              <th className="p-3 text-right font-bold">Conservative Review HI</th>
               <th className="p-3 text-right font-bold">Last-10 Goodrich General HI</th>
               <th className="p-3 text-right font-bold">Suggested Committee HI</th>
               <th className="p-3 text-right font-bold">Suggested Change</th>
@@ -100,7 +100,7 @@ export default async function CommitteeAuditPage() {
                   </td>
 
                   <td className="p-3 text-right font-bold">
-                    {formatNumber(row.committeeEvidenceHi)}
+                    {formatNumber(row.reviewComparisonHi)}
                   </td>
 
                   <td className="p-3 text-right">

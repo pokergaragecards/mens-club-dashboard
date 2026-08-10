@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildAuditEvidence,
   calculateHandicapIndex,
+  selectConservativeReviewHi,
 } from "../lib/auditEvidence.ts";
 
 function rounds({
@@ -123,4 +124,34 @@ test("excludes rounds older than the two-year cutoff", () => {
   assert.equal(evidence.allCompetitionRounds, 0);
   assert.equal(evidence.committeeEvidenceHi, null);
   assert.equal(evidence.basis, "unavailable");
+});
+
+test("uses the higher HI as benefit of the doubt below 10 Goodrich competition rounds", () => {
+  const last20Wins = selectConservativeReviewHi({
+    goodrichCompetitionRounds: 9,
+    last20CompetitionHi: 16.2,
+    committeeEvidenceHi: 13.7,
+  });
+  assert.equal(last20Wins.index, 16.2);
+  assert.equal(last20Wins.usedBenefitOfDoubt, true);
+  assert.match(last20Wins.basisLabel, /Last 20 Competition HI/);
+
+  const evidenceWins = selectConservativeReviewHi({
+    goodrichCompetitionRounds: 4,
+    last20CompetitionHi: 12.1,
+    committeeEvidenceHi: 14.4,
+  });
+  assert.equal(evidenceWins.index, 14.4);
+  assert.match(evidenceWins.basisLabel, /Two-Year Committee Evidence HI/);
+});
+
+test("uses two-year evidence directly at 10 Goodrich competition rounds", () => {
+  const selection = selectConservativeReviewHi({
+    goodrichCompetitionRounds: 10,
+    last20CompetitionHi: 18.1,
+    committeeEvidenceHi: 14.2,
+  });
+
+  assert.equal(selection.index, 14.2);
+  assert.equal(selection.usedBenefitOfDoubt, false);
 });

@@ -96,7 +96,9 @@ export default async function AuditPage({ searchParams }: PageProps) {
             comparing the current Handicap Index with a two-year committee
             evidence model built from Goodrich competition, all competition,
             and Goodrich general-play rounds when the competition sample is
-            thin.
+            thin. With fewer than 10 recent Goodrich competition rounds, the
+            gap uses the higher of Last 20 Competition HI or Two-Year Committee
+            Evidence HI.
           </p>
         </div>
 
@@ -146,7 +148,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
                 Last 20 Competition HI
               </th>
               <th className="min-w-[280px] p-4 text-right text-base font-bold leading-snug">
-                Two-Year Committee Evidence HI
+                Conservative Committee Review HI
               </th>
               <th className="min-w-[250px] p-4 text-right text-base font-bold leading-snug">
                 Last 20 General Play HI
@@ -209,7 +211,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
                         playerId={row.id}
                         playerName={row.full_name}
                         currentIndex={row.overallHi}
-                        evidenceIndex={row.committeeEvidenceHi}
+                        evidenceIndex={row.reviewComparisonHi}
                         evidenceGap={row.competitionVsOverallGap}
                       />
                     ) : (
@@ -225,10 +227,10 @@ export default async function AuditPage({ searchParams }: PageProps) {
                 </td>
                 <td className="p-3 text-right font-bold">
                   <div className="text-2xl">
-                    {formatNumber(row.committeeEvidenceHi)}
+                    {formatNumber(row.reviewComparisonHi)}
                   </div>
                   <div className="mt-1 text-sm font-medium text-gray-500">
-                    {row.committeeEvidenceBasisLabel}
+                    {row.reviewComparisonBasisLabel}
                   </div>
                 </td>
                 <td className="p-3 text-right text-2xl font-bold">
@@ -319,7 +321,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
                       playerId={row.id}
                       playerName={row.full_name}
                       currentIndex={row.overallHi}
-                      evidenceIndex={row.committeeEvidenceHi}
+                      evidenceIndex={row.reviewComparisonHi}
                       evidenceGap={row.competitionVsOverallGap}
                     />
                   ) : (
@@ -363,8 +365,8 @@ export default async function AuditPage({ searchParams }: PageProps) {
                 value={formatNumber(row.last20CompetitionHi)}
               />
               <MobileStat
-                label="Two-Year Committee Evidence HI"
-                value={formatNumber(row.committeeEvidenceHi)}
+                label="Conservative Committee Review HI"
+                value={formatNumber(row.reviewComparisonHi)}
               />
               <MobileStat
                 label="Last 20 General Play HI"

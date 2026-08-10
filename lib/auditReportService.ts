@@ -60,6 +60,8 @@ export type AuditPlayerReport = {
   committeeEvidenceIndex: number | null;
   committeeEvidenceBasisLabel: string;
   committeeEvidenceFormula: string;
+  reviewComparisonIndex: number | null;
+  reviewComparisonBasisLabel: string;
   generalIndex: number | null;
   difference: number | null;
   competitionVsGoodrichGeneralGap: number | null;

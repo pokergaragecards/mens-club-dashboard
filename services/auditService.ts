@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import {
   buildAuditEvidence,
   calculateHandicapIndex,
+  selectConservativeReviewHi,
   type AuditEvidence,
   type AuditEvidenceRound,
 } from "@/lib/auditEvidence";
@@ -89,14 +90,18 @@ function buildDecision(params: {
   overallHi: number | null;
   generalPlayHi: number | null;
   evidenceModel: AuditEvidence;
+  reviewComparisonHi: number | null;
+  reviewComparisonBasisLabel: string;
 }): AuditDecision {
   const {
     playerId,
     overallHi,
     generalPlayHi,
     evidenceModel,
+    reviewComparisonHi,
+    reviewComparisonBasisLabel,
   } = params;
-  const competitionHi = evidenceModel.committeeEvidenceHi;
+  const competitionHi = reviewComparisonHi;
   const gap =
     overallHi != null && competitionHi != null
       ? Number((overallHi - competitionHi).toFixed(1))
@@ -112,7 +117,8 @@ function buildDecision(params: {
         )
       : null;
   const evidence = [
-    `Official/Overall HI: ${overallHi?.toFixed(1) ?? "-"}; Committee Evidence HI: ${competitionHi?.toFixed(1) ?? "not established"}; gap: ${gap?.toFixed(1) ?? "-"}.`,
+    `Official/Overall HI: ${overallHi?.toFixed(1) ?? "-"}; Two-Year Committee Evidence HI: ${evidenceModel.committeeEvidenceHi?.toFixed(1) ?? "not established"}.`,
+    `Conservative Review HI: ${competitionHi?.toFixed(1) ?? "not established"}; gap: ${gap?.toFixed(1) ?? "-"}; source: ${reviewComparisonBasisLabel}.`,
     `Goodrich competition in the last 24 months: ${evidenceModel.goodrichCompetitionRounds} rounds and a ${evidenceModel.goodrichCompetitionHi?.toFixed(1) ?? "not established"} HI.`,
     `All competition in the last 24 months: ${evidenceModel.allCompetitionRounds} rounds and a ${evidenceModel.allCompetitionHi?.toFixed(1) ?? "not established"} HI.`,
     `Last ${evidenceModel.goodrichGeneralRounds} Goodrich general-play rounds available in the last 24 months: ${evidenceModel.goodrichGeneralHi?.toFixed(1) ?? "HI not established"}.`,
@@ -132,7 +138,7 @@ function buildDecision(params: {
       label: "No action",
       suggestedIndex: null,
       summary:
-        "The two-year Committee Evidence HI is not established or its gap from the current HI is below the committee's 2.0-stroke review threshold.",
+        "The Conservative Review HI is not established or its gap from the current HI is below the committee's 2.0-stroke review threshold.",
       evidence,
     };
   }
@@ -195,7 +201,7 @@ function buildDecision(params: {
       label: `Adjustment supported - ${suggestedIndex.toFixed(1)}`,
       suggestedIndex,
       summary:
-        "At least 10 competition rounds from the last two years and acceptable single-score stability support a competition-only committee adjustment.",
+        "The conservative comparison still reaches the threshold, and the recent competition sample has acceptable single-score stability.",
       evidence,
     };
   }
@@ -210,7 +216,7 @@ function buildDecision(params: {
       label: `Provisional - ${suggestedIndex.toFixed(1)}`,
       suggestedIndex,
       summary:
-        "The 3-9 round competition sample, blended with recent Goodrich general play, supports a lower provisional value. Review it as more competition rounds are posted.",
+        "The conservative higher-of comparison still supports a lower provisional value. Review it as more competition rounds are posted.",
       evidence,
     };
   }
@@ -286,12 +292,16 @@ export const auditService = {
           playerEvidenceRounds,
           cutoffDate
         );
+        const reviewSelection = selectConservativeReviewHi({
+          goodrichCompetitionRounds:
+            evidenceModel.goodrichCompetitionRounds,
+          last20CompetitionHi: competitionHi,
+          committeeEvidenceHi: evidenceModel.committeeEvidenceHi,
+        });
         const competitionVsOverallGap =
-          overallHi != null && evidenceModel.committeeEvidenceHi != null
+          overallHi != null && reviewSelection.index != null
             ? Number(
-                (
-                  overallHi - evidenceModel.committeeEvidenceHi
-                ).toFixed(1)
+                (overallHi - reviewSelection.index).toFixed(1)
               )
             : null;
         const competitionVsGeneralGap =
@@ -329,13 +339,15 @@ export const auditService = {
           overallHi,
           generalPlayHi,
           evidenceModel,
+          reviewComparisonHi: reviewSelection.index,
+          reviewComparisonBasisLabel: reviewSelection.basisLabel,
         });
 
         const reasons: string[] = [];
 
         if (competitionVsOverallGap != null && competitionVsOverallGap > 0) {
           reasons.push(
-            `Committee Evidence HI is ${competitionVsOverallGap.toFixed(
+            `Conservative Review HI is ${competitionVsOverallGap.toFixed(
               1
             )} lower than Overall HI.`
           );
@@ -381,6 +393,10 @@ export const auditService = {
           committeeEvidenceBasis: evidenceModel.basis,
           committeeEvidenceBasisLabel: evidenceModel.basisLabel,
           committeeEvidenceFormula: evidenceModel.formula,
+          reviewComparisonHi: reviewSelection.index,
+          reviewComparisonBasisLabel: reviewSelection.basisLabel,
+          reviewUsedBenefitOfDoubt:
+            reviewSelection.usedBenefitOfDoubt,
           last20GeneralPlayHi: generalPlayHi,
           competitionVsOverallGap,
           competitionVsGoodrichGeneralGap: competitionVsGeneralGap,

@@ -933,7 +933,7 @@ function AdvantageCard({ player }: { player: AuditPlayerReport }) {
       <Text style={s.cardLabel}>EVIDENCE GAP</Text>
       <Text style={advantageStyle(player.difference)}>{value}</Text>
       <Text style={s.cardDescription}>
-        Current GHIN Handicap Index minus Committee Evidence HI
+        Current GHIN Handicap Index minus Conservative Review HI
       </Text>
     </View>
   );
@@ -941,7 +941,7 @@ function AdvantageCard({ player }: { player: AuditPlayerReport }) {
 
 function HandicapCards({ player }: { player: AuditPlayerReport }) {
   const competitionComparison = comparisonData(
-    player.committeeEvidenceIndex,
+    player.reviewComparisonIndex,
     player.currentIndex
   );
   const generalComparison = comparisonData(
@@ -953,8 +953,8 @@ function HandicapCards({ player }: { player: AuditPlayerReport }) {
     <View style={s.cards}>
       <CurrentCard value={n(player.currentIndex)} />
       <CategoryCard
-        label="COMMITTEE EVIDENCE HI"
-        value={n(player.committeeEvidenceIndex)}
+        label="CONSERVATIVE REVIEW HI"
+        value={n(player.reviewComparisonIndex)}
         comparison={competitionComparison}
         cardType="competition"
       />
@@ -1334,10 +1334,11 @@ function DecisionAnalysis({ player }: { player: AuditPlayerReport }) {
         General HI {n(player.goodrichGeneralLast10Index)}
       </Text>
       <Text style={s.decisionMetrics}>
-        SELECTED: {player.committeeEvidenceBasisLabel} {n(player.committeeEvidenceIndex)}
+        TWO-YEAR EVIDENCE: {player.committeeEvidenceBasisLabel}{" "}
+        {n(player.committeeEvidenceIndex)} | CONSERVATIVE REVIEW:{" "}
+        {player.reviewComparisonBasisLabel} {n(player.reviewComparisonIndex)}
         {" "}| Current HI {n(player.currentIndex)} | Gap {n(player.difference)}
-        {" "}| Sandbag Score {player.sandbagScore} | Rule:{" "}
-        {player.committeeEvidenceFormula}
+        {" "}| Sandbag Score {player.sandbagScore}
       </Text>
 
       <View style={s.decisionColumns}>
@@ -1427,7 +1428,7 @@ function Summary({ report, title }: { report: AuditReport; title: string }) {
       <View style={[s.row, s.th]}>
         <Text style={s.summaryPlayer}>Player</Text>
         <Text style={s.summaryNum}>Current</Text>
-        <Text style={s.summaryNum}>Evidence</Text>
+        <Text style={s.summaryNum}>Review</Text>
         <Text style={s.summaryNum}>G Comp</Text>
         <Text style={s.summaryNum}>All Comp</Text>
         <Text style={s.summaryNum}>G General</Text>
@@ -1441,7 +1442,7 @@ function Summary({ report, title }: { report: AuditReport; title: string }) {
             #{index + 1} {player.name}
           </Text>
           <Text style={s.summaryNum}>{n(player.currentIndex)}</Text>
-          <Text style={s.summaryNum}>{n(player.committeeEvidenceIndex)}</Text>
+          <Text style={s.summaryNum}>{n(player.reviewComparisonIndex)}</Text>
           <Text style={s.summaryNum}>
             {n(player.goodrichCompetition24MonthsIndex)}
           </Text>
@@ -1494,6 +1495,12 @@ export function AuditBook({ report }: { report: AuditReport }) {
             competition rounds, blend the competition HI with the last 10
             available Goodrich general-play rounds. Fewer than three
             competition rounds are monitoring context only.
+          </Text>
+          <Text style={s.metaText}>
+            Benefit of the doubt: with fewer than 10 Goodrich competition
+            rounds in the two-year window, the gap and recommendation use the
+            higher of the Last 20 Competition HI and Two-Year Committee
+            Evidence HI.
           </Text>
           <Text style={s.metaText}>
             Category Handicap Indexes are committee screening tools and do not

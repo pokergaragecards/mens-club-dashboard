@@ -451,11 +451,13 @@ export default async function PlayerAuditPage({
               competition rounds. With only 3-9 total competition rounds, it
               blends the competition HI with the last 10 available Goodrich
               general-play rounds. Fewer than three competition rounds can
-              support monitoring only.
+              support monitoring only. When fewer than 10 Goodrich competition
+              rounds are available, the gap uses the higher of the Last 20
+              Competition HI and Two-Year Committee Evidence HI.
             </p>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
             <DecisionMetric
               label="Current / Overall HI"
               value={formatNumber(auditRow.overallHi)}
@@ -481,7 +483,12 @@ export default async function PlayerAuditPage({
               note={auditRow.committeeEvidenceBasisLabel}
             />
             <DecisionMetric
-              label="Evidence vs Overall Gap"
+              label="Conservative Review HI"
+              value={formatNumber(auditRow.reviewComparisonHi)}
+              note={auditRow.reviewComparisonBasisLabel}
+            />
+            <DecisionMetric
+              label="Review HI vs Overall Gap"
               value={formatNumber(auditRow.competitionVsOverallGap)}
             />
           </div>
@@ -490,6 +497,10 @@ export default async function PlayerAuditPage({
             <h3 className="text-lg font-black">Calculation selected</h3>
             <p className="mt-2 text-base font-bold">
               {auditRow.committeeEvidenceFormula}
+            </p>
+            <p className="mt-3 text-base font-bold">
+              Gap comparison: {auditRow.reviewComparisonBasisLabel} at{" "}
+              {formatNumber(auditRow.reviewComparisonHi)}.
             </p>
             <p className="mt-3 text-sm font-medium text-gray-700">
               Sandbag Score {auditRow.sandbagIndex} = 10 points per positive

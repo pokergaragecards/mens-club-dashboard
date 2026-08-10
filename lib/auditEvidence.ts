@@ -40,6 +40,12 @@ export type AuditEvidence = {
   sensitivity: number | null;
 };
 
+export type ConservativeReviewSelection = {
+  index: number | null;
+  basisLabel: string;
+  usedBenefitOfDoubt: boolean;
+};
+
 function byMostRecent(a: AuditEvidenceRound, b: AuditEvidenceRound) {
   const dateDifference =
     new Date(b.played_at).getTime() - new Date(a.played_at).getTime();
@@ -116,6 +122,51 @@ export function calculateHandicapIndex(
   maximumRounds = 20
 ) {
   return calculateHandicapIndexDetails(rounds, maximumRounds).index;
+}
+
+export function selectConservativeReviewHi(params: {
+  goodrichCompetitionRounds: number;
+  last20CompetitionHi: number | null;
+  committeeEvidenceHi: number | null;
+}): ConservativeReviewSelection {
+  const {
+    goodrichCompetitionRounds,
+    last20CompetitionHi,
+    committeeEvidenceHi,
+  } = params;
+
+  if (goodrichCompetitionRounds >= 10) {
+    return {
+      index: committeeEvidenceHi,
+      basisLabel: "Two-Year Committee Evidence HI",
+      usedBenefitOfDoubt: false,
+    };
+  }
+
+  if (last20CompetitionHi == null) {
+    return {
+      index: committeeEvidenceHi,
+      basisLabel: "Two-Year Committee Evidence HI (Last 20 unavailable)",
+      usedBenefitOfDoubt: true,
+    };
+  }
+
+  if (committeeEvidenceHi == null) {
+    return {
+      index: last20CompetitionHi,
+      basisLabel: "Last 20 Competition HI (two-year evidence unavailable)",
+      usedBenefitOfDoubt: true,
+    };
+  }
+
+  const useLast20 = last20CompetitionHi >= committeeEvidenceHi;
+  return {
+    index: useLast20 ? last20CompetitionHi : committeeEvidenceHi,
+    basisLabel: useLast20
+      ? "Higher value: Last 20 Competition HI"
+      : "Higher value: Two-Year Committee Evidence HI",
+    usedBenefitOfDoubt: true,
+  };
 }
 
 function withoutLowestSensitivity(rounds: AuditEvidenceRound[]) {
