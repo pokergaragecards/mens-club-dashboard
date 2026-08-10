@@ -856,7 +856,7 @@ function shortDate(value: string) {
 function Footer({ generatedAt }: { generatedAt: string }) {
   return (
     <View style={s.footer} fixed>
-      <Text>Goodrich Men&apos;s Club Handicap Committee Audit</Text>
+      <Text>Goodrich Men&apos;s Club Current Handicap Review Sheet</Text>
       <Text>
         Generated {new Date(generatedAt).toLocaleDateString("en-US")} - Page{" "}
         <Text render={({ pageNumber }) => `${pageNumber}`} />
@@ -866,28 +866,22 @@ function Footer({ generatedAt }: { generatedAt: string }) {
 }
 
 function advantageStyle(difference: number | null) {
-  if (difference !== null && difference >= 1.5) return s.advantageRed;
-  if (difference !== null && difference >= 1.0) return s.advantageOrange;
+  if (difference !== null && difference >= 2) return s.advantageRed;
   return s.advantageNormal;
 }
 
-function decisionBadgeStyle(code: AuditPlayerReport["decision"]["code"]) {
-  if (code === "adjustment_supported") return s.investigateFlag;
-  if (code === "provisional_adjustment") return s.reviewFlag;
-  if (code === "manual_review" || code === "monitor") {
-    return s.monitorFlag;
-  }
-  if (code === "no_adjustment") return s.noAdjustmentFlag;
-  return s.noActionFlag;
+function needsHandicapReview(player: AuditPlayerReport) {
+  return player.difference != null && player.difference >= 2;
 }
 
-function decisionPanelStyle(code: AuditPlayerReport["decision"]["code"]) {
-  if (code === "adjustment_supported") return s.decisionAdjustment;
-  if (code === "provisional_adjustment") return s.decisionProvisional;
-  if (code === "manual_review") return s.decisionManual;
-  if (code === "monitor") return s.decisionMonitor;
-  if (code === "no_adjustment") return s.decisionNoAdjustment;
-  return s.decisionNoAction;
+function publicReviewLabel(player: AuditPlayerReport) {
+  return needsHandicapReview(player)
+    ? "Needing a Handicap Review"
+    : "No Review Flag";
+}
+
+function publicReviewStyle(player: AuditPlayerReport) {
+  return needsHandicapReview(player) ? s.investigateFlag : s.noActionFlag;
 }
 
 function comparisonData(
@@ -1224,18 +1218,19 @@ function ConfidencePanel({ player }: { player: AuditPlayerReport }) {
   );
 }
 
-function RecommendationPanel({ player }: { player: AuditPlayerReport }) {
+function ReviewStatusPanel({ player }: { player: AuditPlayerReport }) {
+  const needsReview = needsHandicapReview(player);
+
   return (
     <View style={s.recommendationPanel}>
-      <Text style={s.panelTitle}>RECOMMENDED ACTION</Text>
-      <Text style={s.recommendationLabel}>{player.decision.label}</Text>
-      {player.decision.suggestedIndex != null ? (
-        <Text style={s.recommendationSuggested}>
-          {player.decision.suggestedIndex.toFixed(1)}
-        </Text>
-      ) : null}
+      <Text style={s.panelTitle}>PUBLIC REVIEW STATUS</Text>
+      <Text style={s.recommendationLabel}>
+        {publicReviewLabel(player)}
+      </Text>
       <Text style={s.recommendationSummary}>
-        {player.decision.summary}
+        {needsReview
+          ? "Stroke Discrepancy is 2.0 or greater. This is a review flag only."
+          : "Stroke Discrepancy is below the public 2.0-stroke review line."}
       </Text>
     </View>
   );
@@ -1398,28 +1393,21 @@ function OfficialRoundsTable({ player }: { player: AuditPlayerReport }) {
   );
 }
 
-function DecisionAnalysis({ player }: { player: AuditPlayerReport }) {
-  const { decision } = player;
+function PublicReviewEvidence({ player }: { player: AuditPlayerReport }) {
+  const needsReview = needsHandicapReview(player);
+
   return (
-    <View
-      style={[s.decisionAnalysis, decisionPanelStyle(decision.code)]}
-      wrap={false}
-    >
+    <View style={s.decisionAnalysis} wrap={false}>
       <View style={s.decisionHeader}>
         <View style={s.decisionHeaderCopy}>
-          <Text style={s.decisionEyebrow}>COMMITTEE DECISION ANALYSIS</Text>
-          <Text style={s.decisionLabel}>{decision.label}</Text>
-          <Text style={s.decisionSummary}>{decision.summary}</Text>
+          <Text style={s.decisionEyebrow}>PUBLIC HANDICAP COMPARISON</Text>
+          <Text style={s.decisionLabel}>{publicReviewLabel(player)}</Text>
+          <Text style={s.decisionSummary}>
+            {needsReview
+              ? `The Current Handicap Index is ${n(player.difference)} strokes higher than the Conservative Review HI.`
+              : "The comparison does not reach the 2.0-stroke public review line."}
+          </Text>
         </View>
-
-        {decision.suggestedIndex != null ? (
-          <View style={s.suggestedBox}>
-            <Text style={s.suggestedLabel}>SUGGESTED COMMITTEE HI</Text>
-            <Text style={s.suggestedValue}>
-              {decision.suggestedIndex.toFixed(1)}
-            </Text>
-          </View>
-        ) : null}
       </View>
 
       <Text style={s.decisionMetrics}>
@@ -1436,35 +1424,14 @@ function DecisionAnalysis({ player }: { player: AuditPlayerReport }) {
         TWO-YEAR EVIDENCE: {player.committeeEvidenceBasisLabel}{" "}
         {n(player.committeeEvidenceIndex)} | CONSERVATIVE REVIEW:{" "}
         {player.reviewComparisonBasisLabel} {n(player.reviewComparisonIndex)}
-        {" "}| Current HI {n(player.currentIndex)} | Gap {n(player.difference)}
-        {" "}| Sandbag Score {player.sandbagScore}
+        {" "}| Current HI {n(player.currentIndex)} | Stroke Discrepancy{" "}
+        {n(player.difference)}
       </Text>
 
-      <View style={s.decisionColumns}>
-        <View style={s.decisionColumn}>
-          <Text style={s.decisionColumnTitle}>WHY THIS DECISION</Text>
-          {decision.evidence.map((item) => (
-            <View style={s.decisionListItem} key={item}>
-              <Text style={s.decisionListMarker}>-</Text>
-              <Text style={s.decisionListText}>{item}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={s.decisionColumnLast}>
-          <Text style={s.decisionColumnTitle}>SUGGESTED NEXT STEPS</Text>
-          {decision.nextSteps.map((item, index) => (
-            <View style={s.decisionListItem} key={item}>
-              <Text style={s.decisionListMarker}>{index + 1}.</Text>
-              <Text style={s.decisionListText}>{item}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-
       <Text style={s.decisionDisclaimer}>
-        Recommendation generated from the documented audit rules. Final action
-        remains at the Handicap Committee&apos;s discretion.
+        This sheet reports current scoring comparisons only. A review flag is
+        not a committee decision, a suggested handicap, or an automatic change
+        to the player&apos;s official GHIN Handicap Index.
       </Text>
     </View>
   );
@@ -1628,13 +1595,8 @@ function PlayerPage({
           </View>
         </View>
 
-        <Text
-          style={[
-            s.decisionBadge,
-            decisionBadgeStyle(player.decision.code),
-          ]}
-        >
-          {player.decision.label}
+        <Text style={[s.decisionBadge, publicReviewStyle(player)]}>
+          {publicReviewLabel(player)}
         </Text>
       </View>
 
@@ -1643,10 +1605,10 @@ function PlayerPage({
       <View style={s.dashboardRow}>
         <MiniTimeline player={player} />
         <ConfidencePanel player={player} />
-        <RecommendationPanel player={player} />
+        <ReviewStatusPanel player={player} />
       </View>
 
-      <DecisionAnalysis player={player} />
+      <PublicReviewEvidence player={player} />
       <BreakdownTable rows={player.breakdown} />
       <OfficialRoundsTable player={player} />
       <Footer generatedAt={generatedAt} />
@@ -1667,7 +1629,7 @@ function Summary({ report, title }: { report: AuditReport; title: string }) {
         <Text style={s.summaryNum}>All Comp</Text>
         <Text style={s.summaryNum}>G General</Text>
         <Text style={s.summaryNum}>Gap</Text>
-        <Text style={s.summaryDecision}>Decision</Text>
+        <Text style={s.summaryDecision}>Review Status</Text>
       </View>
 
       {report.players.map((player, index) => (
@@ -1687,13 +1649,8 @@ function Summary({ report, title }: { report: AuditReport; title: string }) {
               ? "-"
               : Math.max(0, player.difference).toFixed(1)}
           </Text>
-          <Text
-            style={[
-              s.summaryDecision,
-              decisionBadgeStyle(player.decision.code),
-            ]}
-          >
-            {player.decision.label}
+          <Text style={[s.summaryDecision, publicReviewStyle(player)]}>
+            {publicReviewLabel(player)}
           </Text>
         </View>
       ))}
@@ -1711,10 +1668,10 @@ export function AuditBook({
   includeScoreHistory?: boolean;
 }) {
   return (
-    <Document title="Goodrich Men's Club Handicap Committee Audit">
+    <Document title="Goodrich Men's Club Current Handicap Review Sheet">
       <Page size="LETTER" style={s.cover}>
         <Text style={s.title}>Goodrich Men&apos;s Club</Text>
-        <Text style={s.subtitle}>Handicap Committee Audit</Text>
+        <Text style={s.subtitle}>Current Handicap Review Sheet</Text>
 
         <View style={s.meta}>
           <Text style={s.metaText}>
@@ -1724,10 +1681,8 @@ export function AuditBook({
             Players reviewed: {report.players.length}
           </Text>
           <Text style={s.metaText}>
-            Includes players with at least five all-time competition scores. Players are
-            grouped by committee decision: adjustments, monitor, then no
-            adjustment. Each group is ranked by the two-year Committee
-            Evidence-HI-vs-Overall gap.
+            Includes players with at least five all-time competition scores,
+            ranked from highest to lowest Stroke Discrepancy.
           </Text>
           <Text style={s.metaText}>
             Evidence hierarchy: use 10 or more Goodrich competition rounds,
@@ -1738,20 +1693,24 @@ export function AuditBook({
           </Text>
           <Text style={s.metaText}>
             Benefit of the doubt: with fewer than 10 Goodrich competition
-            rounds in the two-year window, the gap and recommendation use the
-            higher of the Last 20 Competition HI and Two-Year Committee
-            Evidence HI.
+            rounds in the two-year window, Stroke Discrepancy uses the higher
+            of the Last 20 Competition HI and Two-Year Committee Evidence HI.
           </Text>
           <Text style={s.metaText}>
             Category Handicap Indexes are committee screening tools and do not
             replace the player&apos;s official GHIN Handicap Index.
+          </Text>
+          <Text style={s.metaText}>
+            A Stroke Discrepancy of 2.0 or greater is labeled Needing a
+            Handicap Review. This public label is not a decision, a suggested
+            handicap, or an automatic adjustment.
           </Text>
         </View>
       </Page>
 
       <Summary
         report={report}
-        title="Two-Year Committee Evidence Audit Ranking"
+        title="Current Handicap Review - Stroke Discrepancy"
       />
 
       {report.players.map((player, index) => (
@@ -1778,7 +1737,7 @@ export function AuditBook({
         </React.Fragment>
       ))}
 
-      <Summary report={report} title="Final Committee Summary" />
+      <Summary report={report} title="Current Handicap Review Reference" />
     </Document>
   );
 }

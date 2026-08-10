@@ -15,7 +15,9 @@ export function ExportAuditPdfButton() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `goodrich-audit-${new Date().toISOString().slice(0, 10)}.pdf`;
+      anchor.download = `goodrich-current-handicap-review-${new Date()
+        .toISOString()
+        .slice(0, 10)}.pdf`;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
@@ -25,7 +27,7 @@ export function ExportAuditPdfButton() {
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (error) {
       console.error(error);
-      alert("Unable to generate the audit PDF.");
+      alert("Unable to generate the handicap review PDF.");
     } finally {
       setLoading(false);
     }
@@ -38,7 +40,7 @@ export function ExportAuditPdfButton() {
       disabled={loading}
       className="rounded-lg bg-green-800 px-4 py-2.5 font-bold text-white hover:bg-green-900 disabled:opacity-60"
     >
-      {loading ? "Generating audit book…" : "Generate Committee Audit PDF"}
+      {loading ? "Generating review sheet..." : "Generate Public Review PDF"}
     </button>
   );
 }

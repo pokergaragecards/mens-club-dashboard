@@ -129,74 +129,6 @@ function flagForDifference(
   return "NO ACTION";
 }
 
-function decisionPriority(code: AuditReportDecision["code"]) {
-  if (
-    code === "adjustment_supported" ||
-    code === "provisional_adjustment" ||
-    code === "manual_review"
-  ) {
-    return 0;
-  }
-
-  if (code === "monitor") return 1;
-  return 2;
-}
-
-function nextStepsForDecision(
-  decision: Omit<AuditReportDecision, "nextSteps">
-): string[] {
-  const suggested =
-    decision.suggestedIndex == null
-      ? null
-      : decision.suggestedIndex.toFixed(1);
-
-  if (decision.code === "adjustment_supported") {
-    return [
-      `Confirm the competition-only Committee-Adjusted Playing Handicap${suggested ? ` at ${suggested}` : ""}.`,
-      "Notify the player and event staff that the official GHIN Handicap Index remains unchanged.",
-      "Recalculate the two-year evidence model weekly and round the selected Committee Evidence HI up to the nearest 0.5.",
-      "Record the effective date and review again after meaningful scoring changes.",
-    ];
-  }
-
-  if (decision.code === "provisional_adjustment") {
-    return [
-      `If the committee acts, record a provisional competition-only value${suggested ? ` of ${suggested}` : ""}.`,
-      "Notify the player that the value is temporary and does not change GHIN.",
-      "Recalculate the two-year blend weekly and review after two or three additional eligible competition rounds.",
-    ];
-  }
-
-  if (decision.code === "manual_review") {
-    return [
-      "Review the highlighted low differential, sample size, and score history before acting.",
-      `Document the included or excluded score logic and the committee-approved value${suggested ? ` of ${suggested}` : ""}.`,
-      "Notify the player of any competition-only decision and revisit it after additional competition scores.",
-    ];
-  }
-
-  if (decision.code === "monitor") {
-    return [
-      "Make no immediate adjustment.",
-      "Continue the weekly two-year evidence comparison and watch for a stable 2.0-stroke gap.",
-      "Reopen the review after additional eligible competition rounds or a material scoring change.",
-    ];
-  }
-
-  if (decision.code === "no_adjustment") {
-    return [
-      "Make no competition-only adjustment at this time.",
-      "Document whether historical scores or comparable general-play performance explain the flag.",
-      "Continue normal weekly monitoring and reopen only if recent evidence changes.",
-    ];
-  }
-
-  return [
-    "No committee action is recommended because the two-year 2.0-stroke review threshold is not met.",
-    "Continue the normal weekly audit process.",
-  ];
-}
-
 function scoreOf(round: RoundRow): number | null {
   if (round.adjusted_gross_score !== null) {
     return Number(round.adjusted_gross_score);
@@ -513,7 +445,7 @@ export async function GET(request: Request) {
           summary?.reviewComparisonBasisLabel ??
           reviewSelection.basisLabel;
 
-        const baseDecision: Omit<AuditReportDecision, "nextSteps"> = summary
+        const decision: AuditReportDecision = summary
           ? {
               code: summary.decision.code,
               label: summary.decision.label,
@@ -531,11 +463,6 @@ export async function GET(request: Request) {
                 "Review the player's web audit before taking committee action.",
               ],
             };
-        const decision: AuditReportDecision = {
-          ...baseDecision,
-          nextSteps: nextStepsForDecision(baseDecision),
-        };
-
         // Positive means the player's current GHIN Handicap Index is higher
         // than the conservative Committee Review HI. This is the
         // report's ranking and review variable.
@@ -651,12 +578,6 @@ export async function GET(request: Request) {
     }
 
     reportPlayers.sort((a, b) => {
-      const priorityDifference =
-        decisionPriority(a.decision.code) -
-        decisionPriority(b.decision.code);
-
-      if (priorityDifference !== 0) return priorityDifference;
-
       const aDifference = a.difference ?? Number.NEGATIVE_INFINITY;
       const bDifference = b.difference ?? Number.NEGATIVE_INFINITY;
 
@@ -677,8 +598,8 @@ export async function GET(request: Request) {
     const buffer = await renderToBuffer(document);
     const date = new Date().toISOString().slice(0, 10);
     const fileName = playerId
-      ? `${reportPlayers[0].name.replace(/[^a-zA-Z0-9.-]+/g, "-")}-handicap-audit-${date}.pdf`
-      : `goodrich-audit-${date}.pdf`;
+      ? `${reportPlayers[0].name.replace(/[^a-zA-Z0-9.-]+/g, "-")}-handicap-review-${date}.pdf`
+      : `goodrich-current-handicap-review-${date}.pdf`;
 
     return new Response(new Uint8Array(buffer), {
       status: 200,

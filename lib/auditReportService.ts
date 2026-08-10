@@ -44,7 +44,6 @@ export type AuditReportDecision = {
   suggestedIndex: number | null;
   summary: string;
   evidence: string[];
-  nextSteps: string[];
 };
 
 export type AuditPlayerReport = {

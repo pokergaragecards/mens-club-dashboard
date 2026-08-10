@@ -3,6 +3,7 @@ import { auditService } from "@/services/auditService";
 import { ExportAuditPdfButton } from "@/components/audit/ExportAuditPdfButton";
 import { ExportCompetitionChokersPdfButton } from "@/components/audit/ExportCompetitionChokersPdfButton";
 import { PrepareEmailButton } from "@/components/audit/PrepareEmailButton";
+import { shouldShowPrepareEmail } from "@/lib/auditEmailEligibility";
 import { compareAuditRowsByStrokeDiscrepancy } from "@/lib/auditSort";
 
 type Period = "last20" | "30" | "60" | "90" | "season";
@@ -265,14 +266,18 @@ export default async function AuditPage({ searchParams }: PageProps) {
                       Audit
                     </Link>
 
-                    <PrepareEmailButton
-                      playerId={row.id}
-                      playerName={row.full_name}
-                      currentIndex={row.overallHi}
-                      evidenceIndex={row.reviewComparisonHi}
-                      evidenceGap={row.competitionVsOverallGap}
-                      suggestedIndex={row.decision.suggestedIndex}
-                    />
+                    {shouldShowPrepareEmail(row.decision) ? (
+                      <PrepareEmailButton
+                        playerId={row.id}
+                        playerName={row.full_name}
+                        currentIndex={row.overallHi}
+                        evidenceIndex={row.reviewComparisonHi}
+                        evidenceGap={row.competitionVsOverallGap}
+                        suggestedIndex={row.decision.suggestedIndex}
+                      />
+                    ) : (
+                      <span aria-hidden="true" />
+                    )}
                   </div>
                 </td>
 
@@ -439,14 +444,18 @@ export default async function AuditPage({ searchParams }: PageProps) {
                     Audit
                   </Link>
 
-                  <PrepareEmailButton
-                    playerId={row.id}
-                    playerName={row.full_name}
-                    currentIndex={row.overallHi}
-                    evidenceIndex={row.reviewComparisonHi}
-                    evidenceGap={row.competitionVsOverallGap}
-                    suggestedIndex={row.decision.suggestedIndex}
-                  />
+                  {shouldShowPrepareEmail(row.decision) ? (
+                    <PrepareEmailButton
+                      playerId={row.id}
+                      playerName={row.full_name}
+                      currentIndex={row.overallHi}
+                      evidenceIndex={row.reviewComparisonHi}
+                      evidenceGap={row.competitionVsOverallGap}
+                      suggestedIndex={row.decision.suggestedIndex}
+                    />
+                  ) : (
+                    <span aria-hidden="true" />
+                  )}
                 </div>
 
                 <div className="mt-2 flex flex-wrap gap-2">

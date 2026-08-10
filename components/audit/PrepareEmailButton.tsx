@@ -130,7 +130,7 @@ export function PrepareEmailButton(props: Props) {
       const downloadUrl = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = downloadUrl;
-      anchor.download = `${safeFileName(props.playerName)}-handicap-audit.pdf`;
+      anchor.download = `${safeFileName(props.playerName)}-handicap-review.pdf`;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
