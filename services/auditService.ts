@@ -1,4 +1,10 @@
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
+import {
+  buildAuditEvidence,
+  calculateHandicapIndex,
+  type AuditEvidence,
+  type AuditEvidenceRound,
+} from "@/lib/auditEvidence";
 
 const supabase = createSupabaseServerClient();
 
@@ -20,11 +26,13 @@ type HandicapSummaryRow = {
   last20_general_play_hi: number | string | null;
 };
 
-type CompetitionRoundRow = {
+type EvidenceRoundRow = AuditEvidenceRound & {
   id: string;
   player_id: string;
   played_at: string;
-  differential: number | string;
+  differential: number | string | null;
+  score_type: string | null;
+  course_name: string | null;
 };
 
 export type AuditDecisionCode =
@@ -42,8 +50,6 @@ type AuditDecision = {
   summary: string;
   evidence: string[];
 };
-
-const COMPETITION_SCORE_TYPES = ["C", "CH", "CA", "ECH"];
 
 function num(value: unknown) {
   if (value === null || value === undefined) return null;
@@ -63,59 +69,15 @@ function getFlag(score: number) {
   return "Normal";
 }
 
-function confidenceFromSamples(totalRounds: number) {
-  if (totalRounds >= 10) return "High";
-  if (totalRounds >= 5) return "Medium";
-  return "Low";
-}
-
-function usedDifferentialCount(roundCount: number) {
-  if (roundCount < 3) return 0;
-  if (roundCount <= 5) return 1;
-  if (roundCount <= 8) return 2;
-  if (roundCount <= 11) return 3;
-  if (roundCount <= 14) return 4;
-  if (roundCount <= 16) return 5;
-  if (roundCount <= 18) return 6;
-  if (roundCount === 19) return 7;
-  return 8;
-}
-
-function fewerThan20Adjustment(roundCount: number) {
-  if (roundCount === 3) return -2;
-  if (roundCount === 4 || roundCount === 6) return -1;
-  return 0;
-}
-
-function calculateHandicapIndexDetails(rounds: CompetitionRoundRow[]) {
-  const mostRecent20 = [...rounds]
-    .sort(
-      (a, b) =>
-        new Date(b.played_at).getTime() - new Date(a.played_at).getTime()
-    )
-    .slice(0, 20);
-  const usedCount = usedDifferentialCount(mostRecent20.length);
-
-  if (!usedCount) return { index: null, used: [] as CompetitionRoundRow[] };
-
-  const used = mostRecent20
-    .filter((round) => Number.isFinite(Number(round.differential)))
-    .sort((a, b) => Number(a.differential) - Number(b.differential))
-    .slice(0, usedCount);
-
-  if (used.length !== usedCount) {
-    return { index: null, used: [] as CompetitionRoundRow[] };
+function confidenceFromEvidence(evidence: AuditEvidence) {
+  if (evidence.basis === "goodrich_competition") return "High";
+  if (
+    evidence.basis === "all_competition" ||
+    evidence.basis === "blended_competition_general"
+  ) {
+    return "Medium";
   }
-
-  const average =
-    used.reduce((sum, round) => sum + Number(round.differential), 0) /
-    used.length;
-  const adjusted = average + fewerThan20Adjustment(mostRecent20.length);
-  return { index: Math.round(adjusted * 10) / 10, used };
-}
-
-function calculateHandicapIndex(rounds: CompetitionRoundRow[]) {
-  return calculateHandicapIndexDetails(rounds).index;
+  return "Low";
 }
 
 function roundUpToHalf(value: number) {
@@ -125,60 +87,42 @@ function roundUpToHalf(value: number) {
 function buildDecision(params: {
   playerId: string;
   overallHi: number | null;
-  competitionHi: number | null;
   generalPlayHi: number | null;
-  competitionRounds: CompetitionRoundRow[];
-  last12MonthsRounds: CompetitionRoundRow[];
-  cutoffDate: string;
+  evidenceModel: AuditEvidence;
 }): AuditDecision {
   const {
     playerId,
     overallHi,
-    competitionHi,
     generalPlayHi,
-    competitionRounds,
-    last12MonthsRounds,
-    cutoffDate,
+    evidenceModel,
   } = params;
+  const competitionHi = evidenceModel.committeeEvidenceHi;
   const gap =
     overallHi != null && competitionHi != null
       ? Number((overallHi - competitionHi).toFixed(1))
       : null;
-  const recentHi = calculateHandicapIndex(last12MonthsRounds);
-  const recentGap =
-    overallHi != null && recentHi != null
-      ? Number((overallHi - recentHi).toFixed(1))
+  const competitionSpecificGap =
+    evidenceModel.goodrichGeneralHi != null &&
+    evidenceModel.competitionHiForComparison != null
+      ? Number(
+          (
+            evidenceModel.goodrichGeneralHi -
+            evidenceModel.competitionHiForComparison
+          ).toFixed(1)
+        )
       : null;
-  const allDetails = calculateHandicapIndexDetails(competitionRounds);
-  const lowest = [...competitionRounds].sort(
-    (a, b) => Number(a.differential) - Number(b.differential)
-  )[0];
-  const withoutLowest = lowest
-    ? calculateHandicapIndex(
-        competitionRounds.filter((round) => round.id !== lowest.id)
-      )
-    : null;
-  const sensitivity =
-    withoutLowest != null && allDetails.index != null
-      ? Number((withoutLowest - allDetails.index).toFixed(1))
-      : null;
-  const historicalUsed = allDetails.used.filter(
-    (round) => round.played_at < cutoffDate
-  ).length;
   const evidence = [
-    `Official/Overall HI: ${overallHi?.toFixed(1) ?? "-"}; all-time Competition HI: ${competitionHi?.toFixed(1) ?? "-"}.`,
-    `Last 12 months: ${last12MonthsRounds.length} eligible competition rounds and a ${recentHi?.toFixed(1) ?? "not established"} Competition HI.`,
-    `General Play HI: ${generalPlayHi?.toFixed(1) ?? "-"}.`,
+    `Official/Overall HI: ${overallHi?.toFixed(1) ?? "-"}; Committee Evidence HI: ${competitionHi?.toFixed(1) ?? "not established"}; gap: ${gap?.toFixed(1) ?? "-"}.`,
+    `Goodrich competition in the last 24 months: ${evidenceModel.goodrichCompetitionRounds} rounds and a ${evidenceModel.goodrichCompetitionHi?.toFixed(1) ?? "not established"} HI.`,
+    `All competition in the last 24 months: ${evidenceModel.allCompetitionRounds} rounds and a ${evidenceModel.allCompetitionHi?.toFixed(1) ?? "not established"} HI.`,
+    `Last ${evidenceModel.goodrichGeneralRounds} Goodrich general-play rounds available in the last 24 months: ${evidenceModel.goodrichGeneralHi?.toFixed(1) ?? "HI not established"}.`,
+    `Selection rule: ${evidenceModel.formula}`,
+    `All-time Last-20 General Play HI for context: ${generalPlayHi?.toFixed(1) ?? "-"}.`,
   ];
 
-  if (historicalUsed > 0) {
+  if (evidenceModel.sensitivity != null) {
     evidence.push(
-      `${historicalUsed} differential${historicalUsed === 1 ? "" : "s"} used by the all-time competition calculation ${historicalUsed === 1 ? "is" : "are"} older than 12 months.`
-    );
-  }
-  if (sensitivity != null) {
-    evidence.push(
-      `Removing the single lowest competition differential changes the calculated Competition HI by ${sensitivity.toFixed(1)} strokes.`
+      `Removing the single lowest differential from the selected 24-month competition group changes its HI by ${evidenceModel.sensitivity.toFixed(1)} strokes.`
     );
   }
 
@@ -188,7 +132,7 @@ function buildDecision(params: {
       label: "No action",
       suggestedIndex: null,
       summary:
-        "The current Competition-vs-Overall gap is below the committee's 2.0-stroke review threshold.",
+        "The two-year Committee Evidence HI is not established or its gap from the current HI is below the committee's 2.0-stroke review threshold.",
       evidence,
     };
   }
@@ -199,54 +143,51 @@ function buildDecision(params: {
       label: "Manual exception - 13.0",
       suggestedIndex: 13,
       summary:
-        "The standard 9.7 result is dominated by a limited sample and an 8.8 outlier. The documented committee exception excludes that round and uses 13.0.",
+        "The documented committee exception excludes the 8.8 competition outlier from Wyatt's limited sample and retains a committee value of 13.0.",
+      evidence,
+    };
+  }
+
+  if (evidenceModel.basis === "goodrich_general_monitor") {
+    return {
+      code: "monitor",
+      label: "Monitor - insufficient competition history",
+      suggestedIndex: null,
+      summary:
+        "Fewer than three competition rounds are available in the last two years. Goodrich general play is shown only as context and cannot support a competition adjustment.",
+      evidence,
+    };
+  }
+
+  if (evidenceModel.basis === "limited_competition") {
+    return {
+      code: "manual_review",
+      label: "Manual review - limited evidence",
+      suggestedIndex: null,
+      summary:
+        "Only 3-9 competition rounds are available and a Goodrich general-play HI could not be established for the intended blend.",
       evidence,
     };
   }
 
   if (
-    generalPlayHi != null &&
-    competitionHi != null &&
-    generalPlayHi <= competitionHi
+    competitionSpecificGap != null &&
+    competitionSpecificGap <= 0
   ) {
     return {
       code: "no_adjustment",
       label: "No competition adjustment",
       suggestedIndex: null,
       summary:
-        "General-play performance is at least as strong as competition performance, so the difference is not competition-specific.",
-      evidence,
-    };
-  }
-
-  if (recentHi != null && recentGap != null && recentGap <= 0) {
-    return {
-      code: "no_adjustment",
-      label: "Historical flag - no adjustment",
-      suggestedIndex: null,
-      summary:
-        "Recent competition performance does not support the lower all-time Competition HI; older low competition scores are driving the flag.",
-      evidence,
-    };
-  }
-
-  if (recentHi != null && recentGap != null && recentGap < 2) {
-    return {
-      code: "monitor",
-      label: "Monitor",
-      suggestedIndex: null,
-      summary:
-        "The all-time gap reaches the review threshold, but the last-12-month gap does not. Continue monitoring without an immediate adjustment.",
+        "Recent Goodrich general-play performance is at least as strong as recent competition performance, so the lower ability is not competition-specific.",
       evidence,
     };
   }
 
   if (
-    recentHi != null &&
-    recentGap != null &&
-    recentGap >= 2 &&
-    (last12MonthsRounds.length >= 5 ||
-      (competitionRounds.length >= 15 && (sensitivity ?? 0) <= 1.5))
+    (evidenceModel.basis === "goodrich_competition" ||
+      evidenceModel.basis === "all_competition") &&
+    (evidenceModel.sensitivity ?? 0) <= 1.5
   ) {
     const suggestedIndex = roundUpToHalf(competitionHi!);
     return {
@@ -254,17 +195,14 @@ function buildDecision(params: {
       label: `Adjustment supported - ${suggestedIndex.toFixed(1)}`,
       suggestedIndex,
       summary:
-        "Recent results and sample stability support a competition-only committee adjustment.",
+        "At least 10 competition rounds from the last two years and acceptable single-score stability support a competition-only committee adjustment.",
       evidence,
     };
   }
 
   if (
-    recentHi != null &&
-    recentGap != null &&
-    recentGap >= 2 &&
-    last12MonthsRounds.length >= 3 &&
-    (sensitivity ?? 0) <= 1.5
+    evidenceModel.basis === "blended_competition_general" &&
+    (evidenceModel.sensitivity ?? 0) <= 1.5
   ) {
     const suggestedIndex = roundUpToHalf(competitionHi!);
     return {
@@ -272,7 +210,7 @@ function buildDecision(params: {
       label: `Provisional - ${suggestedIndex.toFixed(1)}`,
       suggestedIndex,
       summary:
-        "Recent scores support a lower competition value, but the sample is still small. Apply only provisionally and review after additional rounds.",
+        "The 3-9 round competition sample, blended with recent Goodrich general play, supports a lower provisional value. Review it as more competition rounds are posted.",
       evidence,
     };
   }
@@ -282,29 +220,31 @@ function buildDecision(params: {
     label: "Manual review",
     suggestedIndex: null,
     summary:
-      "The threshold is met, but the sample size or single-score sensitivity makes an automatic adjustment unreliable.",
+      "The two-year threshold is met, but single-score sensitivity makes an automatic adjustment unreliable.",
     evidence,
   };
 }
 
-async function getCompetitionRounds() {
-  const rows: CompetitionRoundRow[] = [];
+async function getEvidenceRounds(cutoffDate: string) {
+  const rows: EvidenceRoundRow[] = [];
   const pageSize = 1000;
 
   for (let start = 0; ; start += pageSize) {
     const { data, error } = await supabase
       .from("player_display_rounds")
-      .select("id, player_id, played_at, differential")
+      .select(
+        "id, player_id, played_at, differential, score_type, course_name"
+      )
       .eq("counts_for_hi", true)
-      .in("score_type", COMPETITION_SCORE_TYPES)
       .not("differential", "is", null)
+      .gte("played_at", cutoffDate)
       .order("played_at", { ascending: false })
       .order("id", { ascending: true })
       .range(start, start + pageSize - 1);
 
     if (error) throw error;
 
-    const page = (data ?? []) as CompetitionRoundRow[];
+    const page = (data ?? []) as EvidenceRoundRow[];
     rows.push(...page);
     if (page.length < pageSize) break;
   }
@@ -316,23 +256,23 @@ export const auditService = {
   async getAuditRows(_period: Period) {
     void _period;
     const cutoff = new Date();
-    cutoff.setUTCFullYear(cutoff.getUTCFullYear() - 1);
+    cutoff.setUTCFullYear(cutoff.getUTCFullYear() - 2);
     const cutoffDate = cutoff.toISOString().slice(0, 10);
-    const [{ data, error }, allCompetitionRounds] = await Promise.all([
+    const [{ data, error }, allEvidenceRounds] = await Promise.all([
       supabase
         .from("player_handicap_summary")
         .select("*")
         .order("full_name"),
-      getCompetitionRounds(),
+      getEvidenceRounds(cutoffDate),
     ]);
 
     if (error) throw error;
 
-    const competitionByPlayer = new Map<string, CompetitionRoundRow[]>();
-    for (const round of allCompetitionRounds) {
-      const playerRounds = competitionByPlayer.get(round.player_id) ?? [];
+    const evidenceByPlayer = new Map<string, EvidenceRoundRow[]>();
+    for (const round of allEvidenceRounds) {
+      const playerRounds = evidenceByPlayer.get(round.player_id) ?? [];
       playerRounds.push(round);
-      competitionByPlayer.set(round.player_id, playerRounds);
+      evidenceByPlayer.set(round.player_id, playerRounds);
     }
 
     return ((data ?? []) as HandicapSummaryRow[])
@@ -341,14 +281,28 @@ export const auditService = {
         const competitionHi = num(row.last20_competition_hi);
         const generalPlayHi = num(row.last20_general_play_hi);
 
+        const playerEvidenceRounds = evidenceByPlayer.get(row.player_id) ?? [];
+        const evidenceModel = buildAuditEvidence(
+          playerEvidenceRounds,
+          cutoffDate
+        );
         const competitionVsOverallGap =
-          overallHi != null && competitionHi != null
-            ? overallHi - competitionHi
+          overallHi != null && evidenceModel.committeeEvidenceHi != null
+            ? Number(
+                (
+                  overallHi - evidenceModel.committeeEvidenceHi
+                ).toFixed(1)
+              )
             : null;
-
         const competitionVsGeneralGap =
-          generalPlayHi != null && competitionHi != null
-            ? generalPlayHi - competitionHi
+          evidenceModel.goodrichGeneralHi != null &&
+          evidenceModel.competitionHiForComparison != null
+            ? Number(
+                (
+                  evidenceModel.goodrichGeneralHi -
+                  evidenceModel.competitionHiForComparison
+                ).toFixed(1)
+              )
             : null;
 
         const sandbagIndex =
@@ -358,26 +312,30 @@ export const auditService = {
         const competitionRounds = Number(row.competition_rounds ?? 0);
         const casualRounds = Number(row.casual_rounds ?? 0);
         const totalRounds = Number(row.total_rounds ?? 0);
-        const playerCompetitionRounds =
-          competitionByPlayer.get(row.player_id) ?? [];
-        const last12MonthsCompetitionRounds = playerCompetitionRounds.filter(
-          (round) => round.played_at >= cutoffDate
+        const twelveMonthCutoff = new Date();
+        twelveMonthCutoff.setUTCFullYear(
+          twelveMonthCutoff.getUTCFullYear() - 1
+        );
+        const twelveMonthCutoffDate = twelveMonthCutoff
+          .toISOString()
+          .slice(0, 10);
+        const last12MonthsCompetitionRounds = playerEvidenceRounds.filter(
+          (round) =>
+            round.played_at >= twelveMonthCutoffDate &&
+            ["C", "CH", "CA", "ECH"].includes(round.score_type ?? "")
         );
         const decision = buildDecision({
           playerId: row.player_id,
           overallHi,
-          competitionHi,
           generalPlayHi,
-          competitionRounds: playerCompetitionRounds,
-          last12MonthsRounds: last12MonthsCompetitionRounds,
-          cutoffDate,
+          evidenceModel,
         });
 
         const reasons: string[] = [];
 
         if (competitionVsOverallGap != null && competitionVsOverallGap > 0) {
           reasons.push(
-            `Last 20 Competition HI is ${competitionVsOverallGap.toFixed(
+            `Committee Evidence HI is ${competitionVsOverallGap.toFixed(
               1
             )} lower than Overall HI.`
           );
@@ -385,9 +343,9 @@ export const auditService = {
 
         if (competitionVsGeneralGap != null && competitionVsGeneralGap > 0) {
           reasons.push(
-            `Last 20 Competition HI is ${competitionVsGeneralGap.toFixed(
+            `Recent competition HI is ${competitionVsGeneralGap.toFixed(
               1
-            )} lower than Last 20 General Play HI.`
+            )} lower than the Last-10 Goodrich General HI.`
           );
         }
 
@@ -408,8 +366,24 @@ export const auditService = {
           ),
           last12MonthsCompetitionRounds:
             last12MonthsCompetitionRounds.length,
+          evidenceCutoffDate: evidenceModel.cutoffDate,
+          goodrichCompetition24MonthsHi:
+            evidenceModel.goodrichCompetitionHi,
+          goodrichCompetition24MonthsRounds:
+            evidenceModel.goodrichCompetitionRounds,
+          allCompetition24MonthsHi: evidenceModel.allCompetitionHi,
+          allCompetition24MonthsRounds:
+            evidenceModel.allCompetitionRounds,
+          goodrichGeneralLast10Hi: evidenceModel.goodrichGeneralHi,
+          goodrichGeneralLast10Rounds:
+            evidenceModel.goodrichGeneralRounds,
+          committeeEvidenceHi: evidenceModel.committeeEvidenceHi,
+          committeeEvidenceBasis: evidenceModel.basis,
+          committeeEvidenceBasisLabel: evidenceModel.basisLabel,
+          committeeEvidenceFormula: evidenceModel.formula,
           last20GeneralPlayHi: generalPlayHi,
           competitionVsOverallGap,
+          competitionVsGoodrichGeneralGap: competitionVsGeneralGap,
           decision,
 
           competitionRounds,
@@ -423,7 +397,7 @@ export const auditService = {
 
           sandbagIndex,
           flag: getFlag(sandbagIndex),
-          confidence: confidenceFromSamples(competitionRounds),
+          confidence: confidenceFromEvidence(evidenceModel),
 
           reasons,
         };

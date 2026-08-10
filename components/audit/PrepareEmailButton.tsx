@@ -6,8 +6,8 @@ type Props = {
   playerId: string;
   playerName: string;
   currentIndex: number | null;
-  competitionIndex: number | null;
-  competitionGap: number | null;
+  evidenceIndex: number | null;
+  evidenceGap: number | null;
 };
 
 function valueOrDash(value: number | null) {
@@ -33,19 +33,19 @@ function safeFileName(value: string) {
 
 function buildEmailBody(props: Props) {
   const qualifies =
-    props.competitionIndex != null &&
-    props.competitionGap != null &&
-    props.competitionGap >= 2;
+    props.evidenceIndex != null &&
+    props.evidenceGap != null &&
+    props.evidenceGap >= 2;
 
   const adjustedIndex =
-    qualifies && props.competitionIndex != null
-      ? roundedUpHalf(props.competitionIndex)
+    qualifies && props.evidenceIndex != null
+      ? roundedUpHalf(props.evidenceIndex)
       : null;
 
   const adjustment = qualifies
-    ? `\nBecause your Competition Handicap Index is at least 2.0 strokes lower than your official handicap, a Committee-Adjusted Handicap Index of ${adjustedIndex?.toFixed(
+    ? `\nBecause your two-year Committee Evidence HI is at least 2.0 strokes lower than your official handicap, a Committee-Adjusted Handicap Index of ${adjustedIndex?.toFixed(
         1
-      )} will be used for Goodrich Men's Club competitive events and matches. This value is your Competition Handicap Index rounded upward to the next half-stroke.`
+      )} will be used for Goodrich Men's Club competitive events and matches. This value is the selected two-year Committee Evidence HI rounded upward to the next half-stroke.`
     : "\nThis audit is being provided for review. No competition-only adjustment is indicated by the current 2.0-stroke threshold.";
 
   return `Hello ${props.playerName},
@@ -53,8 +53,8 @@ function buildEmailBody(props: Props) {
 The Goodrich Men's Club Handicap Committee has completed its current review of your competition scoring history.
 
 Official GHIN Handicap Index: ${valueOrDash(props.currentIndex)}
-Competition Handicap Index: ${valueOrDash(props.competitionIndex)}
-Difference: ${valueOrDash(props.competitionGap)} strokes
+Two-Year Committee Evidence HI: ${valueOrDash(props.evidenceIndex)}
+Difference: ${valueOrDash(props.evidenceGap)} strokes
 ${adjustment}
 
 Your official GHIN Handicap Index will not be changed. Any committee adjustment applies only to Goodrich Men's Club competitive events and matches.
@@ -69,18 +69,18 @@ Goodrich Men's Club Handicap Committee`;
 
 function buildEmailHtml(props: Props) {
   const qualifies =
-    props.competitionIndex != null &&
-    props.competitionGap != null &&
-    props.competitionGap >= 2;
+    props.evidenceIndex != null &&
+    props.evidenceGap != null &&
+    props.evidenceGap >= 2;
   const adjustedIndex =
-    qualifies && props.competitionIndex != null
-      ? roundedUpHalf(props.competitionIndex)
+    qualifies && props.evidenceIndex != null
+      ? roundedUpHalf(props.evidenceIndex)
       : null;
 
   const adjustment = qualifies
-    ? `<p>Because your Competition Handicap Index is at least <strong>2.0 strokes lower</strong> than your official handicap, a <strong>Committee-Adjusted Handicap Index of ${adjustedIndex?.toFixed(
+    ? `<p>Because your two-year Committee Evidence HI is at least <strong>2.0 strokes lower</strong> than your official handicap, a <strong>Committee-Adjusted Handicap Index of ${adjustedIndex?.toFixed(
         1
-      )}</strong> will be used for Goodrich Men's Club competitive events and matches. This value is your Competition Handicap Index rounded upward to the next half-stroke.</p>`
+      )}</strong> will be used for Goodrich Men's Club competitive events and matches. This value is the selected Committee Evidence HI rounded upward to the next half-stroke.</p>`
     : "<p>This audit is being provided for review. <strong>No competition-only adjustment</strong> is indicated by the current 2.0-stroke threshold.</p>";
 
   return `<p>Hello ${escapeHtml(props.playerName)},</p>
@@ -88,10 +88,10 @@ function buildEmailHtml(props: Props) {
 <p><strong>Official GHIN Handicap Index: ${valueOrDash(
     props.currentIndex
   )}</strong><br>
-<strong>Competition Handicap Index: ${valueOrDash(
-    props.competitionIndex
+<strong>Two-Year Committee Evidence HI: ${valueOrDash(
+    props.evidenceIndex
   )}</strong><br>
-<strong>Difference: ${valueOrDash(props.competitionGap)} strokes</strong></p>
+<strong>Difference: ${valueOrDash(props.evidenceGap)} strokes</strong></p>
 ${adjustment}
 <p><strong>Your official GHIN Handicap Index will not be changed.</strong> Any committee adjustment applies <strong>only to Goodrich Men's Club competitive events and matches.</strong></p>
 <p>We will review the calculation weekly as additional competition scores are posted. The attached audit PDF contains the scoring details used in this review.</p>

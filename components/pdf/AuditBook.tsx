@@ -731,9 +731,9 @@ const s = StyleSheet.create({
     color: COLORS.green900,
     marginBottom: 12,
   },
-  summaryPlayer: { width: "25%", padding: 5 },
-  summaryNum: { width: "9%", padding: 5, textAlign: "right" },
-  summaryDecision: { width: "30%", padding: 5 },
+  summaryPlayer: { width: "21%", padding: 4 },
+  summaryNum: { width: "8%", padding: 4, textAlign: "right" },
+  summaryDecision: { width: "31%", padding: 4 },
 });
 
 const n = (value: number | null) =>
@@ -930,10 +930,10 @@ function AdvantageCard({ player }: { player: AuditPlayerReport }) {
 
   return (
     <View style={[s.card, s.cardLast, s.advantageCard]}>
-      <Text style={s.cardLabel}>COMPETITION ADVANTAGE</Text>
+      <Text style={s.cardLabel}>EVIDENCE GAP</Text>
       <Text style={advantageStyle(player.difference)}>{value}</Text>
       <Text style={s.cardDescription}>
-        Current GHIN Handicap Index minus Competition Handicap Index
+        Current GHIN Handicap Index minus Committee Evidence HI
       </Text>
     </View>
   );
@@ -941,11 +941,11 @@ function AdvantageCard({ player }: { player: AuditPlayerReport }) {
 
 function HandicapCards({ player }: { player: AuditPlayerReport }) {
   const competitionComparison = comparisonData(
-    player.competitionIndex,
+    player.committeeEvidenceIndex,
     player.currentIndex
   );
   const generalComparison = comparisonData(
-    player.generalIndex,
+    player.goodrichGeneralLast10Index,
     player.currentIndex
   );
 
@@ -953,14 +953,14 @@ function HandicapCards({ player }: { player: AuditPlayerReport }) {
     <View style={s.cards}>
       <CurrentCard value={n(player.currentIndex)} />
       <CategoryCard
-        label="COMPETITION HANDICAP INDEX"
-        value={n(player.competitionIndex)}
+        label="COMMITTEE EVIDENCE HI"
+        value={n(player.committeeEvidenceIndex)}
         comparison={competitionComparison}
         cardType="competition"
       />
       <CategoryCard
-        label="GENERAL PLAY HANDICAP INDEX"
-        value={n(player.generalIndex)}
+        label="GOODRICH GENERAL HI"
+        value={n(player.goodrichGeneralLast10Index)}
         comparison={generalComparison}
         cardType="general"
       />
@@ -1046,31 +1046,32 @@ type Confidence = {
 };
 
 function confidenceForPlayer(player: AuditPlayerReport): Confidence {
-  const competition = player.competitionRounds;
-  const general = player.generalRounds;
-  const total = competition + general;
+  const goodrichCompetition =
+    player.goodrichCompetition24MonthsRounds;
+  const competition = player.allCompetition24MonthsRounds;
+  const general = player.goodrichGeneralLast10Rounds;
 
-  if (competition >= 10 && general >= 20 && total >= 30) {
+  if (goodrichCompetition >= 10) {
     return {
       label: "VERY HIGH",
       stars: 5,
-      description: "Strong samples in both categories.",
+      description: "At least 10 recent Goodrich competition rounds.",
     };
   }
 
-  if (competition >= 5 && general >= 15 && total >= 20) {
+  if (competition >= 10) {
     return {
       label: "HIGH",
       stars: 4,
-      description: "Sufficient evidence for committee review.",
+      description: "At least 10 recent competition rounds across all courses.",
     };
   }
 
-  if (competition >= 5 && total >= 15) {
+  if (competition >= 3 && general >= 3) {
     return {
       label: "MODERATE",
       stars: 3,
-      description: "Useful evidence; continued monitoring may help.",
+      description: "Limited competition sample supported by Goodrich general play.",
     };
   }
 
@@ -1094,7 +1095,6 @@ function EvidenceItem({ passed, text }: { passed: boolean; text: string }) {
 
 function ConfidencePanel({ player }: { player: AuditPlayerReport }) {
   const confidence = confidenceForPlayer(player);
-  const total = player.competitionRounds + player.generalRounds;
 
   return (
     <View style={s.confidencePanel}>
@@ -1105,14 +1105,17 @@ function ConfidencePanel({ player }: { player: AuditPlayerReport }) {
         {confidence.stars}/5 evidence strength
       </Text>
       <EvidenceItem
-        passed={player.generalRounds >= 15}
-        text={`${player.generalRounds} general rounds`}
+        passed={player.goodrichCompetition24MonthsRounds >= 10}
+        text={`${player.goodrichCompetition24MonthsRounds} Goodrich competition rounds / 24 mo.`}
       />
       <EvidenceItem
-        passed={player.competitionRounds >= 5}
-        text={`${player.competitionRounds} competition rounds`}
+        passed={player.allCompetition24MonthsRounds >= 10}
+        text={`${player.allCompetition24MonthsRounds} all-course competition rounds / 24 mo.`}
       />
-      <EvidenceItem passed={total >= 20} text={`${total} total rounds`} />
+      <EvidenceItem
+        passed={player.goodrichGeneralLast10Rounds >= 3}
+        text={`${player.goodrichGeneralLast10Rounds} Goodrich general rounds used as available`}
+      />
       <EvidenceItem
         passed={player.difference != null && player.difference >= 2}
         text="2.0-stroke review threshold"
@@ -1190,7 +1193,7 @@ function ScoreList({ values }: { values: number[] }) {
 function BreakdownTable({ rows }: { rows: AuditBreakdownRow[] }) {
   return (
     <View>
-      <Text style={s.section}>LAST 20 OFFICIAL HANDICAP ROUND BREAKDOWN</Text>
+      <Text style={s.section}>OFFICIAL HANDICAP EVIDENCE BREAKDOWN</Text>
 
       <View style={s.breakdown}>
         <View style={s.breakdownHead}>
@@ -1321,11 +1324,20 @@ function DecisionAnalysis({ player }: { player: AuditPlayerReport }) {
       </View>
 
       <Text style={s.decisionMetrics}>
-        Current HI {n(player.currentIndex)} | All Competition HI{" "}
-        {n(player.competitionIndex)} | Last 12 Months Competition HI{" "}
-        {n(player.last12MonthsCompetitionIndex)} from{" "}
-        {player.last12MonthsCompetitionRounds} eligible rounds | General Play
-        HI {n(player.generalIndex)} | Gap {n(player.difference)}
+        TWO-YEAR WINDOW: {player.evidenceCutoffDate} through the generated date
+      </Text>
+      <Text style={s.decisionMetrics}>
+        Goodrich Competition HI {n(player.goodrichCompetition24MonthsIndex)}
+        {" "}({player.goodrichCompetition24MonthsRounds} rounds) | All
+        Competition HI {n(player.allCompetition24MonthsIndex)} ({player.allCompetition24MonthsRounds}
+        {" "}rounds) | Last-{player.goodrichGeneralLast10Rounds} Goodrich
+        General HI {n(player.goodrichGeneralLast10Index)}
+      </Text>
+      <Text style={s.decisionMetrics}>
+        SELECTED: {player.committeeEvidenceBasisLabel} {n(player.committeeEvidenceIndex)}
+        {" "}| Current HI {n(player.currentIndex)} | Gap {n(player.difference)}
+        {" "}| Sandbag Score {player.sandbagScore} | Rule:{" "}
+        {player.committeeEvidenceFormula}
       </Text>
 
       <View style={s.decisionColumns}>
@@ -1415,9 +1427,10 @@ function Summary({ report, title }: { report: AuditReport; title: string }) {
       <View style={[s.row, s.th]}>
         <Text style={s.summaryPlayer}>Player</Text>
         <Text style={s.summaryNum}>Current</Text>
-        <Text style={s.summaryNum}>Comp</Text>
-        <Text style={s.summaryNum}>12 Mo.</Text>
-        <Text style={s.summaryNum}>General</Text>
+        <Text style={s.summaryNum}>Evidence</Text>
+        <Text style={s.summaryNum}>G Comp</Text>
+        <Text style={s.summaryNum}>All Comp</Text>
+        <Text style={s.summaryNum}>G General</Text>
         <Text style={s.summaryNum}>Gap</Text>
         <Text style={s.summaryDecision}>Decision</Text>
       </View>
@@ -1428,11 +1441,12 @@ function Summary({ report, title }: { report: AuditReport; title: string }) {
             #{index + 1} {player.name}
           </Text>
           <Text style={s.summaryNum}>{n(player.currentIndex)}</Text>
-          <Text style={s.summaryNum}>{n(player.competitionIndex)}</Text>
+          <Text style={s.summaryNum}>{n(player.committeeEvidenceIndex)}</Text>
           <Text style={s.summaryNum}>
-            {n(player.last12MonthsCompetitionIndex)}
+            {n(player.goodrichCompetition24MonthsIndex)}
           </Text>
-          <Text style={s.summaryNum}>{n(player.generalIndex)}</Text>
+          <Text style={s.summaryNum}>{n(player.allCompetition24MonthsIndex)}</Text>
+          <Text style={s.summaryNum}>{n(player.goodrichGeneralLast10Index)}</Text>
           <Text style={[s.summaryNum, advantageStyle(player.difference)]}>
             {player.difference === null
               ? "-"
@@ -1469,9 +1483,17 @@ export function AuditBook({ report }: { report: AuditReport }) {
             Players reviewed: {report.players.length}
           </Text>
           <Text style={s.metaText}>
-            Includes players with at least five competition scores. Players are
+            Includes players with at least five all-time competition scores. Players are
             grouped by committee decision: adjustments, monitor, then no
-            adjustment. Each group is ranked by the Competition-vs-Overall gap.
+            adjustment. Each group is ranked by the two-year Committee
+            Evidence-HI-vs-Overall gap.
+          </Text>
+          <Text style={s.metaText}>
+            Evidence hierarchy: use 10 or more Goodrich competition rounds,
+            otherwise 10 or more total competition rounds. With 3-9 total
+            competition rounds, blend the competition HI with the last 10
+            available Goodrich general-play rounds. Fewer than three
+            competition rounds are monitoring context only.
           </Text>
           <Text style={s.metaText}>
             Category Handicap Indexes are committee screening tools and do not
@@ -1480,7 +1502,10 @@ export function AuditBook({ report }: { report: AuditReport }) {
         </View>
       </Page>
 
-      <Summary report={report} title="Competition Handicap Audit Ranking" />
+      <Summary
+        report={report}
+        title="Two-Year Committee Evidence Audit Ranking"
+      />
 
       {report.players.map((player, index) => (
         <PlayerPage

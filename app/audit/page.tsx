@@ -3,6 +3,7 @@ import { auditService } from "@/services/auditService";
 import { ExportAuditPdfButton } from "@/components/audit/ExportAuditPdfButton";
 import { ExportCompetitionChokersPdfButton } from "@/components/audit/ExportCompetitionChokersPdfButton";
 import { PrepareEmailButton } from "@/components/audit/PrepareEmailButton";
+import { shouldShowPrepareEmail } from "@/lib/auditEmailEligibility";
 
 type Period = "last20" | "30" | "60" | "90" | "season";
 
@@ -92,8 +93,10 @@ export default async function AuditPage({ searchParams }: PageProps) {
 
           <p className="mt-2 text-base text-gray-600 lg:text-lg">
             Audit view using official GHIN handicap-counting rounds only,
-            comparing Overall Handicap Index, Last 20 Competition Handicap
-            Index, Last 20 General Play Handicap Index, and scoring gaps.
+            comparing the current Handicap Index with a two-year committee
+            evidence model built from Goodrich competition, all competition,
+            and Goodrich general-play rounds when the competition sample is
+            thin.
           </p>
         </div>
 
@@ -143,13 +146,13 @@ export default async function AuditPage({ searchParams }: PageProps) {
                 Last 20 Competition HI
               </th>
               <th className="min-w-[280px] p-4 text-right text-base font-bold leading-snug">
-                Last 12 Months Competition HI
+                Two-Year Committee Evidence HI
               </th>
               <th className="min-w-[250px] p-4 text-right text-base font-bold leading-snug">
                 Last 20 General Play HI
               </th>
               <th className="min-w-[280px] border-x-2 border-red-300 bg-red-100 p-4 text-right text-base font-bold leading-snug text-red-800">
-                Competition vs Overall Gap
+                Evidence HI vs Overall Gap
               </th>
               <th className="min-w-[260px] p-4 text-base font-bold leading-snug">
                 Committee Decision
@@ -196,21 +199,19 @@ export default async function AuditPage({ searchParams }: PageProps) {
                       Audit
                     </Link>
 
-                    {row.competitionVsOverallGap != null &&
-                    row.competitionVsOverallGap >= 2 ? (
-                      MANUAL_EMAIL_PLAYER_IDS.has(row.id) ? (
-                        <span className="inline-flex min-h-10 items-center justify-center rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-center text-sm font-semibold text-amber-800">
-                          Manual Exception
-                        </span>
-                      ) : (
-                        <PrepareEmailButton
-                          playerId={row.id}
-                          playerName={row.full_name}
-                          currentIndex={row.overallHi}
-                          competitionIndex={row.last20CompetitionHi}
-                          competitionGap={row.competitionVsOverallGap}
-                        />
-                      )
+                    {MANUAL_EMAIL_PLAYER_IDS.has(row.id) &&
+                    row.decision.code === "manual_review" ? (
+                      <span className="inline-flex min-h-10 items-center justify-center rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-center text-sm font-semibold text-amber-800">
+                        Manual Exception
+                      </span>
+                    ) : shouldShowPrepareEmail(row.decision) ? (
+                      <PrepareEmailButton
+                        playerId={row.id}
+                        playerName={row.full_name}
+                        currentIndex={row.overallHi}
+                        evidenceIndex={row.committeeEvidenceHi}
+                        evidenceGap={row.competitionVsOverallGap}
+                      />
                     ) : (
                       <span aria-hidden="true" />
                     )}
@@ -224,10 +225,10 @@ export default async function AuditPage({ searchParams }: PageProps) {
                 </td>
                 <td className="p-3 text-right font-bold">
                   <div className="text-2xl">
-                    {formatNumber(row.last12MonthsCompetitionHi)}
+                    {formatNumber(row.committeeEvidenceHi)}
                   </div>
                   <div className="mt-1 text-sm font-medium text-gray-500">
-                    {row.last12MonthsCompetitionRounds} eligible rounds
+                    {row.committeeEvidenceBasisLabel}
                   </div>
                 </td>
                 <td className="p-3 text-right text-2xl font-bold">
@@ -308,21 +309,19 @@ export default async function AuditPage({ searchParams }: PageProps) {
                     Audit
                   </Link>
 
-                  {row.competitionVsOverallGap != null &&
-                  row.competitionVsOverallGap >= 2 ? (
-                    MANUAL_EMAIL_PLAYER_IDS.has(row.id) ? (
-                      <span className="inline-flex min-h-10 items-center justify-center rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-center text-sm font-semibold text-amber-800">
-                        Manual Exception
-                      </span>
-                    ) : (
-                      <PrepareEmailButton
-                        playerId={row.id}
-                        playerName={row.full_name}
-                        currentIndex={row.overallHi}
-                        competitionIndex={row.last20CompetitionHi}
-                        competitionGap={row.competitionVsOverallGap}
-                      />
-                    )
+                  {MANUAL_EMAIL_PLAYER_IDS.has(row.id) &&
+                  row.decision.code === "manual_review" ? (
+                    <span className="inline-flex min-h-10 items-center justify-center rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-center text-sm font-semibold text-amber-800">
+                      Manual Exception
+                    </span>
+                  ) : shouldShowPrepareEmail(row.decision) ? (
+                    <PrepareEmailButton
+                      playerId={row.id}
+                      playerName={row.full_name}
+                      currentIndex={row.overallHi}
+                      evidenceIndex={row.committeeEvidenceHi}
+                      evidenceGap={row.competitionVsOverallGap}
+                    />
                   ) : (
                     <span aria-hidden="true" />
                   )}
@@ -364,15 +363,15 @@ export default async function AuditPage({ searchParams }: PageProps) {
                 value={formatNumber(row.last20CompetitionHi)}
               />
               <MobileStat
-                label="Last 12 Months Competition HI"
-                value={formatNumber(row.last12MonthsCompetitionHi)}
+                label="Two-Year Committee Evidence HI"
+                value={formatNumber(row.committeeEvidenceHi)}
               />
               <MobileStat
                 label="Last 20 General Play HI"
                 value={formatNumber(row.last20GeneralPlayHi)}
               />
               <MobileStat
-                label="Comp vs Overall Gap"
+                label="Evidence vs Overall Gap"
                 value={formatNumber(row.competitionVsOverallGap)}
               />
             </Section>

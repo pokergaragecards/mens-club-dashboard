@@ -441,28 +441,75 @@ export default async function PlayerAuditPage({
             )}
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="mt-5 rounded-xl border border-current/20 bg-white/80 p-4">
+            <div className="text-sm font-black uppercase tracking-wide">
+              Two-Year Committee Evidence Model
+            </div>
+            <p className="mt-2 text-base font-medium leading-6">
+              Period: {auditRow.evidenceCutoffDate} through today. The model
+              first looks for 10 Goodrich competition rounds, then 10 total
+              competition rounds. With only 3-9 total competition rounds, it
+              blends the competition HI with the last 10 available Goodrich
+              general-play rounds. Fewer than three competition rounds can
+              support monitoring only.
+            </p>
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
             <DecisionMetric
-              label="Official / Overall HI"
+              label="Current / Overall HI"
               value={formatNumber(auditRow.overallHi)}
             />
             <DecisionMetric
+              label="Goodrich Competition HI"
+              value={formatNumber(auditRow.goodrichCompetition24MonthsHi)}
+              note={`${auditRow.goodrichCompetition24MonthsRounds} rounds in 24 months`}
+            />
+            <DecisionMetric
               label="All Competition HI"
-              value={formatNumber(auditRow.last20CompetitionHi)}
+              value={formatNumber(auditRow.allCompetition24MonthsHi)}
+              note={`${auditRow.allCompetition24MonthsRounds} rounds in 24 months`}
             />
             <DecisionMetric
-              label="Last 12 Months Competition HI"
-              value={formatNumber(auditRow.last12MonthsCompetitionHi)}
-              note={`${auditRow.last12MonthsCompetitionRounds} eligible rounds`}
+              label="Goodrich General HI"
+              value={formatNumber(auditRow.goodrichGeneralLast10Hi)}
+              note={`Last ${auditRow.goodrichGeneralLast10Rounds} available rounds in 24 months`}
             />
             <DecisionMetric
-              label="General Play HI"
-              value={formatNumber(auditRow.last20GeneralPlayHi)}
+              label="Committee Evidence HI"
+              value={formatNumber(auditRow.committeeEvidenceHi)}
+              note={auditRow.committeeEvidenceBasisLabel}
             />
             <DecisionMetric
-              label="Competition vs Overall Gap"
+              label="Evidence vs Overall Gap"
               value={formatNumber(auditRow.competitionVsOverallGap)}
             />
+          </div>
+
+          <div className="mt-4 rounded-xl border border-current/20 bg-white/80 p-4">
+            <h3 className="text-lg font-black">Calculation selected</h3>
+            <p className="mt-2 text-base font-bold">
+              {auditRow.committeeEvidenceFormula}
+            </p>
+            <p className="mt-3 text-sm font-medium text-gray-700">
+              Sandbag Score {auditRow.sandbagIndex} = 10 points per positive
+              Evidence-vs-Overall stroke ({formatNumber(
+                auditRow.competitionVsOverallGap
+              )}) plus 10 points per positive Goodrich-General-vs-Competition
+              stroke ({formatNumber(
+                auditRow.competitionVsGoodrichGeneralGap
+              )}). Negative components count as zero.
+            </p>
+            <p className="mt-3 text-sm font-medium text-gray-700">
+              Legacy context: All-time Last-20 Competition HI {formatNumber(
+                auditRow.last20CompetitionHi
+              )}; Last-12-Month Competition HI {formatNumber(
+                auditRow.last12MonthsCompetitionHi
+              )} from {auditRow.last12MonthsCompetitionRounds} rounds;
+              All-time Last-20 General Play HI {formatNumber(
+                auditRow.last20GeneralPlayHi
+              )}.
+            </p>
           </div>
 
           <div className="mt-5 rounded-xl bg-white/70 p-4">

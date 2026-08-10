@@ -5,6 +5,13 @@ import {
 } from "@react-pdf/renderer";
 
 import { AuditBook } from "@/components/pdf/AuditBook";
+import {
+  buildAuditEvidence,
+  calculateHandicapIndex,
+  isCompetitionScoreType,
+  isGoodrichCourse,
+  whsUsedDifferentialCount,
+} from "@/lib/auditEvidence";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import type {
   AuditBreakdownRow,
@@ -57,19 +64,11 @@ function average(values: number[]): number | null {
 }
 
 function isCompetition(scoreType: string | null | undefined): boolean {
-  return ["C", "CH", "CA", "ECH"].includes(scoreType ?? "");
+  return isCompetitionScoreType(scoreType);
 }
 
 function whsUsedCount(roundCount: number): number {
-  if (roundCount < 5) return 0;
-  if (roundCount === 5) return 1;
-  if (roundCount <= 8) return 2;
-  if (roundCount <= 11) return 3;
-  if (roundCount <= 14) return 4;
-  if (roundCount <= 16) return 5;
-  if (roundCount <= 18) return 6;
-  if (roundCount === 19) return 7;
-  return 8;
+  return whsUsedDifferentialCount(roundCount);
 }
 
 function last20(rounds: RoundRow[]): RoundRow[] {
@@ -89,18 +88,7 @@ function last20(rounds: RoundRow[]): RoundRow[] {
 }
 
 function calculateCategoryHi(rounds: RoundRow[]): number | null {
-  const selected = last20(rounds);
-  const differentials = selected
-    .map((round) => Number(round.differential))
-    .sort((a, b) => a - b);
-
-  const used = whsUsedCount(differentials.length);
-  if (!used) return null;
-
-  const base = average(differentials.slice(0, used));
-  if (base === null) return null;
-
-  return Number((base + (differentials.length === 6 ? -1 : 0)).toFixed(1));
+  return calculateHandicapIndex(rounds);
 }
 
 function buildTrend(rounds: RoundRow[]): AuditTrendPoint[] {
@@ -164,7 +152,7 @@ function nextStepsForDecision(
     return [
       `Confirm the competition-only Committee-Adjusted Playing Handicap${suggested ? ` at ${suggested}` : ""}.`,
       "Notify the player and event staff that the official GHIN Handicap Index remains unchanged.",
-      "Recalculate weekly and round the Competition HI up to the nearest 0.5.",
+      "Recalculate the two-year evidence model weekly and round the selected Committee Evidence HI up to the nearest 0.5.",
       "Record the effective date and review again after meaningful scoring changes.",
     ];
   }
@@ -173,7 +161,7 @@ function nextStepsForDecision(
     return [
       `If the committee acts, record a provisional competition-only value${suggested ? ` of ${suggested}` : ""}.`,
       "Notify the player that the value is temporary and does not change GHIN.",
-      "Recalculate weekly and review after two or three additional eligible competition rounds.",
+      "Recalculate the two-year blend weekly and review after two or three additional eligible competition rounds.",
     ];
   }
 
@@ -188,7 +176,7 @@ function nextStepsForDecision(
   if (decision.code === "monitor") {
     return [
       "Make no immediate adjustment.",
-      "Continue the weekly 12-month comparison and watch for a stable 2.0-stroke recent gap.",
+      "Continue the weekly two-year evidence comparison and watch for a stable 2.0-stroke gap.",
       "Reopen the review after additional eligible competition rounds or a material scoring change.",
     ];
   }
@@ -202,7 +190,7 @@ function nextStepsForDecision(
   }
 
   return [
-    "No committee action is recommended because the 2.0-stroke review threshold is not met.",
+    "No committee action is recommended because the two-year 2.0-stroke review threshold is not met.",
     "Continue the normal weekly audit process.",
   ];
 }
@@ -236,9 +224,10 @@ function mapRound(round: RoundRow, usedDiffs: number[]): AuditRound {
 
 function buildBreakdownRow(
   label: string,
-  rounds: RoundRow[]
+  rounds: RoundRow[],
+  maximumRounds = 20
 ): AuditBreakdownRow {
-  const selected = last20(rounds);
+  const selected = last20(rounds).slice(0, maximumRounds);
   const sortedDiffs = selected
     .map((round) => Number(round.differential))
     .sort((a, b) => a - b);
@@ -250,7 +239,7 @@ function buildBreakdownRow(
     label,
     rounds: selected.length,
     used,
-    calculatedHi: calculateCategoryHi(selected),
+    calculatedHi: calculateHandicapIndex(selected, maximumRounds),
     averageDifferential: average(sortedDiffs),
     scores: selected
       .map(scoreOf)
@@ -378,6 +367,43 @@ export async function GET(request: Request) {
         const generalRounds = playerRounds.filter(
           (round) => !isCompetition(round.score_type)
         );
+        const evidenceCutoff = new Date();
+        evidenceCutoff.setUTCFullYear(
+          evidenceCutoff.getUTCFullYear() - 2
+        );
+        const fallbackEvidenceCutoffDate = evidenceCutoff
+          .toISOString()
+          .slice(0, 10);
+        const evidenceCutoffDate =
+          summary?.evidenceCutoffDate ?? fallbackEvidenceCutoffDate;
+        const evidenceModel = buildAuditEvidence(
+          playerRounds,
+          evidenceCutoffDate
+        );
+        const evidencePeriodRounds = playerRounds.filter(
+          (round) => round.played_at >= evidenceCutoffDate
+        );
+        const goodrichCompetition24MonthsRounds =
+          evidencePeriodRounds.filter(
+            (round) =>
+              isCompetition(round.score_type) &&
+              isGoodrichCourse(round.course_name)
+          );
+        const allCompetition24MonthsRounds = evidencePeriodRounds.filter(
+          (round) => isCompetition(round.score_type)
+        );
+        const goodrichGeneralLast10Rounds = evidencePeriodRounds
+          .filter(
+            (round) =>
+              !isCompetition(round.score_type) &&
+              isGoodrichCourse(round.course_name)
+          )
+          .sort(
+            (a, b) =>
+              new Date(b.played_at).getTime() -
+              new Date(a.played_at).getTime()
+          )
+          .slice(0, 10);
         const twelveMonthCutoff = new Date();
         twelveMonthCutoff.setUTCFullYear(
           twelveMonthCutoff.getUTCFullYear() - 1
@@ -413,6 +439,18 @@ export async function GET(request: Request) {
         const last12MonthsCompetitionIndex =
           toNumber(summary?.last12MonthsCompetitionHi) ??
           calculateCategoryHi(last12MonthsCompetitionRounds);
+        const goodrichCompetition24MonthsIndex =
+          toNumber(summary?.goodrichCompetition24MonthsHi) ??
+          evidenceModel.goodrichCompetitionHi;
+        const allCompetition24MonthsIndex =
+          toNumber(summary?.allCompetition24MonthsHi) ??
+          evidenceModel.allCompetitionHi;
+        const goodrichGeneralLast10Index =
+          toNumber(summary?.goodrichGeneralLast10Hi) ??
+          evidenceModel.goodrichGeneralHi;
+        const committeeEvidenceIndex =
+          toNumber(summary?.committeeEvidenceHi) ??
+          evidenceModel.committeeEvidenceHi;
 
         const baseDecision: Omit<AuditReportDecision, "nextSteps"> = summary
           ? {
@@ -438,12 +476,31 @@ export async function GET(request: Request) {
         };
 
         // Positive means the player's current GHIN Handicap Index is higher
-        // than the competition-only Handicap Index. This is the report's
-        // ranking and review variable.
+        // than the selected two-year Committee Evidence HI. This is the
+        // report's ranking and review variable.
         const currentVsCompetitionDifference =
-          currentIndex !== null && competitionIndex !== null
-            ? Number((currentIndex - competitionIndex).toFixed(1))
+          currentIndex !== null && committeeEvidenceIndex !== null
+            ? Number((currentIndex - committeeEvidenceIndex).toFixed(1))
             : null;
+        const competitionVsGoodrichGeneralGap =
+          toNumber(summary?.competitionVsGoodrichGeneralGap) ??
+          (goodrichGeneralLast10Index !== null &&
+          evidenceModel.competitionHiForComparison !== null
+            ? Number(
+                (
+                  goodrichGeneralLast10Index -
+                  evidenceModel.competitionHiForComparison
+                ).toFixed(1)
+              )
+            : null);
+        const sandbagScore =
+          toNumber(summary?.sandbagIndex) ??
+          Math.round(
+            Math.max(0, currentVsCompetitionDifference ?? 0) * 10
+          ) +
+            Math.round(
+              Math.max(0, competitionVsGoodrichGeneralGap ?? 0) * 10
+            );
 
         return {
           id: player.id,
@@ -454,8 +511,26 @@ export async function GET(request: Request) {
           last12MonthsCompetitionIndex,
           last12MonthsCompetitionRounds:
             last12MonthsCompetitionRounds.length,
+          evidenceCutoffDate,
+          goodrichCompetition24MonthsIndex,
+          goodrichCompetition24MonthsRounds:
+            goodrichCompetition24MonthsRounds.length,
+          allCompetition24MonthsIndex,
+          allCompetition24MonthsRounds:
+            allCompetition24MonthsRounds.length,
+          goodrichGeneralLast10Index,
+          goodrichGeneralLast10Rounds:
+            goodrichGeneralLast10Rounds.length,
+          committeeEvidenceIndex,
+          committeeEvidenceBasisLabel:
+            summary?.committeeEvidenceBasisLabel ??
+            evidenceModel.basisLabel,
+          committeeEvidenceFormula:
+            summary?.committeeEvidenceFormula ?? evidenceModel.formula,
           generalIndex,
           difference: currentVsCompetitionDifference,
+          competitionVsGoodrichGeneralGap,
+          sandbagScore,
           flag: flagForDifference(currentVsCompetitionDifference),
           competitionRounds: competitionRounds.length,
           generalRounds: generalRounds.length,
@@ -481,6 +556,19 @@ export async function GET(request: Request) {
             buildBreakdownRow(
               "General Play Handicap Rounds",
               generalRounds
+            ),
+            buildBreakdownRow(
+              "24 Months - Goodrich Competition",
+              goodrichCompetition24MonthsRounds
+            ),
+            buildBreakdownRow(
+              "24 Months - All Competition",
+              allCompetition24MonthsRounds
+            ),
+            buildBreakdownRow(
+              "Last 10 Goodrich General Play (24 Months)",
+              goodrichGeneralLast10Rounds,
+              10
             ),
           ],
           decision,

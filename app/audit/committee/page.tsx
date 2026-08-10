@@ -48,9 +48,8 @@ export default async function CommitteeAuditPage() {
 
         <p className="mt-2 text-sm text-gray-600 lg:text-base">
           Starting recommendations for players flagged as Investigate or Review.
-          Suggestions are based on official GHIN handicap-counting rounds only,
-          with the Suggested HI starting from the player’s Last 20 Competition
-          Handicap Index.
+          Suggestions use official GHIN handicap-counting rounds and the same
+          two-year Committee Evidence model shown on each player audit.
         </p>
       </div>
 
@@ -60,13 +59,13 @@ export default async function CommitteeAuditPage() {
             <tr>
               <th className="p-3 font-bold">Player</th>
               <th className="p-3 text-right font-bold">Current Handicap Index</th>
-              <th className="p-3 text-right font-bold">Last 20 Competition HI</th>
-              <th className="p-3 text-right font-bold">Last 20 General Play HI</th>
+              <th className="p-3 text-right font-bold">Committee Evidence HI</th>
+              <th className="p-3 text-right font-bold">Last-10 Goodrich General HI</th>
               <th className="p-3 text-right font-bold">Suggested Committee HI</th>
               <th className="p-3 text-right font-bold">Suggested Change</th>
               <th className="p-3 text-right font-bold">Sandbag Score</th>
-              <th className="p-3 text-right font-bold">Competition Rounds</th>
-              <th className="p-3 text-right font-bold">General Play Rounds</th>
+              <th className="p-3 text-right font-bold">24-Month Competition Rounds</th>
+              <th className="p-3 text-right font-bold">Goodrich General Rounds Used</th>
               <th className="p-3 font-bold">Status</th>
               <th className="p-3 font-bold">Reason</th>
             </tr>
@@ -74,7 +73,7 @@ export default async function CommitteeAuditPage() {
 
           <tbody>
             {flagged.map((row) => {
-              const suggestedHi = row.last20CompetitionHi;
+              const suggestedHi = row.decision.suggestedIndex;
               const change = suggestedChange(row.overallHi, suggestedHi);
 
               return (
@@ -101,11 +100,11 @@ export default async function CommitteeAuditPage() {
                   </td>
 
                   <td className="p-3 text-right font-bold">
-                    {formatNumber(row.last20CompetitionHi)}
+                    {formatNumber(row.committeeEvidenceHi)}
                   </td>
 
                   <td className="p-3 text-right">
-                    {formatNumber(row.last20GeneralPlayHi)}
+                    {formatNumber(row.goodrichGeneralLast10Hi)}
                   </td>
 
                   <td className="p-3 text-right font-black">
@@ -120,8 +119,8 @@ export default async function CommitteeAuditPage() {
                     {row.sandbagIndex}
                   </td>
 
-                  <td className="p-3 text-right">{row.competitionRounds}</td>
-                  <td className="p-3 text-right">{row.casualRounds}</td>
+                  <td className="p-3 text-right">{row.allCompetition24MonthsRounds}</td>
+                  <td className="p-3 text-right">{row.goodrichGeneralLast10Rounds}</td>
 
                   <td className="p-3 font-bold">
                     <span
