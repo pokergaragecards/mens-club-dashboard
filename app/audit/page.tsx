@@ -3,7 +3,7 @@ import { auditService } from "@/services/auditService";
 import { ExportAuditPdfButton } from "@/components/audit/ExportAuditPdfButton";
 import { ExportCompetitionChokersPdfButton } from "@/components/audit/ExportCompetitionChokersPdfButton";
 import { PrepareEmailButton } from "@/components/audit/PrepareEmailButton";
-import { shouldShowPrepareEmail } from "@/lib/auditEmailEligibility";
+import { compareAuditRowsByStrokeDiscrepancy } from "@/lib/auditSort";
 
 type Period = "last20" | "30" | "60" | "90" | "season";
 
@@ -43,34 +43,12 @@ function decisionClass(code: string) {
   return "bg-green-100 text-green-900";
 }
 
-function decisionPriority(code: string) {
-  if (
-    code === "adjustment_supported" ||
-    code === "provisional_adjustment" ||
-    code === "manual_review"
-  ) {
-    return 0;
-  }
-
-  if (code === "monitor") return 1;
-  return 2;
-}
-
 export default async function AuditPage({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
   const period: Period = params.period ?? "last20";
-  const rows = [...(await auditService.getAuditRows(period))].sort((a, b) => {
-    const priorityDifference =
-      decisionPriority(a.decision.code) - decisionPriority(b.decision.code);
-
-    if (priorityDifference !== 0) return priorityDifference;
-
-    const aGap = a.competitionVsOverallGap ?? Number.NEGATIVE_INFINITY;
-    const bGap = b.competitionVsOverallGap ?? Number.NEGATIVE_INFINITY;
-
-    if (aGap !== bGap) return bGap - aGap;
-    return a.full_name.localeCompare(b.full_name);
-  });
+  const rows = [...(await auditService.getAuditRows(period))].sort(
+    compareAuditRowsByStrokeDiscrepancy
+  );
 
   const tabs: { href: string; label: string; value: Period }[] = [
     { href: "/audit?period=last20", label: "Last 20", value: "last20" },
@@ -151,7 +129,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
                 Last 20 General Play HI
               </th>
               <th className="min-w-[280px] border-x-2 border-red-300 bg-red-100 p-4 text-right text-base font-bold leading-snug text-red-800">
-                Evidence HI vs Overall Gap
+                Stroke Discrepancy
               </th>
               <th className="min-w-[260px] p-4 text-base font-bold leading-snug">
                 Committee Decision
@@ -198,18 +176,14 @@ export default async function AuditPage({ searchParams }: PageProps) {
                       Audit
                     </Link>
 
-                    {shouldShowPrepareEmail(row.decision) ? (
-                      <PrepareEmailButton
-                        playerId={row.id}
-                        playerName={row.full_name}
-                        currentIndex={row.overallHi}
-                        evidenceIndex={row.reviewComparisonHi}
-                        evidenceGap={row.competitionVsOverallGap}
-                        suggestedIndex={row.decision.suggestedIndex}
-                      />
-                    ) : (
-                      <span aria-hidden="true" />
-                    )}
+                    <PrepareEmailButton
+                      playerId={row.id}
+                      playerName={row.full_name}
+                      currentIndex={row.overallHi}
+                      evidenceIndex={row.reviewComparisonHi}
+                      evidenceGap={row.competitionVsOverallGap}
+                      suggestedIndex={row.decision.suggestedIndex}
+                    />
                   </div>
                 </td>
 
@@ -304,18 +278,14 @@ export default async function AuditPage({ searchParams }: PageProps) {
                     Audit
                   </Link>
 
-                  {shouldShowPrepareEmail(row.decision) ? (
-                    <PrepareEmailButton
-                      playerId={row.id}
-                      playerName={row.full_name}
-                      currentIndex={row.overallHi}
-                      evidenceIndex={row.reviewComparisonHi}
-                      evidenceGap={row.competitionVsOverallGap}
-                      suggestedIndex={row.decision.suggestedIndex}
-                    />
-                  ) : (
-                    <span aria-hidden="true" />
-                  )}
+                  <PrepareEmailButton
+                    playerId={row.id}
+                    playerName={row.full_name}
+                    currentIndex={row.overallHi}
+                    evidenceIndex={row.reviewComparisonHi}
+                    evidenceGap={row.competitionVsOverallGap}
+                    suggestedIndex={row.decision.suggestedIndex}
+                  />
                 </div>
 
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -362,7 +332,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
                 value={formatNumber(row.last20GeneralPlayHi)}
               />
               <MobileStat
-                label="Evidence vs Overall Gap"
+                label="Stroke Discrepancy"
                 value={formatNumber(row.competitionVsOverallGap)}
               />
             </Section>

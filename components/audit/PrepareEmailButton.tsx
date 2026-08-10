@@ -47,7 +47,7 @@ The Goodrich Men's Club Handicap Committee has completed its current review of y
 
 Official GHIN Handicap Index: ${valueOrDash(props.currentIndex)}
 Conservative Committee Review HI: ${valueOrDash(props.evidenceIndex)}
-Difference: ${valueOrDash(props.evidenceGap)} strokes
+Stroke Discrepancy: ${valueOrDash(props.evidenceGap)} strokes
 ${adjustment}
 
 Your official GHIN Handicap Index will not be changed. Any committee adjustment applies only to Goodrich Men's Club competitive events and matches.
@@ -80,7 +80,7 @@ function buildEmailHtml(props: Props) {
 <strong>Conservative Committee Review HI: ${valueOrDash(
     props.evidenceIndex
   )}</strong><br>
-<strong>Difference: ${valueOrDash(props.evidenceGap)} strokes</strong></p>
+<strong>Stroke Discrepancy: ${valueOrDash(props.evidenceGap)} strokes</strong></p>
 ${adjustment}
 <p><strong>Your official GHIN Handicap Index will not be changed.</strong> Any committee adjustment applies <strong>only to Goodrich Men's Club competitive events and matches.</strong></p>
 <p>We will review the calculation weekly as additional competition scores are posted. The attached audit PDF contains the scoring details used in this review.</p>
