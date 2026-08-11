@@ -4,8 +4,16 @@ import test from "node:test";
 import {
   buildAuditEvidence,
   calculateHandicapIndex,
+  isCompetitionScoreType,
   selectConservativeReviewHi,
 } from "../lib/auditEvidence.ts";
+
+test("nine-hole competition round types count as competition", () => {
+  assert.equal(isCompetitionScoreType("NCH"), true);
+  assert.equal(isCompetitionScoreType("NCA"), true);
+  assert.equal(isCompetitionScoreType("NH"), false);
+  assert.equal(isCompetitionScoreType("NA"), false);
+});
 
 function rounds({
   count,

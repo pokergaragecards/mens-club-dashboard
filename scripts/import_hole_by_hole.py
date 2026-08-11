@@ -16,7 +16,7 @@ SOURCE = "GHIN_HBH_PDF"
 
 KNOWN_TEES = {"Blue", "Gold", "Red", "White"}
 KNOWN_GENDERS = {"Male", "Female"}
-SCORE_TYPES = {"H", "A", "C", "CH"}
+SCORE_TYPES = {"H", "A", "C", "CH", "NCA", "NCH"}
 
 BATCH_SIZE = int(os.environ.get("BATCH_SIZE", "1000"))
 START_AT = int(os.environ.get("START_AT", "1"))

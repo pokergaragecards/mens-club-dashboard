@@ -21,6 +21,8 @@ const SCORE_TYPES = new Set([
   "ECH",
   "NA",
   "NH",
+  "NCA",
+  "NCH",
 ]);
 const SCORES_POSTED_COLUMN_BOUNDARIES = [
   0,
@@ -40,6 +42,7 @@ const SCORES_POSTED_COLUMN_BOUNDARIES = [
   67.7 / 70.875,
   1.001,
 ];
+const BLANK_PDF_COLUMN = "__BLANK__";
 
 function decodeRun(value: string | undefined) {
   if (!value) return "";
@@ -186,7 +189,17 @@ export function reconstructScoresPostedText(pages: PdfPage[]) {
             bottom,
           })
       );
-      const row = columns.filter(Boolean).join(" ").trim();
+      if (columns[7]) {
+        columns[7] = columns[7].split(/\s+/)[0];
+      }
+      const playerColumns = columns.slice(0, 5).filter(Boolean);
+      const roundColumns = columns
+        .slice(5, 13)
+        .map((column) => column || BLANK_PDF_COLUMN);
+      const trailingColumns = columns.slice(13).filter(Boolean);
+      const row = [...playerColumns, ...roundColumns, ...trailingColumns]
+        .join(" ")
+        .trim();
       if (row) rows.push(row);
     }
   }

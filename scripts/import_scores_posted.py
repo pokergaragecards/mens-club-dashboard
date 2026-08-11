@@ -13,24 +13,40 @@ from utils.scores_posted_pdf import pdf_to_coordinate_text
 
 load_dotenv(".env.local")
 
-SUPABASE_URL = os.environ["NEXT_PUBLIC_SUPABASE_URL"]
-SUPABASE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-
 SOURCE = "SCORES_POSTED_REPORT"
 HBH_SOURCE = "GHIN_HBH_PDF"
 
 STATUSES = {"Active", "Inactive"}
-SCORE_TYPES = {"H", "A", "C", "CH", "CA", "EA", "EH", "ECH", "NA", "NH"}
+SCORE_TYPES = {
+    "H",
+    "A",
+    "C",
+    "CH",
+    "CA",
+    "EA",
+    "EH",
+    "ECH",
+    "NA",
+    "NH",
+    "NCA",
+    "NCH",
+}
 
 BATCH_SIZE = int(os.environ.get("BATCH_SIZE", "1000"))
 START_AT = int(os.environ.get("START_AT", "1"))
 
 
 def get_client():
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+    url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key:
+        raise RuntimeError(
+            "NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required."
+        )
+    return create_client(url, key)
 
 
-supabase = get_client()
+supabase = None
 
 
 def pdf_to_text(path: str) -> str:
@@ -216,14 +232,7 @@ def parse_round_at(tokens, start, player):
         tokens[start + 7] if start + 7 < len(tokens) else None
     )
 
-    if None in [
-        adjusted_gross_score,
-        course_rating,
-        slope_rating,
-        differential,
-        score_handicap_index,
-        net_score_differential,
-    ]:
+    if None in [adjusted_gross_score, course_rating, slope_rating, differential]:
         return None
 
     course_start = start + 8
@@ -571,6 +580,8 @@ def insert_or_update_scores_posted(player_id, round_row):
 
 def import_file(path):
     global supabase
+
+    supabase = get_client()
 
     text = pdf_to_text(path)
     rounds, invalid = parse_scores_posted_text(text)

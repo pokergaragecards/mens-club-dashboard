@@ -6,6 +6,7 @@ import {
   getGoodrichHoleRankingReport,
   goodrichHoleRankingsForPlayer,
 } from "@/services/holeRankingService";
+import { isCompetitionScoreType } from "@/lib/auditEvidence";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -62,7 +63,7 @@ function getThirtyDaysAgo() {
 }
 
 function isCompetition(scoreType: string | null | undefined) {
-  return ["C", "CH", "CA", "ECH"].includes(scoreType ?? "");
+  return isCompetitionScoreType(scoreType);
 }
 
 function isGoodrich(round: RoundLike) {

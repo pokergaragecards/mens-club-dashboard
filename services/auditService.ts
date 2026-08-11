@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import {
   buildAuditEvidence,
   calculateHandicapIndex,
+  isCompetitionScoreType,
   selectConservativeReviewHi,
   type AuditEvidence,
   type AuditEvidenceRound,
@@ -324,7 +325,7 @@ export const auditService = {
         const last12MonthsCompetitionRounds = playerEvidenceRounds.filter(
           (round) =>
             round.played_at >= twelveMonthCutoffDate &&
-            ["C", "CH", "CA", "ECH"].includes(round.score_type ?? "")
+            isCompetitionScoreType(round.score_type)
         );
         const decision = buildDecision({
           overallHi,

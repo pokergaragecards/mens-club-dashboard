@@ -38,6 +38,8 @@ const SCORE_TYPES = new Set([
   "ECH",
   "NA",
   "NH",
+  "NCA",
+  "NCH",
 ]);
 
 function normalizeText(text: string) {
@@ -252,9 +254,7 @@ function parseRoundAt(
     adjustedGrossScore == null ||
     courseRating == null ||
     slopeRating == null ||
-    differential == null ||
-    scoreHandicapIndex == null ||
-    netScoreDifferential == null
+    differential == null
   ) {
     return null;
   }

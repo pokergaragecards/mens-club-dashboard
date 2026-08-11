@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
+import { isCompetitionScoreType } from "@/lib/auditEvidence";
 
 export type HoleMode = "competition" | "all";
 export type TeeMode = "common" | "all";
@@ -146,7 +147,7 @@ function normalCdf(x: number) {
 }
 
 function isCompetition(scoreType: string | null | undefined) {
-  return ["C", "CH", "CA", "ECH"].includes(scoreType ?? "");
+  return isCompetitionScoreType(scoreType);
 }
 
 function getCourseHandicap(index: number) {
@@ -467,7 +468,7 @@ export const compareService = {
           });
 
     const allHoleRows: HoleScoreRow[] = (groupedHoleRows ?? []).map(
-      (row: any) => ({
+      (row: Partial<HoleScoreRow>) => ({
         player_id: String(row.player_id),
         hole_number: Number(row.hole_number),
         gross_score: Number(row.gross_score),

@@ -1,4 +1,11 @@
-export const COMPETITION_SCORE_TYPES = ["C", "CH", "CA", "ECH"] as const;
+export const COMPETITION_SCORE_TYPES = [
+  "C",
+  "CH",
+  "CA",
+  "ECH",
+  "NCH",
+  "NCA",
+] as const;
 
 export type AuditEvidenceRound = {
   id: string;

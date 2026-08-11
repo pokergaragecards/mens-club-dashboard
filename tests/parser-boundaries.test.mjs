@@ -58,6 +58,32 @@ test("Scores Posted recovers a PCC displaced before a wrapped course tail", () =
   assert.equal(result.validRounds[0].pcc, 1);
 });
 
+test("Scores Posted treats NCH and NCA as round boundaries", () => {
+  const text = [
+    "11733617 Wyatt Sommers Active 17.1 3",
+    "H 8/2/2026 100 71.1 125 26.1 17.1 9.0 New Richmond GC - Old",
+    "NCH 8/1/2026 45 34.4 121 15.0 NH __BLANK__ Goodrich Golf Course",
+    "NCA 5/17/2026 42 34.4 121 15.0 12.8 2.2 Monticello Country Club",
+  ].join(" ");
+
+  const result = parseScoresPostedText(text);
+
+  assert.deepEqual(
+    result.validRounds.map((round) => [
+      round.scoreType,
+      round.courseName,
+      round.adjustedGrossScore,
+    ]),
+    [
+      ["H", "New Richmond GC - Old", 100],
+      ["NCH", "Goodrich Golf Course", 45],
+      ["NCA", "Monticello Country Club", 42],
+    ]
+  );
+  assert.equal(result.validRounds[1].scoreHandicapIndex, null);
+  assert.equal(result.validRounds[1].netScoreDifferential, null);
+});
+
 test("Hole-by-hole import skips a slope-rating boundary and finds the real golfer", () => {
   const text = [
     "117 Course 2180313 Dan Munson 7/28/2024 4.8 10 H Blue Male 70.1 117",

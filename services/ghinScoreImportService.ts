@@ -17,12 +17,14 @@ export async function previewGhinImport(
   const supabase = createSupabaseServerClient();
   const nameParts = splitName(playerName);
 
-  let { data: player, error: playerError } = await supabase
+  const playerResult = await supabase
     .from("players")
     .select("id, full_name, ghin_number")
     .ilike("first_name", nameParts.first_name)
     .ilike("last_name", nameParts.last_name)
     .maybeSingle();
+  let player = playerResult.data;
+  const playerError = playerResult.error;
 
   if (playerError) throw new Error(playerError.message);
 
@@ -111,8 +113,8 @@ export async function importGhinRounds(params: {
     pcc: round.pcc,
     differential: round.differential,
     esr: round.esr,
-    is_home: round.scoreType === "H",
-    is_away: round.scoreType === "A",
+    is_home: round.scoreType?.includes("H") ?? false,
+    is_away: round.scoreType?.includes("A") ?? false,
     is_competition: round.scoreType?.includes("C") ?? false,
     source: "GHIN",
     external_round_key: `${preview.player.id}|${round.importKey}`,

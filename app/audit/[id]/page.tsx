@@ -5,6 +5,7 @@ import {
   type AuditHandicapTrendPoint,
 } from "@/components/audit/AuditTrendChart";
 import { auditService } from "@/services/auditService";
+import { isCompetitionScoreType } from "@/lib/auditEvidence";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -43,7 +44,7 @@ function formatNumber(value: unknown, decimals = 1) {
 }
 
 function isCompetition(scoreType: string | null | undefined) {
-  return ["C", "CH", "CA", "ECH"].includes(scoreType ?? "");
+  return isCompetitionScoreType(scoreType);
 }
 
 function scoreTypeLabel(scoreType: string | null | undefined) {
@@ -68,6 +69,10 @@ function scoreTypeLabel(scoreType: string | null | undefined) {
       return "Nine-Hole Away";
     case "NH":
       return "Nine-Hole Home";
+    case "NCA":
+      return "Nine-Hole Competition Away";
+    case "NCH":
+      return "Nine-Hole Competition Home";
     default:
       return scoreType ?? "-";
   }

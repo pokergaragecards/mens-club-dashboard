@@ -66,6 +66,14 @@ function scoreTypeLabel(type: string | null | undefined) {
       return "Exceptional Away";
     case "EH":
       return "Exceptional Home";
+    case "NA":
+      return "Nine-Hole Away";
+    case "NH":
+      return "Nine-Hole Home";
+    case "NCA":
+      return "Nine-Hole Competition Away";
+    case "NCH":
+      return "Nine-Hole Competition Home";
     default:
       return type ?? "-";
   }

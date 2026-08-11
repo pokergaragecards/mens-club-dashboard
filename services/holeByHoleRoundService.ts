@@ -99,9 +99,9 @@ async function createRound(
       slope_rating: round.slopeRating,
 
       score_type: round.scoreType,
-      is_home: round.scoreType === "H",
-      is_away: round.scoreType !== "H",
-      is_competition: round.scoreType === "CH",
+      is_home: (round.scoreType ?? "").includes("H"),
+      is_away: (round.scoreType ?? "").includes("A"),
+      is_competition: (round.scoreType ?? "").includes("C"),
 
       source: IMPORT_SOURCE,
       external_round_key: signature,

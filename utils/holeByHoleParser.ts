@@ -25,7 +25,7 @@ export type HoleByHoleParseResult = {
 
 const KNOWN_TEES = new Set(["Blue", "Gold", "Red", "White"]);
 const KNOWN_GENDERS = new Set(["Male", "Female"]);
-const SCORE_TYPES = new Set(["H", "A", "C", "CH"]);
+const SCORE_TYPES = new Set(["H", "A", "C", "CH", "NCA", "NCH"]);
 
 function toNumber(value: string | undefined | null): number | null {
   if (!value) return null;

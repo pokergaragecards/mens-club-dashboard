@@ -3,7 +3,20 @@ import re
 import pdfplumber
 
 
-SCORE_TYPES = {"H", "A", "C", "CH", "CA", "EA", "EH", "ECH", "NA", "NH"}
+SCORE_TYPES = {
+    "H",
+    "A",
+    "C",
+    "CH",
+    "CA",
+    "EA",
+    "EH",
+    "ECH",
+    "NA",
+    "NH",
+    "NCA",
+    "NCH",
+}
 
 # Column boundaries expressed as fractions of the GHIN report page width. This
 # keeps the reconstruction stable if the PDF is emitted at a different scale.
@@ -26,6 +39,7 @@ _COLUMN_BOUNDARIES = (
     1.001,
 )
 _DATE_PATTERN = re.compile(r"^\d{1,2}/\d{1,2}/\d{4}$")
+_BLANK_COLUMN = "__BLANK__"
 
 
 def _horizontal_position(word):
@@ -134,7 +148,17 @@ def reconstruct_scores_posted_page(words, page_width, page_height):
             )
             for column in range(len(_COLUMN_BOUNDARIES) - 1)
         ]
-        row = " ".join(column for column in columns if column).strip()
+        # Preserve the eight fixed round columns even when GHIN displays a
+        # blank Score H.I./NSD value. Parenthetical text after AGS describes
+        # the partial-hole context; the numeric AGS remains the stored score.
+        if columns[7]:
+            columns[7] = columns[7].split()[0]
+        player_columns = [column for column in columns[:5] if column]
+        round_columns = [
+            column or _BLANK_COLUMN for column in columns[5:13]
+        ]
+        trailing_columns = [column for column in columns[13:] if column]
+        row = " ".join(player_columns + round_columns + trailing_columns).strip()
         if row:
             rows.append(row)
 
