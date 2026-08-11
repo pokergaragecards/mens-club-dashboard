@@ -836,6 +836,45 @@ const s = StyleSheet.create({
     fontSize: 6.5,
     color: COLORS.gray600,
   },
+  summaryGuide: {
+    marginBottom: 10,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: COLORS.green200,
+    backgroundColor: COLORS.green50,
+  },
+  summaryGuideTitle: {
+    marginBottom: 3,
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.green900,
+  },
+  summaryGuideIntro: {
+    fontSize: 6.6,
+    lineHeight: 1.35,
+    color: COLORS.gray700,
+  },
+  summaryGuideGrid: {
+    marginTop: 3,
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  summaryGuideItem: {
+    width: "50%",
+    paddingTop: 4,
+    paddingRight: 8,
+  },
+  summaryGuideLabel: {
+    marginBottom: 1,
+    fontSize: 6.6,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.green900,
+  },
+  summaryGuideText: {
+    fontSize: 6.2,
+    lineHeight: 1.3,
+    color: COLORS.gray700,
+  },
   summaryPlayer: { width: "21%", padding: 4 },
   summaryNum: { width: "8%", padding: 4, textAlign: "right" },
   summaryDecision: { width: "31%", padding: 4 },
@@ -1721,7 +1760,70 @@ function PlayerPage({
   );
 }
 
-function Summary({ report, title }: { report: AuditReport; title: string }) {
+const SUMMARY_COLUMN_GUIDE = [
+  {
+    label: "Player",
+    text: "The member's rank and name. Players are ordered from the largest Gap to the smallest.",
+  },
+  {
+    label: "Current",
+    text: "The official current GHIN Handicap Index. (#) is the active calculation window, capped at the latest 20 eligible scores.",
+  },
+  {
+    label: "Review",
+    text: "The committee comparison HI. With fewer than 10 Goodrich competition scores, it uses the higher (more player-favorable) of the Last 20 Competition HI and Two-Year Committee Evidence HI. (#) is its supporting score count.",
+  },
+  {
+    label: "G Comp",
+    text: "Goodrich Competition HI from competition scores at Goodrich during the last 24 months, capped at the latest 20 scores.",
+  },
+  {
+    label: "All Comp",
+    text: "All Competition HI from competition scores at every course during the last 24 months, capped at the latest 20 scores.",
+  },
+  {
+    label: "G General",
+    text: "Goodrich General-Play HI from the latest 10 eligible Goodrich general-play scores in the last 24 months. It supports the Two-Year Evidence HI when only 3-9 competition scores are available.",
+  },
+  {
+    label: "Gap",
+    text: "Current HI minus Review HI. A larger positive number means the official Current HI gives more strokes than the Review HI.",
+  },
+  {
+    label: "Review Status",
+    text: "A Gap of 2.0 strokes or more is labeled Needing a Handicap Review. This is a screening flag, not an automatic adjustment.",
+  },
+] as const;
+
+function SummaryGuide() {
+  return (
+    <View style={s.summaryGuide} wrap={false}>
+      <Text style={s.summaryGuideTitle}>HOW TO READ THIS PAGE</Text>
+      <Text style={s.summaryGuideIntro}>
+        Each Handicap Index is followed by its score count in parentheses. The
+        definitions below explain the source and time window for every column.
+      </Text>
+      <View style={s.summaryGuideGrid}>
+        {SUMMARY_COLUMN_GUIDE.map((item) => (
+          <View style={s.summaryGuideItem} key={item.label}>
+            <Text style={s.summaryGuideLabel}>{item.label}</Text>
+            <Text style={s.summaryGuideText}>{item.text}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function Summary({
+  report,
+  title,
+  showGuide = false,
+}: {
+  report: AuditReport;
+  title: string;
+  showGuide?: boolean;
+}) {
   const hiWithScoreCount = (index: number | null, count: number) =>
     index === null ? "-" : `${n(index)} (${count})`;
 
@@ -1729,9 +1831,14 @@ function Summary({ report, title }: { report: AuditReport; title: string }) {
     <Page size="LETTER" style={s.page}>
       <Text style={s.summaryTitle}>{title}</Text>
 
-      <Text style={s.summaryCountNote}>
-        (#) is the number of scores considered in that Handicap Index section.
-      </Text>
+      {showGuide ? (
+        <SummaryGuide />
+      ) : (
+        <Text style={s.summaryCountNote}>
+          (#) is the number of scores considered in that Handicap Index
+          section.
+        </Text>
+      )}
 
       <View style={[s.row, s.th]}>
         <Text style={s.summaryPlayer}>Player</Text>
@@ -1889,6 +1996,7 @@ export function AuditBook({
       <Summary
         report={report}
         title="Current Handicap Review - Stroke Discrepancy"
+        showGuide
       />
 
       {report.players.map((player, index) => (
