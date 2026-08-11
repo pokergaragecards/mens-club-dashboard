@@ -332,6 +332,12 @@ export async function GET(request: Request) {
       .map((player): AuditPlayerReport | null => {
         const summary = summaryById.get(player.id);
         const playerRounds = roundsByPlayer.get(player.id) ?? [];
+        const handicapRoundCount = playerRounds.filter(
+          (round) =>
+            round.counts_for_hi === true &&
+            round.differential !== null &&
+            Number.isFinite(Number(round.differential))
+        ).length;
 
         const competitionRounds = playerRounds.filter((round) =>
           isCompetition(round.score_type)
@@ -441,6 +447,28 @@ export async function GET(request: Request) {
         });
         const reviewComparisonIndex =
           toNumber(summary?.reviewComparisonHi) ?? reviewSelection.index;
+        const committeeEvidenceScoreCount = (() => {
+          switch (evidenceModel.basis) {
+            case "goodrich_competition":
+              return goodrichCompetition24MonthsRounds.length;
+            case "all_competition":
+            case "limited_competition":
+              return allCompetition24MonthsRounds.length;
+            case "blended_competition_general":
+              return (
+                allCompetition24MonthsRounds.length +
+                goodrichGeneralLast10Rounds.length
+              );
+            case "goodrich_general_monitor":
+              return goodrichGeneralLast10Rounds.length;
+            default:
+              return 0;
+          }
+        })();
+        const reviewComparisonScoreCount =
+          reviewSelection.source === "last20_competition"
+            ? last20(competitionRounds).length
+            : committeeEvidenceScoreCount;
         const reviewComparisonBasisLabel =
           summary?.reviewComparisonBasisLabel ??
           reviewSelection.basisLabel;
@@ -495,6 +523,7 @@ export async function GET(request: Request) {
           name: player.full_name,
           ghinNumber: player.ghin_number,
           currentIndex,
+          currentIndexScoreCount: handicapRoundCount,
           competitionIndex,
           last12MonthsCompetitionIndex,
           last12MonthsCompetitionRounds:
@@ -516,6 +545,7 @@ export async function GET(request: Request) {
           committeeEvidenceFormula:
             summary?.committeeEvidenceFormula ?? evidenceModel.formula,
           reviewComparisonIndex,
+          reviewComparisonScoreCount,
           reviewComparisonBasisLabel,
           generalIndex,
           difference: currentVsCompetitionDifference,

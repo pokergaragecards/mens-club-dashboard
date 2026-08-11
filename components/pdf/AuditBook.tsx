@@ -828,7 +828,12 @@ const s = StyleSheet.create({
     fontSize: 20,
     fontFamily: "Helvetica-Bold",
     color: COLORS.green900,
-    marginBottom: 12,
+    marginBottom: 4,
+  },
+  summaryCountNote: {
+    marginBottom: 8,
+    fontSize: 6.5,
+    color: COLORS.gray600,
   },
   summaryPlayer: { width: "21%", padding: 4 },
   summaryNum: { width: "8%", padding: 4, textAlign: "right" },
@@ -1716,9 +1721,16 @@ function PlayerPage({
 }
 
 function Summary({ report, title }: { report: AuditReport; title: string }) {
+  const hiWithScoreCount = (index: number | null, count: number) =>
+    index === null ? "-" : `${n(index)} (${count})`;
+
   return (
     <Page size="LETTER" style={s.page}>
       <Text style={s.summaryTitle}>{title}</Text>
+
+      <Text style={s.summaryCountNote}>
+        (#) is the number of scores available in that Handicap Index section.
+      </Text>
 
       <View style={[s.row, s.th]}>
         <Text style={s.summaryPlayer}>Player</Text>
@@ -1736,13 +1748,36 @@ function Summary({ report, title }: { report: AuditReport; title: string }) {
           <Text style={s.summaryPlayer}>
             #{index + 1} {player.name}
           </Text>
-          <Text style={s.summaryNum}>{n(player.currentIndex)}</Text>
-          <Text style={s.summaryNum}>{n(player.reviewComparisonIndex)}</Text>
           <Text style={s.summaryNum}>
-            {n(player.goodrichCompetition24MonthsIndex)}
+            {hiWithScoreCount(
+              player.currentIndex,
+              player.currentIndexScoreCount
+            )}
           </Text>
-          <Text style={s.summaryNum}>{n(player.allCompetition24MonthsIndex)}</Text>
-          <Text style={s.summaryNum}>{n(player.goodrichGeneralLast10Index)}</Text>
+          <Text style={s.summaryNum}>
+            {hiWithScoreCount(
+              player.reviewComparisonIndex,
+              player.reviewComparisonScoreCount
+            )}
+          </Text>
+          <Text style={s.summaryNum}>
+            {hiWithScoreCount(
+              player.goodrichCompetition24MonthsIndex,
+              player.goodrichCompetition24MonthsRounds
+            )}
+          </Text>
+          <Text style={s.summaryNum}>
+            {hiWithScoreCount(
+              player.allCompetition24MonthsIndex,
+              player.allCompetition24MonthsRounds
+            )}
+          </Text>
+          <Text style={s.summaryNum}>
+            {hiWithScoreCount(
+              player.goodrichGeneralLast10Index,
+              player.goodrichGeneralLast10Rounds
+            )}
+          </Text>
           <Text style={[s.summaryNum, advantageStyle(player.difference)]}>
             {player.difference === null
               ? "-"

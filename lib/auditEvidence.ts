@@ -51,6 +51,7 @@ export type ConservativeReviewSelection = {
   index: number | null;
   basisLabel: string;
   usedBenefitOfDoubt: boolean;
+  source: "last20_competition" | "committee_evidence";
 };
 
 function byMostRecent(a: AuditEvidenceRound, b: AuditEvidenceRound) {
@@ -147,6 +148,7 @@ export function selectConservativeReviewHi(params: {
       index: committeeEvidenceHi,
       basisLabel: "Two-Year Committee Evidence HI",
       usedBenefitOfDoubt: false,
+      source: "committee_evidence",
     };
   }
 
@@ -155,6 +157,7 @@ export function selectConservativeReviewHi(params: {
       index: committeeEvidenceHi,
       basisLabel: "Two-Year Committee Evidence HI (Last 20 unavailable)",
       usedBenefitOfDoubt: true,
+      source: "committee_evidence",
     };
   }
 
@@ -163,6 +166,7 @@ export function selectConservativeReviewHi(params: {
       index: last20CompetitionHi,
       basisLabel: "Last 20 Competition HI (two-year evidence unavailable)",
       usedBenefitOfDoubt: true,
+      source: "last20_competition",
     };
   }
 
@@ -173,6 +177,7 @@ export function selectConservativeReviewHi(params: {
       ? "Higher value: Last 20 Competition HI"
       : "Higher value: Two-Year Committee Evidence HI",
     usedBenefitOfDoubt: true,
+    source: useLast20 ? "last20_competition" : "committee_evidence",
   };
 }
 

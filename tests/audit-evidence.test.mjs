@@ -142,6 +142,7 @@ test("uses the higher HI as benefit of the doubt below 10 Goodrich competition r
   });
   assert.equal(last20Wins.index, 16.2);
   assert.equal(last20Wins.usedBenefitOfDoubt, true);
+  assert.equal(last20Wins.source, "last20_competition");
   assert.match(last20Wins.basisLabel, /Last 20 Competition HI/);
 
   const evidenceWins = selectConservativeReviewHi({
@@ -150,6 +151,7 @@ test("uses the higher HI as benefit of the doubt below 10 Goodrich competition r
     committeeEvidenceHi: 14.4,
   });
   assert.equal(evidenceWins.index, 14.4);
+  assert.equal(evidenceWins.source, "committee_evidence");
   assert.match(evidenceWins.basisLabel, /Two-Year Committee Evidence HI/);
 });
 
@@ -162,4 +164,5 @@ test("uses two-year evidence directly at 10 Goodrich competition rounds", () => 
 
   assert.equal(selection.index, 14.2);
   assert.equal(selection.usedBenefitOfDoubt, false);
+  assert.equal(selection.source, "committee_evidence");
 });

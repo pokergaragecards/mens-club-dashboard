@@ -51,6 +51,7 @@ export type AuditPlayerReport = {
   name: string;
   ghinNumber: string | null;
   currentIndex: number | null;
+  currentIndexScoreCount: number;
   competitionIndex: number | null;
   last12MonthsCompetitionIndex: number | null;
   last12MonthsCompetitionRounds: number;
@@ -65,6 +66,7 @@ export type AuditPlayerReport = {
   committeeEvidenceBasisLabel: string;
   committeeEvidenceFormula: string;
   reviewComparisonIndex: number | null;
+  reviewComparisonScoreCount: number;
   reviewComparisonBasisLabel: string;
   generalIndex: number | null;
   difference: number | null;
