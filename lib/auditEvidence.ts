@@ -90,6 +90,16 @@ export function whsUsedDifferentialCount(roundCount: number) {
   return 8;
 }
 
+export function handicapScoreWindowCount(
+  roundCount: number,
+  maximumRounds = 20
+) {
+  return Math.min(
+    Math.max(0, Math.trunc(roundCount)),
+    Math.max(0, Math.trunc(maximumRounds))
+  );
+}
+
 export function fewerThan20Adjustment(roundCount: number) {
   if (roundCount === 3) return -2;
   if (roundCount === 4 || roundCount === 6) return -1;

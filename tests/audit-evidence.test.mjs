@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildAuditEvidence,
   calculateHandicapIndex,
+  handicapScoreWindowCount,
   isCompetitionScoreType,
   selectConservativeReviewHi,
 } from "../lib/auditEvidence.ts";
@@ -13,6 +14,12 @@ test("nine-hole competition round types count as competition", () => {
   assert.equal(isCompetitionScoreType("NCA"), true);
   assert.equal(isCompetitionScoreType("NH"), false);
   assert.equal(isCompetitionScoreType("NA"), false);
+});
+
+test("HI score counts are capped by each calculation window", () => {
+  assert.equal(handicapScoreWindowCount(22), 20);
+  assert.equal(handicapScoreWindowCount(7), 7);
+  assert.equal(handicapScoreWindowCount(12, 10), 10);
 });
 
 function rounds({

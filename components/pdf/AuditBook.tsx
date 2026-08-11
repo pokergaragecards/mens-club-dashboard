@@ -11,6 +11,7 @@ import type {
   AuditPlayerReport,
   AuditReport,
 } from "@/lib/auditReportService";
+import { handicapScoreWindowCount } from "@/lib/auditEvidence";
 import { roundTeeDisplayName } from "@/lib/goodrichTeeDisplay";
 
 const COLORS = {
@@ -1729,7 +1730,7 @@ function Summary({ report, title }: { report: AuditReport; title: string }) {
       <Text style={s.summaryTitle}>{title}</Text>
 
       <Text style={s.summaryCountNote}>
-        (#) is the number of scores available in that Handicap Index section.
+        (#) is the number of scores considered in that Handicap Index section.
       </Text>
 
       <View style={[s.row, s.th]}>
@@ -1763,19 +1764,26 @@ function Summary({ report, title }: { report: AuditReport; title: string }) {
           <Text style={s.summaryNum}>
             {hiWithScoreCount(
               player.goodrichCompetition24MonthsIndex,
-              player.goodrichCompetition24MonthsRounds
+              handicapScoreWindowCount(
+                player.goodrichCompetition24MonthsRounds
+              )
             )}
           </Text>
           <Text style={s.summaryNum}>
             {hiWithScoreCount(
               player.allCompetition24MonthsIndex,
-              player.allCompetition24MonthsRounds
+              handicapScoreWindowCount(
+                player.allCompetition24MonthsRounds
+              )
             )}
           </Text>
           <Text style={s.summaryNum}>
             {hiWithScoreCount(
               player.goodrichGeneralLast10Index,
-              player.goodrichGeneralLast10Rounds
+              handicapScoreWindowCount(
+                player.goodrichGeneralLast10Rounds,
+                10
+              )
             )}
           </Text>
           <Text style={[s.summaryNum, advantageStyle(player.difference)]}>
