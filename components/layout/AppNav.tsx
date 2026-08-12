@@ -5,6 +5,7 @@ const navItems = [
   { href: "/players", label: "Players" },
   { href: "/audit", label: " Handicap Audit" },
   { href: "/compare", label: "Compare" },
+  { href: "/team-estimator", label: "Team Estimator" },
   { href: "/holes", label: "Hole Stats" },
   { href: "/holes/rankings?view=worst", label: "Worst by Hole" },
   { href: "/holes/rankings?view=best", label: "Best by Hole" },

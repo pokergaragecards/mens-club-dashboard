@@ -43,6 +43,14 @@ const dashboardCards = [
       "Compare golfers side-by-side using scoring, differentials, and hole-by-hole performance.",
     badge: "Compare",
   },
+  {
+    href: "/team-estimator",
+    title: "Team Event Estimator",
+    emoji: "🎯",
+    description:
+      "Build four-player teams and simulate a best-three-of-four event with projected scores and win probabilities.",
+    badge: "Teams",
+  },
 ];
 
 export default function HomePage() {
