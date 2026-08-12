@@ -25,11 +25,13 @@ test("positive and plus handicaps allocate strokes by hole index", () => {
   assert.equal(strokesReceivedOnHole(-2, 1), 0);
 });
 
-function player(id, expectedGross) {
+function player(id, expectedGross, tee = "White") {
   return {
     id,
     name: id,
+    tee,
     currentHandicapIndex: 10,
+    competitionHandicapIndex: 10,
     courseHandicap: 10,
     holes: Array.from({ length: 18 }, (_, index) => ({
       holeNumber: index + 1,
@@ -47,7 +49,10 @@ test("simulation is deterministic and ranks the stronger team first", () => {
     {
       id: "strong",
       name: "Strong Team",
-      players: [1, 2, 3, 4].map((number) => player(`s${number}`, 4.2)),
+      players: [
+        player("s1", 4.2, "Gold"),
+        ...[2, 3, 4].map((number) => player(`s${number}`, 4.2)),
+      ],
     },
     {
       id: "weak",
@@ -60,7 +65,7 @@ test("simulation is deterministic and ranks the stronger team first", () => {
     handicapAllowance: 1,
     simulations: 2_000,
     seed: 12345,
-    teePar: 72,
+    teamPar: 216,
   };
 
   const first = simulateBestThreeOfFour(teams, options);
@@ -68,6 +73,8 @@ test("simulation is deterministic and ranks the stronger team first", () => {
 
   assert.deepEqual(first, second);
   assert.equal(first.teams[0].teamId, "strong");
+  assert.equal(first.teams[0].players[0].tee, "Gold");
+  assert.equal(first.teams[0].players[0].courseHandicap, 10);
   assert.ok(first.teams[0].winProbability > first.teams[1].winProbability);
   assert.ok(
     Math.abs(

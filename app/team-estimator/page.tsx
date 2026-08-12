@@ -16,8 +16,10 @@ export default async function TeamEstimatorPage() {
       </h1>
       <p className="mt-3 max-w-4xl text-base font-medium leading-7 text-slate-700">
         Assemble four-player teams, then simulate a full 18-hole event where
-        each team keeps its three lowest balls on every hole. Teams are ranked
-        from the highest modeled chance of success to the lowest.
+        each team discards its highest ball and keeps its three lowest balls on
+        every hole. Those 18 hole totals create the final aggregate team score,
+        and the rankings start with the highest modeled chance of winning.
+        Every player can play from a different Goodrich tee.
       </p>
 
       <div className="mt-5 grid gap-3 md:grid-cols-3">
@@ -27,7 +29,7 @@ export default async function TeamEstimatorPage() {
         />
         <InfoCard
           label="Primary Inputs"
-          value="Current HI, tee rating/slope, and 12-month Goodrich hole history"
+          value="Each player's tee, Competition HI, tee rating/slope, and 12-month Goodrich hole history"
         />
         <InfoCard
           label="Outputs"

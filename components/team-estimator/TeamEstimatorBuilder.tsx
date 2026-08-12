@@ -7,20 +7,30 @@ import type {
   TeamEventEstimateResponse,
   TeamEventPlayerOption,
   TeamEventScoring,
+  TeamEventTee,
 } from "@/lib/teamEventEstimator";
+
+type BuilderPlayer = {
+  playerId: string;
+  tee: TeamEventTee;
+};
 
 type BuilderTeam = {
   id: string;
   name: string;
-  playerIds: [string, string, string, string];
+  players: [BuilderPlayer, BuilderPlayer, BuilderPlayer, BuilderPlayer];
 };
 
-const EMPTY_PLAYERS: BuilderTeam["playerIds"] = ["", "", "", ""];
+const TEE_OPTIONS: TeamEventTee[] = ["Red", "Gold", "White", "Blue"];
+
+function emptyPlayers(): BuilderTeam["players"] {
+  return TEE_OPTIONS.map(() => ({ playerId: "", tee: "White" })) as BuilderTeam["players"];
+}
 
 function initialTeams(): BuilderTeam[] {
   return [
-    { id: "team-1", name: "Team 1", playerIds: [...EMPTY_PLAYERS] },
-    { id: "team-2", name: "Team 2", playerIds: [...EMPTY_PLAYERS] },
+    { id: "team-1", name: "Team 1", players: emptyPlayers() },
+    { id: "team-2", name: "Team 2", players: emptyPlayers() },
   ];
 }
 
@@ -39,7 +49,6 @@ export function TeamEstimatorBuilder({
   players: TeamEventPlayerOption[];
 }) {
   const [teams, setTeams] = useState<BuilderTeam[]>(initialTeams);
-  const [tee, setTee] = useState<TeamEventEstimateRequest["tee"]>("White");
   const [scoring, setScoring] = useState<TeamEventScoring>("net");
   const [allowance, setAllowance] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -50,6 +59,15 @@ export function TeamEstimatorBuilder({
     () => new Map(players.map((player) => [player.id, player])),
     [players]
   );
+  const usedPlayerIds = useMemo(
+    () =>
+      new Set(
+        teams.flatMap((team) =>
+          team.players.map((player) => player.playerId).filter(Boolean)
+        )
+      ),
+    [teams]
+  );
 
   function changed(mutator: (current: BuilderTeam[]) => BuilderTeam[]) {
     setTeams(mutator);
@@ -58,7 +76,7 @@ export function TeamEstimatorBuilder({
   }
 
   function addTeam() {
-    if (teams.length >= 16) return;
+    if (teams.length >= 20) return;
     const teamNumber = nextTeamNumber.current;
     nextTeamNumber.current += 1;
     changed((current) => [
@@ -66,7 +84,7 @@ export function TeamEstimatorBuilder({
       {
         id: `team-${teamNumber}`,
         name: `Team ${teamNumber}`,
-        playerIds: [...EMPTY_PLAYERS],
+        players: emptyPlayers(),
       },
     ]);
   }
@@ -86,33 +104,39 @@ export function TeamEstimatorBuilder({
     changed((current) =>
       current.map((team) => {
         if (team.id !== teamId) return team;
-        const playerIds = [...team.playerIds] as BuilderTeam["playerIds"];
-        playerIds[slot] = playerId;
-        return { ...team, playerIds };
+        const players = team.players.map((player, index) =>
+          index === slot ? { ...player, playerId } : player
+        ) as BuilderTeam["players"];
+        return { ...team, players };
       })
     );
   }
 
-  function usedByAnotherSlot(playerId: string, teamId: string, slot: number) {
-    if (!playerId) return false;
-    return teams.some((team) =>
-      team.playerIds.some(
-        (selected, selectedSlot) =>
-          selected === playerId &&
-          (team.id !== teamId || selectedSlot !== slot)
-      )
+  function updateTee(teamId: string, slot: number, tee: TeamEventTee) {
+    changed((current) =>
+      current.map((team) => {
+        if (team.id !== teamId) return team;
+        const players = team.players.map((player, index) =>
+          index === slot ? { ...player, tee } : player
+        ) as BuilderTeam["players"];
+        return { ...team, players };
+      })
     );
   }
 
   async function calculate() {
     setError("");
     setResult(null);
-    const missingTeam = teams.find((team) => team.playerIds.some((id) => !id));
+    const missingTeam = teams.find((team) =>
+      team.players.some((player) => !player.playerId)
+    );
     if (missingTeam) {
       setError(`${missingTeam.name || "A team"} needs four players.`);
       return;
     }
-    const allIds = teams.flatMap((team) => team.playerIds);
+    const allIds = teams.flatMap((team) =>
+      team.players.map((player) => player.playerId)
+    );
     if (new Set(allIds).size !== allIds.length) {
       setError("Each player can appear on only one team.");
       return;
@@ -121,13 +145,12 @@ export function TeamEstimatorBuilder({
     setLoading(true);
     try {
       const request: TeamEventEstimateRequest = {
-        tee,
         scoring,
         handicapAllowance: allowance,
         teams: teams.map((team, index) => ({
           id: team.id,
           name: team.name.trim() || `Team ${index + 1}`,
-          playerIds: team.playerIds,
+          players: team.players,
         })),
       };
       const response = await fetch("/api/team-estimator", {
@@ -158,24 +181,7 @@ export function TeamEstimatorBuilder({
   return (
     <>
       <section className="mt-6 rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
-        <div className="grid gap-4 md:grid-cols-3">
-          <Field label="Goodrich Tee">
-            <select
-              value={tee}
-              onChange={(event) => {
-                setTee(event.target.value as TeamEventEstimateRequest["tee"]);
-                setResult(null);
-              }}
-              className="mt-1 w-full rounded-lg border border-slate-400 bg-white px-3 py-2.5 text-base font-semibold"
-            >
-              {(["Red", "Gold", "White", "Blue"] as const).map((value) => (
-                <option key={value} value={value}>
-                  {value} Tees
-                </option>
-              ))}
-            </select>
-          </Field>
-
+        <div className="grid gap-4 md:grid-cols-2">
           <Field label="Team Scoring">
             <select
               value={scoring}
@@ -212,16 +218,17 @@ export function TeamEstimatorBuilder({
           <div>
             <h2 className="text-xl font-bold text-slate-950">Build the Teams</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Select exactly four unique players for every team.
+              Select four unique players and each player&apos;s tee for every team.
+              You can build up to 20 teams.
             </p>
           </div>
           <button
             type="button"
             onClick={addTeam}
-            disabled={teams.length >= 16}
+            disabled={teams.length >= 20}
             className="rounded-lg border border-slate-400 bg-white px-4 py-2 text-sm font-bold text-slate-900 hover:bg-slate-100 disabled:opacity-50"
           >
-            Add Team
+            Add Team ({teams.length}/20)
           </button>
         </div>
 
@@ -253,32 +260,59 @@ export function TeamEstimatorBuilder({
               </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {team.playerIds.map((selectedPlayerId, slot) => (
-                  <Field key={slot} label={`Player ${slot + 1}`}>
-                    <select
-                      value={selectedPlayerId}
-                      onChange={(event) =>
-                        updatePlayer(team.id, slot, event.target.value)
-                      }
-                      className="mt-1 w-full rounded-lg border border-slate-400 bg-white px-3 py-2.5 text-sm font-semibold"
-                    >
-                      <option value="">Select player</option>
-                      {players.map((player) => (
-                        <option
-                          key={player.id}
-                          value={player.id}
-                          disabled={usedByAnotherSlot(player.id, team.id, slot)}
-                        >
-                          {player.fullName} (HI {player.currentHandicapIndex.toFixed(1)})
-                        </option>
-                      ))}
-                    </select>
-                    {selectedPlayerId ? (
+                {team.players.map((selectedPlayer, slot) => (
+                  <div key={slot} className="rounded-lg border border-slate-200 bg-white p-3">
+                    <div className="text-sm font-bold text-slate-700">
+                      Player {slot + 1}
+                    </div>
+                    <div className="mt-1 grid grid-cols-[minmax(0,1fr)_90px] gap-2">
+                      <select
+                        aria-label={`${team.name} player ${slot + 1}`}
+                        value={selectedPlayer.playerId}
+                        onChange={(event) =>
+                          updatePlayer(team.id, slot, event.target.value)
+                        }
+                        className="min-w-0 rounded-lg border border-slate-400 bg-white px-3 py-2.5 text-sm font-semibold"
+                      >
+                        <option value="">Select player</option>
+                        {players.map((player) => (
+                          <option
+                            key={player.id}
+                            value={player.id}
+                            disabled={
+                              usedPlayerIds.has(player.id) &&
+                              selectedPlayer.playerId !== player.id
+                            }
+                          >
+                            {player.fullName} (Comp HI {player.competitionHandicapIndex.toFixed(1)})
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        aria-label={`${team.name} player ${slot + 1} tee`}
+                        value={selectedPlayer.tee}
+                        onChange={(event) =>
+                          updateTee(
+                            team.id,
+                            slot,
+                            event.target.value as TeamEventTee
+                          )
+                        }
+                        className="rounded-lg border border-slate-400 bg-white px-2 py-2.5 text-sm font-bold"
+                      >
+                        {TEE_OPTIONS.map((teeOption) => (
+                          <option key={teeOption} value={teeOption}>
+                            {teeOption}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {selectedPlayer.playerId ? (
                       <p className="mt-1 text-xs font-semibold text-slate-500">
-                        Current HI {playerById.get(selectedPlayerId)?.currentHandicapIndex.toFixed(1)}
+                        Competition HI {playerById.get(selectedPlayer.playerId)?.competitionHandicapIndex.toFixed(1)} · Current HI {playerById.get(selectedPlayer.playerId)?.currentHandicapIndex.toFixed(1)} · {selectedPlayer.tee} tees
                       </p>
                     ) : null}
-                  </Field>
+                  </div>
                 ))}
               </div>
             </div>
@@ -334,13 +368,23 @@ function EstimatorResults({ result }: { result: TeamEventEstimateResponse }) {
             </p>
             <h2 className="mt-1 text-3xl font-bold">Projected Team Rankings</h2>
             <p className="mt-2 text-sm text-slate-300">
-              {result.tee} tees - Par {result.teePar} - Rating {result.courseRating.toFixed(1)} - Slope {result.slopeRating.toFixed(0)}
+              Mixed tees supported · each player is modeled from their selected tee
             </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {result.tees.map((tee) => (
+                <span
+                  key={tee.tee}
+                  className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs font-semibold text-slate-200"
+                >
+                  {tee.tee}: Par {tee.teePar} · {tee.courseRating.toFixed(1)}/{tee.slopeRating.toFixed(0)}
+                </span>
+              ))}
+            </div>
           </div>
           <div className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-right">
             <div className="text-xs font-bold uppercase text-slate-400">Format</div>
             <div className="mt-1 text-lg font-bold">
-              Best 3 of 4 {result.scoring === "net" ? "Net" : "Gross"}
+              Best 3 of 4 {result.scoring === "net" ? "Net" : "Gross"} Stroke Play
             </div>
             <div className="text-sm text-slate-300">
               {result.simulations.toLocaleString()} simulations
@@ -353,16 +397,16 @@ function EstimatorResults({ result }: { result: TeamEventEstimateResponse }) {
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-300 bg-white shadow-sm">
-        <table className="w-full min-w-[1050px] text-sm">
+        <table className="w-full min-w-[1100px] text-sm">
           <thead className="bg-slate-100 text-slate-900">
             <tr>
               <th className="px-4 py-3 text-left">Rank</th>
               <th className="px-4 py-3 text-left">Team</th>
               <th className="px-4 py-3 text-right">Win Chance</th>
               <th className="px-4 py-3 text-right">Top 3 Chance</th>
-              <th className="px-4 py-3 text-right">Est. Score</th>
+              <th className="px-4 py-3 text-right">Est. 3-Ball Score</th>
               <th className="px-4 py-3 text-right">To 3-Ball Par</th>
-              <th className="px-4 py-3 text-right">Likely Range</th>
+              <th className="px-4 py-3 text-right">Likely Score Range</th>
               <th className="px-4 py-3 text-left">Players</th>
             </tr>
           </thead>
@@ -407,9 +451,9 @@ function EstimatorResults({ result }: { result: TeamEventEstimateResponse }) {
                     <div key={player.id} className="whitespace-nowrap">
                       <span className="font-semibold">{player.name}</span>
                       <span className="text-slate-500">
-                        {` - HI ${player.currentHandicapIndex.toFixed(1)}`}
+                        {` - ${player.tee} - Comp HI ${player.competitionHandicapIndex.toFixed(1)} - Current ${player.currentHandicapIndex.toFixed(1)}`}
                         {result.scoring === "net"
-                          ? ` / PH ${player.playingHandicap}`
+                          ? ` / CH ${player.courseHandicap} / PH ${player.playingHandicap}`
                           : ""}
                       </span>
                     </div>
@@ -440,9 +484,9 @@ function EstimatorResults({ result }: { result: TeamEventEstimateResponse }) {
                 <div key={player.id} className="rounded-lg bg-slate-50 p-3">
                   <div className="font-bold text-slate-950">{player.name}</div>
                   <div className="mt-1 text-sm text-slate-600">
-                    Current HI {player.currentHandicapIndex.toFixed(1)}
+                    {player.tee} tees - Competition HI {player.competitionHandicapIndex.toFixed(1)} - Current HI {player.currentHandicapIndex.toFixed(1)}
                     {result.scoring === "net"
-                      ? ` - Playing Handicap ${player.playingHandicap}`
+                      ? ` - Course Handicap ${player.courseHandicap} - Playing Handicap ${player.playingHandicap}`
                       : ""}
                   </div>
                   <div className="mt-1 text-xs font-semibold text-slate-500">

@@ -1,13 +1,19 @@
 export type TeamEventScoring = "net" | "gross";
 
+export type TeamEventTee = "Red" | "Gold" | "White" | "Blue";
+
+export type TeamEventPlayerSelection = {
+  playerId: string;
+  tee: TeamEventTee;
+};
+
 export type TeamEventTeamSelection = {
   id: string;
   name: string;
-  playerIds: string[];
+  players: TeamEventPlayerSelection[];
 };
 
 export type TeamEventEstimateRequest = {
-  tee: "Red" | "Gold" | "White" | "Blue";
   scoring: TeamEventScoring;
   handicapAllowance: number;
   teams: TeamEventTeamSelection[];
@@ -17,6 +23,7 @@ export type TeamEventPlayerOption = {
   id: string;
   fullName: string;
   currentHandicapIndex: number;
+  competitionHandicapIndex: number;
 };
 
 export type TeamEventHoleProfile = {
@@ -31,7 +38,9 @@ export type TeamEventHoleProfile = {
 export type TeamEventPlayerProfile = {
   id: string;
   name: string;
+  tee: TeamEventTee;
   currentHandicapIndex: number;
+  competitionHandicapIndex: number;
   courseHandicap: number;
   holes: TeamEventHoleProfile[];
 };
@@ -47,13 +56,16 @@ export type TeamEventSimulationOptions = {
   handicapAllowance: number;
   simulations: number;
   seed: number;
-  teePar: number;
+  teamPar: number;
 };
 
 export type TeamEventPlayerSummary = {
   id: string;
   name: string;
+  tee: TeamEventTee;
   currentHandicapIndex: number;
+  competitionHandicapIndex: number;
+  courseHandicap: number;
   playingHandicap: number;
   historicalHoles: number;
 };
@@ -79,11 +91,15 @@ export type TeamEventSimulationResult = {
   teams: TeamEventTeamResult[];
 };
 
-export type TeamEventEstimateResponse = TeamEventSimulationResult & {
-  tee: TeamEventEstimateRequest["tee"];
+export type TeamEventTeeSummary = {
+  tee: TeamEventTee;
   teePar: number;
   courseRating: number;
   slopeRating: number;
+};
+
+export type TeamEventEstimateResponse = TeamEventSimulationResult & {
+  tees: TeamEventTeeSummary[];
   periodStart: string;
   periodEnd: string;
   methodology: string;
@@ -214,16 +230,17 @@ export function simulateBestThreeOfFour(
       for (const player of team.players) {
         playerDayEffects.set(
           player.id,
-          normal(random) * roundDayStandardDeviation(player.currentHandicapIndex)
+          normal(random) *
+            roundDayStandardDeviation(player.competitionHandicapIndex)
         );
       }
     }
 
-    const simulationTotals = teams.map((team) => {
+    const simulationHoleTotals = teams.map((team) => {
       const playerHandicaps = team.players.map((player) =>
         playingHandicap(player.courseHandicap, options.handicapAllowance)
       );
-      let total = 0;
+      const holeTotals: number[] = [];
 
       for (let holeIndex = 0; holeIndex < 18; holeIndex += 1) {
         const balls = team.players.map((player, playerIndex) => {
@@ -243,11 +260,14 @@ export function simulateBestThreeOfFour(
             )
           );
         });
-        total += bestThreeBallTotal(balls);
+        holeTotals.push(bestThreeBallTotal(balls));
       }
 
-      return total;
+      return holeTotals;
     });
+    const simulationTotals = simulationHoleTotals.map((holeTotals) =>
+      holeTotals.reduce((sum, score) => sum + score, 0)
+    );
 
     simulationTotals.forEach((score, teamIndex) => totals[teamIndex].push(score));
     const winningScore = Math.min(...simulationTotals);
@@ -266,7 +286,7 @@ export function simulateBestThreeOfFour(
     });
   }
 
-  const teamPar = options.teePar * 3;
+  const teamPar = options.teamPar;
   const results = teams.map<TeamEventTeamResult>((team, teamIndex) => {
     const sortedScores = [...totals[teamIndex]].sort((a, b) => a - b);
     const averageScore =
@@ -285,7 +305,10 @@ export function simulateBestThreeOfFour(
       players: team.players.map((player) => ({
         id: player.id,
         name: player.name,
+        tee: player.tee,
         currentHandicapIndex: player.currentHandicapIndex,
+        competitionHandicapIndex: player.competitionHandicapIndex,
+        courseHandicap: player.courseHandicap,
         playingHandicap: playingHandicap(
           player.courseHandicap,
           options.handicapAllowance
