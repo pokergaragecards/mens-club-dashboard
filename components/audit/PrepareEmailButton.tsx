@@ -71,9 +71,9 @@ function buildEmailHtml(props: Props) {
       : null;
 
   const adjustment = adjustedIndex != null
-    ? `<p>Because your Conservative Review HI is at least <strong>2.0 strokes lower</strong> than your official handicap, a <strong>Committee-Adjusted Handicap Index of ${adjustedIndex.toFixed(
+    ? `<p><strong>Because your Conservative Review HI is at least 2.0 strokes lower than your official handicap, a Committee-Adjusted Handicap Index of ${adjustedIndex.toFixed(
         1
-      )}</strong> will be used for Goodrich Men's Club competitive events and matches. This review value gives you the benefit of the <strong>higher Last 20 Competition HI or Two-Year Committee Evidence HI</strong> when fewer than 10 recent Goodrich competition rounds are available, then rounds upward to the next half-stroke.</p>`
+      )} will be used for Goodrich Men's Club competitive events and matches.</strong> This review value gives you the benefit of the <strong>higher Last 20 Competition HI or Two-Year Committee Evidence HI</strong> when fewer than 10 recent Goodrich competition rounds are available, then rounds upward to the next half-stroke.</p>`
     : "<p>This audit is being provided for review. <strong>No competition-only adjustment</strong> is indicated by the current 2.0-stroke threshold.</p>";
 
   return `<p>Hello ${escapeHtml(props.playerName)},</p>
@@ -87,7 +87,7 @@ function buildEmailHtml(props: Props) {
 <strong>Stroke Discrepancy: ${valueOrDash(props.evidenceGap)} strokes</strong></p>
 ${adjustment}
 <p>The same <strong>evidence hierarchy and benefit-of-the-doubt selection</strong> are applied to every member. Once the Conservative Review HI is selected, the <strong>final test for every golfer</strong> is whether it is at least <strong>2.0 strokes below the Current Handicap Index</strong>. Sample size and single-score sensitivity remain visible context but do not cancel a qualifying comparison.</p>
-<p><strong>Your official GHIN Handicap Index will not be changed.</strong> Any committee adjustment applies <strong>only to Goodrich Men's Club competitive events and matches.</strong></p>
+<p><strong>Your official GHIN Handicap Index will not be changed. Any committee adjustment applies only to Goodrich Men's Club competitive events and matches.</strong></p>
 <p>We will review the calculation weekly as additional competition scores are posted. The attached audit PDF contains the scoring details used in this review.</p>
 <p>If you have any questions, please contact a member of the Handicap Committee.</p>
 <p>Thank you,<br>

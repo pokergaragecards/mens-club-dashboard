@@ -3,6 +3,7 @@ export const HANDICAP_COMMITTEE_CC = [
   { name: "Fred Velasquez", email: "dafredv@gmail.com" },
   { name: "Robert Casura", email: "rcasura@yahoo.com" },
   { name: "Colin Kania", email: "colinkania15@gmail.com" },
+  { name: "Marcus Boog", email: "marcus.boog@gmail.com" },
 ] as const;
 
 export const HANDICAP_COMMITTEE_CC_QUERY = HANDICAP_COMMITTEE_CC.map(
