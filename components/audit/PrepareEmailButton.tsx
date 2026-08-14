@@ -7,6 +7,7 @@ import { HANDICAP_COMMITTEE_CC_QUERY } from "@/lib/handicapCommittee";
 type Props = {
   playerId: string;
   playerName: string;
+  playerEmail: string | null;
   currentIndex: number | null;
   evidenceIndex: number | null;
   evidenceGap: number | null;
@@ -113,6 +114,15 @@ export function PrepareEmailButton(props: Props) {
   const [preparing, setPreparing] = useState(false);
 
   async function prepareEmail() {
+    const playerEmail = props.playerEmail?.trim();
+
+    if (!playerEmail) {
+      window.alert(
+        `No email address is saved for ${props.playerName}. Add one to the player's database record before preparing the email.`
+      );
+      return;
+    }
+
     setPreparing(true);
     const draftWindow = window.open("about:blank", "_blank");
 
@@ -154,6 +164,7 @@ export function PrepareEmailButton(props: Props) {
       const gmailUrl = new URL("https://mail.google.com/mail/");
       gmailUrl.searchParams.set("view", "cm");
       gmailUrl.searchParams.set("fs", "1");
+      gmailUrl.searchParams.set("to", playerEmail);
       gmailUrl.searchParams.set("su", subject);
       gmailUrl.searchParams.set("cc", HANDICAP_COMMITTEE_CC_QUERY);
       if (!copiedFormatted) {
@@ -186,7 +197,11 @@ export function PrepareEmailButton(props: Props) {
       onClick={prepareEmail}
       disabled={preparing}
       className="inline-flex min-h-10 w-full items-center justify-center rounded-md border border-green-700 bg-green-50 px-3 py-1.5 text-center text-sm font-semibold text-green-800 transition-colors hover:bg-green-100 disabled:cursor-wait disabled:opacity-60"
-      title="Download the player's PDF and open a Gmail draft with the Handicap Committee CCed"
+      title={
+        props.playerEmail
+          ? `Download the player's PDF and open a Gmail draft to ${props.playerEmail} with the Handicap Committee CCed`
+          : "This player does not have an email address saved"
+      }
     >
       {preparing ? "Preparing..." : "Prepare Change Email"}
     </button>

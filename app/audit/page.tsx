@@ -741,6 +741,7 @@ function AuditChangeEmailButton({ row }: { row: AuditRow }) {
     <PrepareEmailButton
       playerId={row.id}
       playerName={row.full_name}
+      playerEmail={row.email}
       currentIndex={row.overallHi}
       evidenceIndex={row.reviewComparisonHi}
       evidenceGap={row.competitionVsOverallGap}

@@ -39,6 +39,11 @@ type EvidenceRoundRow = AuditEvidenceRound & {
   course_name: string | null;
 };
 
+type PlayerEmailRow = {
+  id: string;
+  email: string | null;
+};
+
 export type AuditDecisionCode =
   | "adjustment_supported"
   | "provisional_adjustment"
@@ -180,15 +185,28 @@ export const auditService = {
     const cutoff = new Date();
     cutoff.setUTCFullYear(cutoff.getUTCFullYear() - 2);
     const cutoffDate = cutoff.toISOString().slice(0, 10);
-    const [{ data, error }, allEvidenceRounds] = await Promise.all([
+    const [
+      { data, error },
+      allEvidenceRounds,
+      { data: playerEmailRows, error: playerEmailError },
+    ] = await Promise.all([
       supabase
         .from("player_handicap_summary")
         .select("*")
         .order("full_name"),
       getEvidenceRounds(cutoffDate),
+      supabase.from("players").select("id, email"),
     ]);
 
     if (error) throw error;
+    if (playerEmailError) throw playerEmailError;
+
+    const emailByPlayer = new Map(
+      ((playerEmailRows ?? []) as PlayerEmailRow[]).map((player) => [
+        player.id,
+        player.email?.trim() || null,
+      ])
+    );
 
     const evidenceByPlayer = new Map<string, EvidenceRoundRow[]>();
     for (const round of allEvidenceRounds) {
@@ -291,6 +309,7 @@ export const auditService = {
         return {
           id: row.player_id,
           full_name: row.full_name,
+          email: emailByPlayer.get(row.player_id) ?? null,
 
           overallHi,
           competitionHi,

@@ -1,5 +1,27 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Member email import
+
+The audit Gmail button reads each recipient from `players.email`. Apply
+`supabase/migrations/202608140001_add_player_email.sql` to the Supabase project
+before importing a roster for the first time.
+
+Review a roster CSV without changing the database:
+
+```powershell
+python scripts/import_member_emails.py "C:\path\to\roster-email-review.csv"
+```
+
+After reviewing the match, conflict, and unmatched counts, add only the missing
+emails and verify them:
+
+```powershell
+python scripts/import_member_emails.py "C:\path\to\roster-email-review.csv" --apply
+```
+
+Rows are matched by exact GHIN number. Existing email addresses are preserved
+when they differ from the roster so that conflicts can be reviewed manually.
+
 ## Getting Started
 
 First, run the development server:
