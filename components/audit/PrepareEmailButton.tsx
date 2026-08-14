@@ -13,7 +13,6 @@ type Props = {
   suggestedIndex: number | null;
   decisionLabel: string;
   decisionSummary: string;
-  decisionEvidence: string[];
 };
 
 function valueOrDash(value: number | null) {
@@ -45,10 +44,6 @@ function buildEmailBody(props: Props) {
       )} will be used for Goodrich Men's Club competitive events and matches. This review value gives you the benefit of the higher Last 20 Competition HI or Two-Year Committee Evidence HI when fewer than 10 recent Goodrich competition rounds are available, then rounds upward to the next half-stroke.`
     : "\nThis audit is being provided for review. No competition-only adjustment is indicated by the current 2.0-stroke threshold.";
 
-  const evidence = props.decisionEvidence
-    .map((item) => `- ${item}`)
-    .join("\n");
-
   return `Hello ${props.playerName},
 
 The Goodrich Men's Club Handicap Committee has completed its current review of your competition scoring history.
@@ -61,9 +56,6 @@ ${adjustment}
 Why this change is being made
 Decision: ${props.decisionLabel}
 ${props.decisionSummary}
-
-Evidence used for your review
-${evidence}
 
 The same evidence hierarchy and benefit-of-the-doubt selection are applied to every member. Once the Conservative Review HI is selected, the final test for every golfer is whether it is at least 2.0 strokes below the Current Handicap Index. Sample size and single-score sensitivity remain visible context but do not cancel a qualifying comparison.
 
@@ -89,10 +81,6 @@ function buildEmailHtml(props: Props) {
       )}</strong> will be used for Goodrich Men's Club competitive events and matches. This review value gives you the benefit of the <strong>higher Last 20 Competition HI or Two-Year Committee Evidence HI</strong> when fewer than 10 recent Goodrich competition rounds are available, then rounds upward to the next half-stroke.</p>`
     : "<p>This audit is being provided for review. <strong>No competition-only adjustment</strong> is indicated by the current 2.0-stroke threshold.</p>";
 
-  const evidence = props.decisionEvidence
-    .map((item) => `<li>${escapeHtml(item)}</li>`)
-    .join("");
-
   return `<p>Hello ${escapeHtml(props.playerName)},</p>
 <p>The Goodrich Men's Club Handicap Committee has completed its current review of your competition scoring history.</p>
 <p><strong>Official GHIN Handicap Index: ${valueOrDash(
@@ -106,8 +94,6 @@ ${adjustment}
 <p><strong>Why this change is being made</strong><br>
 <strong>Decision: ${escapeHtml(props.decisionLabel)}</strong><br>
 ${escapeHtml(props.decisionSummary)}</p>
-<p><strong>Evidence used for your review</strong></p>
-<ul>${evidence}</ul>
 <p>The same <strong>evidence hierarchy and benefit-of-the-doubt selection</strong> are applied to every member. Once the Conservative Review HI is selected, the <strong>final test for every golfer</strong> is whether it is at least <strong>2.0 strokes below the Current Handicap Index</strong>. Sample size and single-score sensitivity remain visible context but do not cancel a qualifying comparison.</p>
 <p><strong>Your official GHIN Handicap Index will not be changed.</strong> Any committee adjustment applies <strong>only to Goodrich Men's Club competitive events and matches.</strong></p>
 <p>We will review the calculation weekly as additional competition scores are posted. The attached audit PDF contains the scoring details used in this review.</p>

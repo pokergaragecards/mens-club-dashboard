@@ -747,7 +747,6 @@ function AuditChangeEmailButton({ row }: { row: AuditRow }) {
       suggestedIndex={row.decision.suggestedIndex}
       decisionLabel={row.decision.label}
       decisionSummary={row.decision.summary}
-      decisionEvidence={row.decision.evidence}
     />
   );
 }
