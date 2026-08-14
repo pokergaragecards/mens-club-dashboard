@@ -145,7 +145,8 @@ export default async function AuditPage({ searchParams }: PageProps) {
               detailed audit pages. Each email uses that player&apos;s current
               decision, evidence, reason, and committee handicap rounded upward
               to the nearest 0.5. The Conservative Review HI comparison is the
-              final adjustment test for every golfer.
+              final adjustment test for every golfer. All change-email actions
+              are kept in this section.
             </p>
           </div>
 
@@ -161,7 +162,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
                 key={row.id}
                 className="rounded-xl border border-red-200 bg-white p-4 shadow-sm"
               >
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_14rem] md:items-start">
                   <div>
                     <Link
                       href={`/audit/${row.id}`}
@@ -180,7 +181,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
                     </div>
                   </div>
 
-                  <div className="w-full sm:w-52">
+                  <div className="w-full md:justify-self-end">
                     <AuditChangeEmailButton row={row} />
                   </div>
                 </div>
@@ -333,7 +334,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
             {rows.map((row) => (
               <tr key={row.id} className="group border-b border-gray-200 hover:bg-blue-50">
                 <td className="sticky left-0 z-10 min-w-[540px] bg-white p-3 font-bold group-hover:bg-blue-50">
-                  <div className="grid grid-cols-[minmax(190px,1fr)_80px_80px_140px] items-center gap-3">
+                  <div className="grid grid-cols-[minmax(190px,1fr)_80px_80px] items-center gap-3">
                     <span className="text-2xl">{row.full_name}</span>
 
                     <Link href={`/players/${row.id}`} className={ACTION_BUTTON}>
@@ -343,8 +344,6 @@ export default async function AuditPage({ searchParams }: PageProps) {
                     <Link href={`/audit/${row.id}`} className={ACTION_BUTTON}>
                       Audit
                     </Link>
-
-                    <AuditChangeEmailButton row={row} />
                   </div>
                 </td>
 
@@ -502,7 +501,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
                   {row.full_name}
                 </div>
 
-                <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="mt-3 grid grid-cols-2 gap-2">
                   <Link href={`/players/${row.id}`} className={ACTION_BUTTON}>
                     Player
                   </Link>
@@ -510,8 +509,6 @@ export default async function AuditPage({ searchParams }: PageProps) {
                   <Link href={`/audit/${row.id}`} className={ACTION_BUTTON}>
                     Audit
                   </Link>
-
-                  <AuditChangeEmailButton row={row} />
                 </div>
 
                 <div className="mt-2 flex flex-wrap gap-2">
