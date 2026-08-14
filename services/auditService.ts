@@ -8,6 +8,7 @@ import {
   type AuditEvidenceRound,
 } from "@/lib/auditEvidence";
 import { roundHandicapUpToHalf } from "@/lib/handicapRounding";
+import { conservativeReviewRequiresAdjustment } from "@/lib/auditDecisionPolicy";
 
 const supabase = createSupabaseServerClient();
 
@@ -118,7 +119,12 @@ function buildDecision(params: {
     );
   }
 
-  if (gap == null || gap < 2) {
+  if (
+    !conservativeReviewRequiresAdjustment({
+      currentHi: overallHi,
+      conservativeReviewHi: competitionHi,
+    })
+  ) {
     return {
       code: "no_action",
       label: "No action",
@@ -129,65 +135,14 @@ function buildDecision(params: {
     };
   }
 
-  if (evidenceModel.basis === "goodrich_general_monitor") {
-    return {
-      code: "monitor",
-      label: "Monitor - insufficient competition history",
-      suggestedIndex: null,
-      summary:
-        "Fewer than three competition rounds are available in the last two years. Goodrich general play is shown only as context and cannot support a competition adjustment.",
-      evidence,
-    };
-  }
-
-  if (evidenceModel.basis === "limited_competition") {
-    return {
-      code: "manual_review",
-      label: "Manual review - limited evidence",
-      suggestedIndex: null,
-      summary:
-        "Only 3-9 competition rounds are available and a Goodrich general-play HI could not be established for the intended blend.",
-      evidence,
-    };
-  }
-
-  if (
-    (evidenceModel.basis === "goodrich_competition" ||
-      evidenceModel.basis === "all_competition") &&
-    (evidenceModel.sensitivity ?? 0) <= 1.5
-  ) {
-    const suggestedIndex = roundHandicapUpToHalf(competitionHi!);
-    return {
-      code: "adjustment_supported",
-      label: `Adjustment supported - ${suggestedIndex.toFixed(1)}`,
-      suggestedIndex,
-      summary:
-        "The conservative comparison still reaches the threshold, and the recent competition sample has acceptable single-score stability.",
-      evidence,
-    };
-  }
-
-  if (
-    evidenceModel.basis === "blended_competition_general" &&
-    (evidenceModel.sensitivity ?? 0) <= 1.5
-  ) {
-    const suggestedIndex = roundHandicapUpToHalf(competitionHi!);
-    return {
-      code: "provisional_adjustment",
-      label: `Provisional - ${suggestedIndex.toFixed(1)}`,
-      suggestedIndex,
-      summary:
-        "The conservative higher-of comparison supports a lower provisional value. Stronger Goodrich general-play results corroborate demonstrated ability rather than disqualifying the review. Review it as more competition rounds are posted.",
-      evidence,
-    };
-  }
-
+  const suggestedIndex = roundHandicapUpToHalf(competitionHi!);
   return {
-    code: "manual_review",
-    label: "Manual review",
-    suggestedIndex: null,
-    summary:
-      "The two-year threshold is met, but single-score sensitivity makes an automatic adjustment unreliable.",
+    code: "adjustment_supported",
+    label: `Adjustment supported - ${suggestedIndex.toFixed(1)}`,
+    suggestedIndex,
+    summary: `The Current Handicap Index is ${gap!.toFixed(
+      1
+    )} strokes higher than the Conservative Review HI. This 2.0-stroke comparison is the final adjustment test for every golfer; evidence source, sample size, and single-score sensitivity remain visible context but do not override the result.`,
     evidence,
   };
 }

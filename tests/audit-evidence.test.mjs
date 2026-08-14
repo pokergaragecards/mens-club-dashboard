@@ -110,7 +110,7 @@ test("blends 3-9 competition rounds with last-10 Goodrich general play", () => {
   assert.match(evidence.formula, /70% All Competition HI/);
 });
 
-test("uses Goodrich general play for monitoring only below three competition rounds", () => {
+test("uses Goodrich general play as evidence below three competition rounds", () => {
   const evidence = buildAuditEvidence(
     [
       ...rounds({ count: 2, startDiff: 5, idPrefix: "comp" }),
@@ -127,7 +127,7 @@ test("uses Goodrich general play for monitoring only below three competition rou
   assert.equal(evidence.allCompetitionHi, null);
   assert.equal(evidence.basis, "goodrich_general_monitor");
   assert.equal(evidence.committeeEvidenceHi, evidence.goodrichGeneralHi);
-  assert.match(evidence.formula, /cannot support a competition adjustment/);
+  assert.match(evidence.formula, /becomes the Two-Year Committee Evidence HI/);
 });
 
 test("excludes rounds older than the two-year cutoff", () => {

@@ -455,10 +455,11 @@ export default async function PlayerAuditPage({
               first looks for 10 Goodrich competition rounds, then 10 total
               competition rounds. With only 3-9 total competition rounds, it
               blends the competition HI with the last 10 available Goodrich
-              general-play rounds. Fewer than three competition rounds can
-              support monitoring only. When fewer than 10 Goodrich competition
-              rounds are available, the gap uses the higher of the Last 20
-              Competition HI and Two-Year Committee Evidence HI.
+              general-play rounds. When fewer than 10 Goodrich competition
+              rounds are available, the Conservative Review HI uses the higher
+              of the Last 20 Competition HI and Two-Year Committee Evidence HI.
+              The final test for every golfer is Current HI minus Conservative
+              Review HI: 2.0 strokes or more produces a committee change.
             </p>
           </div>
 

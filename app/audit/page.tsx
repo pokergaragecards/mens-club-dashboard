@@ -97,9 +97,11 @@ export default async function AuditPage({ searchParams }: PageProps) {
             and Goodrich general-play rounds when the competition sample is
             thin. With fewer than 10 recent Goodrich competition rounds, the
             gap uses the higher of Last 20 Competition HI or Two-Year Committee
-            Evidence HI. Every input and intermediate calculation is shown;
-            N/A means that value was unavailable or that stage of the equation
-            was not reached.
+            Evidence HI. Once that Conservative Review HI is selected, the
+            final test for every golfer is Current HI minus Conservative Review
+            HI: a difference of 2.0 strokes or more produces a committee change.
+            Every input and intermediate calculation is shown; N/A means that
+            value was unavailable or that stage of the equation was not reached.
           </p>
         </div>
 
@@ -142,7 +144,8 @@ export default async function AuditPage({ searchParams }: PageProps) {
               These players meet the same adjustment criteria shown on their
               detailed audit pages. Each email uses that player&apos;s current
               decision, evidence, reason, and committee handicap rounded upward
-              to the nearest 0.5.
+              to the nearest 0.5. The Conservative Review HI comparison is the
+              final adjustment test for every golfer.
             </p>
           </div>
 
@@ -270,7 +273,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
                 Conservative Review Source
               </th>
               <th className="min-w-[280px] p-4 text-right text-base font-bold leading-snug">
-                Conservative Committee Review HI
+                Conservative Review HI
               </th>
               <th className="min-w-[250px] p-4 text-right text-base font-bold leading-snug">
                 Last 20 General Play HI
@@ -630,7 +633,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
                 wide
               />
               <MobileStat
-                label="Conservative Committee Review HI"
+                label="Conservative Review HI"
                 value={formatNumber(row.reviewComparisonHi)}
               />
               <MobileStat

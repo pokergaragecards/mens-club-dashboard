@@ -291,16 +291,16 @@ export function buildAuditEvidence(
       basis = "limited_competition";
       basisLabel = "Limited 24-month Competition HI";
       formula =
-        "Only 3-9 competition rounds are available and a Goodrich general-play HI could not be established, so the competition HI is shown for manual review only.";
+        "Only 3-9 competition rounds are available and a Goodrich general-play HI could not be established, so the available competition HI becomes the Two-Year Committee Evidence HI.";
       competitionWeight = 1;
       generalWeight = 0;
     }
   } else if (goodrichGeneralHi != null) {
     committeeEvidenceHi = goodrichGeneralHi;
     basis = "goodrich_general_monitor";
-    basisLabel = "Goodrich General-Play Monitor HI";
+    basisLabel = "Goodrich General-Play Evidence HI";
     formula =
-      "Fewer than three competition rounds are available. The last-10 Goodrich general-play HI is context for monitoring only and cannot support a competition adjustment.";
+      "Fewer than three competition rounds are available, so the last-10 Goodrich general-play HI becomes the Two-Year Committee Evidence HI.";
     competitionWeight = 0;
     generalWeight = 1;
   }
