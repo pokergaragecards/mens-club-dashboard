@@ -11,8 +11,6 @@ type Props = {
   evidenceIndex: number | null;
   evidenceGap: number | null;
   suggestedIndex: number | null;
-  decisionLabel: string;
-  decisionSummary: string;
 };
 
 function valueOrDash(value: number | null) {
@@ -53,10 +51,6 @@ Conservative Review HI: ${valueOrDash(props.evidenceIndex)}
 Stroke Discrepancy: ${valueOrDash(props.evidenceGap)} strokes
 ${adjustment}
 
-Why this change is being made
-Decision: ${props.decisionLabel}
-${props.decisionSummary}
-
 The same evidence hierarchy and benefit-of-the-doubt selection are applied to every member. Once the Conservative Review HI is selected, the final test for every golfer is whether it is at least 2.0 strokes below the Current Handicap Index. Sample size and single-score sensitivity remain visible context but do not cancel a qualifying comparison.
 
 Your official GHIN Handicap Index will not be changed. Any committee adjustment applies only to Goodrich Men's Club competitive events and matches.
@@ -91,9 +85,6 @@ function buildEmailHtml(props: Props) {
   )}</strong><br>
 <strong>Stroke Discrepancy: ${valueOrDash(props.evidenceGap)} strokes</strong></p>
 ${adjustment}
-<p><strong>Why this change is being made</strong><br>
-<strong>Decision: ${escapeHtml(props.decisionLabel)}</strong><br>
-${escapeHtml(props.decisionSummary)}</p>
 <p>The same <strong>evidence hierarchy and benefit-of-the-doubt selection</strong> are applied to every member. Once the Conservative Review HI is selected, the <strong>final test for every golfer</strong> is whether it is at least <strong>2.0 strokes below the Current Handicap Index</strong>. Sample size and single-score sensitivity remain visible context but do not cancel a qualifying comparison.</p>
 <p><strong>Your official GHIN Handicap Index will not be changed.</strong> Any committee adjustment applies <strong>only to Goodrich Men's Club competitive events and matches.</strong></p>
 <p>We will review the calculation weekly as additional competition scores are posted. The attached audit PDF contains the scoring details used in this review.</p>

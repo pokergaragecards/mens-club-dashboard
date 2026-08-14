@@ -745,8 +745,6 @@ function AuditChangeEmailButton({ row }: { row: AuditRow }) {
       evidenceIndex={row.reviewComparisonHi}
       evidenceGap={row.competitionVsOverallGap}
       suggestedIndex={row.decision.suggestedIndex}
-      decisionLabel={row.decision.label}
-      decisionSummary={row.decision.summary}
     />
   );
 }

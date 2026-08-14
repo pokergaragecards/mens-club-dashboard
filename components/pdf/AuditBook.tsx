@@ -754,7 +754,12 @@ const s = StyleSheet.create({
   bGroupBold: { width: "19%", padding: 3, fontFamily: "Helvetica-Bold" },
   bRounds: { width: "6%", padding: 3, textAlign: "right" },
   bUsed: { width: "5%", padding: 3, textAlign: "right" },
-  bHi: { width: "8%", padding: 3, textAlign: "right" },
+  bHi: {
+    width: "8%",
+    padding: 3,
+    textAlign: "right",
+    fontFamily: "Helvetica-Bold",
+  },
   bAvg: { width: "10%", padding: 3, textAlign: "right" },
   bScores: { width: "20%", padding: 3, fontSize: 5.7 },
   bDiffs: { width: "32%", padding: 3, fontSize: 5.7 },
