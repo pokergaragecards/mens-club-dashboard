@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { roundHandicapUpToHalf } from "@/lib/handicapRounding";
+import { HANDICAP_COMMITTEE_CC_QUERY } from "@/lib/handicapCommittee";
 
 type Props = {
   playerId: string;
@@ -10,6 +11,9 @@ type Props = {
   evidenceIndex: number | null;
   evidenceGap: number | null;
   suggestedIndex: number | null;
+  decisionLabel: string;
+  decisionSummary: string;
+  decisionEvidence: string[];
 };
 
 function valueOrDash(value: number | null) {
@@ -36,10 +40,14 @@ function buildEmailBody(props: Props) {
       : null;
 
   const adjustment = adjustedIndex != null
-    ? `\nBecause your Conservative Committee Review HI is at least 2.0 strokes lower than your official handicap, a Committee-Adjusted Handicap Index of ${adjustedIndex?.toFixed(
+    ? `\nBecause your Conservative Committee Review HI is at least 2.0 strokes lower than your official handicap, a Committee-Adjusted Handicap Index of ${adjustedIndex.toFixed(
         1
       )} will be used for Goodrich Men's Club competitive events and matches. This review value gives you the benefit of the higher Last 20 Competition HI or Two-Year Committee Evidence HI when fewer than 10 recent Goodrich competition rounds are available, then rounds upward to the next half-stroke.`
     : "\nThis audit is being provided for review. No competition-only adjustment is indicated by the current 2.0-stroke threshold.";
+
+  const evidence = props.decisionEvidence
+    .map((item) => `- ${item}`)
+    .join("\n");
 
   return `Hello ${props.playerName},
 
@@ -49,6 +57,15 @@ Official GHIN Handicap Index: ${valueOrDash(props.currentIndex)}
 Conservative Committee Review HI: ${valueOrDash(props.evidenceIndex)}
 Stroke Discrepancy: ${valueOrDash(props.evidenceGap)} strokes
 ${adjustment}
+
+Why this change is being made
+Decision: ${props.decisionLabel}
+${props.decisionSummary}
+
+Evidence used for your review
+${evidence}
+
+The same evidence hierarchy, benefit-of-the-doubt rule, 2.0-stroke threshold, and single-score stability check are applied to every member. The purpose is to keep Men's Club events fair while avoiding changes based on a thin or unstable sample.
 
 Your official GHIN Handicap Index will not be changed. Any committee adjustment applies only to Goodrich Men's Club competitive events and matches.
 
@@ -67,10 +84,14 @@ function buildEmailHtml(props: Props) {
       : null;
 
   const adjustment = adjustedIndex != null
-    ? `<p>Because your Conservative Committee Review HI is at least <strong>2.0 strokes lower</strong> than your official handicap, a <strong>Committee-Adjusted Handicap Index of ${adjustedIndex?.toFixed(
+    ? `<p>Because your Conservative Committee Review HI is at least <strong>2.0 strokes lower</strong> than your official handicap, a <strong>Committee-Adjusted Handicap Index of ${adjustedIndex.toFixed(
         1
       )}</strong> will be used for Goodrich Men's Club competitive events and matches. This review value gives you the benefit of the <strong>higher Last 20 Competition HI or Two-Year Committee Evidence HI</strong> when fewer than 10 recent Goodrich competition rounds are available, then rounds upward to the next half-stroke.</p>`
     : "<p>This audit is being provided for review. <strong>No competition-only adjustment</strong> is indicated by the current 2.0-stroke threshold.</p>";
+
+  const evidence = props.decisionEvidence
+    .map((item) => `<li>${escapeHtml(item)}</li>`)
+    .join("");
 
   return `<p>Hello ${escapeHtml(props.playerName)},</p>
 <p>The Goodrich Men's Club Handicap Committee has completed its current review of your competition scoring history.</p>
@@ -82,6 +103,12 @@ function buildEmailHtml(props: Props) {
   )}</strong><br>
 <strong>Stroke Discrepancy: ${valueOrDash(props.evidenceGap)} strokes</strong></p>
 ${adjustment}
+<p><strong>Why this change is being made</strong><br>
+<strong>Decision: ${escapeHtml(props.decisionLabel)}</strong><br>
+${escapeHtml(props.decisionSummary)}</p>
+<p><strong>Evidence used for your review</strong></p>
+<ul>${evidence}</ul>
+<p>The same <strong>evidence hierarchy, benefit-of-the-doubt rule, 2.0-stroke threshold, and single-score stability check</strong> are applied to every member. The purpose is to keep Men's Club events fair while avoiding changes based on a thin or unstable sample.</p>
 <p><strong>Your official GHIN Handicap Index will not be changed.</strong> Any committee adjustment applies <strong>only to Goodrich Men's Club competitive events and matches.</strong></p>
 <p>We will review the calculation weekly as additional competition scores are posted. The attached audit PDF contains the scoring details used in this review.</p>
 <p>If you have any questions, please contact a member of the Handicap Committee.</p>
@@ -136,7 +163,7 @@ export function PrepareEmailButton(props: Props) {
       anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 60_000);
 
-      const subject = "Goodrich Men's Club Competition Handicap Review";
+      const subject = `${props.playerName} - Goodrich Men's Club Competition Handicap Review`;
       const body = buildEmailBody(props);
       const htmlBody = buildEmailHtml(props);
       let copiedFormatted = false;
@@ -151,6 +178,7 @@ export function PrepareEmailButton(props: Props) {
       gmailUrl.searchParams.set("view", "cm");
       gmailUrl.searchParams.set("fs", "1");
       gmailUrl.searchParams.set("su", subject);
+      gmailUrl.searchParams.set("cc", HANDICAP_COMMITTEE_CC_QUERY);
       if (!copiedFormatted) {
         gmailUrl.searchParams.set("body", body);
       }
@@ -181,9 +209,9 @@ export function PrepareEmailButton(props: Props) {
       onClick={prepareEmail}
       disabled={preparing}
       className="inline-flex min-h-10 w-full items-center justify-center rounded-md border border-green-700 bg-green-50 px-3 py-1.5 text-center text-sm font-semibold text-green-800 transition-colors hover:bg-green-100 disabled:cursor-wait disabled:opacity-60"
-      title="Download the player's PDF and open a Gmail draft"
+      title="Download the player's PDF and open a Gmail draft with the Handicap Committee CCed"
     >
-      {preparing ? "Preparing..." : "Prepare Email"}
+      {preparing ? "Preparing..." : "Prepare Change Email"}
     </button>
   );
 }

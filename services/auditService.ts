@@ -102,16 +102,6 @@ function buildDecision(params: {
     overallHi != null && competitionHi != null
       ? Number((overallHi - competitionHi).toFixed(1))
       : null;
-  const competitionSpecificGap =
-    evidenceModel.goodrichGeneralHi != null &&
-    evidenceModel.competitionHiForComparison != null
-      ? Number(
-          (
-            evidenceModel.goodrichGeneralHi -
-            evidenceModel.competitionHiForComparison
-          ).toFixed(1)
-        )
-      : null;
   const evidence = [
     `Official/Overall HI: ${overallHi?.toFixed(1) ?? "-"}; Two-Year Committee Evidence HI: ${evidenceModel.committeeEvidenceHi?.toFixed(1) ?? "not established"}.`,
     `Conservative Review HI: ${competitionHi?.toFixed(1) ?? "not established"}; gap: ${gap?.toFixed(1) ?? "-"}; source: ${reviewComparisonBasisLabel}.`,
@@ -162,20 +152,6 @@ function buildDecision(params: {
   }
 
   if (
-    competitionSpecificGap != null &&
-    competitionSpecificGap <= 0
-  ) {
-    return {
-      code: "no_adjustment",
-      label: "No competition adjustment",
-      suggestedIndex: null,
-      summary:
-        "Recent Goodrich general-play performance is at least as strong as recent competition performance, so the lower ability is not competition-specific.",
-      evidence,
-    };
-  }
-
-  if (
     (evidenceModel.basis === "goodrich_competition" ||
       evidenceModel.basis === "all_competition") &&
     (evidenceModel.sensitivity ?? 0) <= 1.5
@@ -201,7 +177,7 @@ function buildDecision(params: {
       label: `Provisional - ${suggestedIndex.toFixed(1)}`,
       suggestedIndex,
       summary:
-        "The conservative higher-of comparison still supports a lower provisional value. Review it as more competition rounds are posted.",
+        "The conservative higher-of comparison supports a lower provisional value. Stronger Goodrich general-play results corroborate demonstrated ability rather than disqualifying the review. Review it as more competition rounds are posted.",
       evidence,
     };
   }

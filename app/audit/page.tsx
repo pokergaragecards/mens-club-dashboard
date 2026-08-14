@@ -5,12 +5,17 @@ import { ExportCompetitionChokersPdfButton } from "@/components/audit/ExportComp
 import { PrepareEmailButton } from "@/components/audit/PrepareEmailButton";
 import { shouldShowPrepareEmail } from "@/lib/auditEmailEligibility";
 import { compareAuditRowsByStrokeDiscrepancy } from "@/lib/auditSort";
+import { HANDICAP_COMMITTEE_CC_LABEL } from "@/lib/handicapCommittee";
 
 type Period = "last20" | "30" | "60" | "90" | "season";
 
 type PageProps = {
   searchParams?: Promise<{ period?: Period }>;
 };
+
+type AuditRow = Awaited<
+  ReturnType<typeof auditService.getAuditRows>
+>[number];
 
 const ACTION_BUTTON =
   "inline-flex min-h-10 w-full items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-gray-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700";
@@ -64,6 +69,9 @@ export default async function AuditPage({ searchParams }: PageProps) {
   const period: Period = params.period ?? "last20";
   const rows = [...(await auditService.getAuditRows(period))].sort(
     compareAuditRowsByStrokeDiscrepancy
+  );
+  const changeRows = rows.filter((row) =>
+    shouldShowPrepareEmail(row.decision)
   );
 
   const tabs: { href: string; label: string; value: Period }[] = [
@@ -123,6 +131,73 @@ export default async function AuditPage({ searchParams }: PageProps) {
           </Link>
         ))}
       </div>
+
+      <section className="mt-6 rounded-2xl border-2 border-red-300 bg-red-50 p-4 lg:p-6">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-black text-red-900">
+              Current Handicap Change Emails
+            </h2>
+            <p className="mt-1 max-w-4xl text-base font-medium text-red-900">
+              These players meet the same adjustment criteria shown on their
+              detailed audit pages. Each email uses that player&apos;s current
+              decision, evidence, reason, and committee handicap rounded upward
+              to the nearest 0.5.
+            </p>
+          </div>
+
+          <div className="text-sm font-semibold text-red-800 lg:max-w-xl lg:text-right">
+            CC: {HANDICAP_COMMITTEE_CC_LABEL}
+          </div>
+        </div>
+
+        {changeRows.length ? (
+          <div className="mt-5 grid gap-4 xl:grid-cols-2">
+            {changeRows.map((row) => (
+              <article
+                key={row.id}
+                className="rounded-xl border border-red-200 bg-white p-4 shadow-sm"
+              >
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <Link
+                      href={`/audit/${row.id}`}
+                      className="text-xl font-black text-gray-950 underline decoration-red-300 underline-offset-4"
+                    >
+                      {row.full_name}
+                    </Link>
+                    <div className="mt-2 text-lg font-black text-red-800">
+                      Current {formatNumber(row.overallHi)} → Committee{" "}
+                      {formatNumber(row.decision.suggestedIndex)}
+                    </div>
+                    <div className="mt-1 font-bold text-gray-800">
+                      Stroke Discrepancy: {formatNumber(
+                        row.competitionVsOverallGap
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="w-full sm:w-52">
+                    <AuditChangeEmailButton row={row} />
+                  </div>
+                </div>
+
+                <p className="mt-3 text-sm font-semibold text-gray-800">
+                  Why: {row.decision.summary}
+                </p>
+                <p className="mt-2 text-sm text-gray-600">
+                  Review source: {row.reviewComparisonBasisLabel}; evidence
+                  basis: {row.committeeEvidenceBasisLabel}.
+                </p>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-4 font-semibold text-gray-700">
+            No current audit decisions produce a committee handicap change.
+          </p>
+        )}
+      </section>
 
       <div className="mt-6 hidden max-h-[75vh] overflow-auto rounded-xl border border-gray-300 bg-white shadow-sm lg:block">
         <table className="w-full min-w-[9800px] text-left text-base text-gray-900">
@@ -266,18 +341,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
                       Audit
                     </Link>
 
-                    {shouldShowPrepareEmail(row.decision) ? (
-                      <PrepareEmailButton
-                        playerId={row.id}
-                        playerName={row.full_name}
-                        currentIndex={row.overallHi}
-                        evidenceIndex={row.reviewComparisonHi}
-                        evidenceGap={row.competitionVsOverallGap}
-                        suggestedIndex={row.decision.suggestedIndex}
-                      />
-                    ) : (
-                      <span aria-hidden="true" />
-                    )}
+                    <AuditChangeEmailButton row={row} />
                   </div>
                 </td>
 
@@ -444,18 +508,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
                     Audit
                   </Link>
 
-                  {shouldShowPrepareEmail(row.decision) ? (
-                    <PrepareEmailButton
-                      playerId={row.id}
-                      playerName={row.full_name}
-                      currentIndex={row.overallHi}
-                      evidenceIndex={row.reviewComparisonHi}
-                      evidenceGap={row.competitionVsOverallGap}
-                      suggestedIndex={row.decision.suggestedIndex}
-                    />
-                  ) : (
-                    <span aria-hidden="true" />
-                  )}
+                  <AuditChangeEmailButton row={row} />
                 </div>
 
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -673,6 +726,26 @@ export default async function AuditPage({ searchParams }: PageProps) {
         ))}
       </div>
     </main>
+  );
+}
+
+function AuditChangeEmailButton({ row }: { row: AuditRow }) {
+  if (!shouldShowPrepareEmail(row.decision)) {
+    return <span aria-hidden="true" />;
+  }
+
+  return (
+    <PrepareEmailButton
+      playerId={row.id}
+      playerName={row.full_name}
+      currentIndex={row.overallHi}
+      evidenceIndex={row.reviewComparisonHi}
+      evidenceGap={row.competitionVsOverallGap}
+      suggestedIndex={row.decision.suggestedIndex}
+      decisionLabel={row.decision.label}
+      decisionSummary={row.decision.summary}
+      decisionEvidence={row.decision.evidence}
+    />
   );
 }
 
