@@ -30,6 +30,16 @@ export type RankedLeagueHoleAverage = LeagueHoleAverage & {
   leagueHoleIndex: number;
 };
 
+export type HoleExpectationHandicapInput = {
+  currentGoodrichTeeHandicapIndex: number | null;
+  currentHandicapIndex: number | null;
+  importedHandicapIndex: number | null;
+  importedCourseHandicap: number | null;
+  teePar: number | null;
+  courseRating: number | null;
+  slopeRating: number | null;
+};
+
 function sampleStandardDeviation(values: number[], fallback: number) {
   if (values.length < 2) return fallback;
   const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -69,6 +79,45 @@ export function expectedRoundScoreFromHandicapIndex(
   }
 
   return courseRating + handicapIndex * (slopeRating / 113);
+}
+
+export function holeExpectationHandicapIndex({
+  currentGoodrichTeeHandicapIndex,
+  currentHandicapIndex,
+  importedHandicapIndex,
+  importedCourseHandicap,
+  teePar,
+  courseRating,
+  slopeRating,
+}: HoleExpectationHandicapInput) {
+  for (const handicapIndex of [
+    currentGoodrichTeeHandicapIndex,
+    currentHandicapIndex,
+    importedHandicapIndex,
+  ]) {
+    if (handicapIndex !== null && Number.isFinite(handicapIndex)) {
+      return handicapIndex;
+    }
+  }
+
+  if (
+    importedCourseHandicap === null ||
+    !Number.isFinite(importedCourseHandicap) ||
+    teePar === null ||
+    !Number.isFinite(teePar) ||
+    courseRating === null ||
+    !Number.isFinite(courseRating) ||
+    slopeRating === null ||
+    !Number.isFinite(slopeRating) ||
+    slopeRating <= 0
+  ) {
+    return null;
+  }
+
+  return (
+    (importedCourseHandicap - (courseRating - teePar)) *
+    (113 / slopeRating)
+  );
 }
 
 export function expectedHoleScoreFromTeeRating(

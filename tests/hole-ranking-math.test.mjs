@@ -6,10 +6,41 @@ import {
   expectedHoleScoreFromTeeRating,
   expectedRoundScoreFromHandicapIndex,
   golfSampleConfidence,
+  holeExpectationHandicapIndex,
   priorShrinkageFraction,
   rankLeagueHolesByAverageToPar,
   shrinkPerformanceEstimate,
 } from "../lib/holeRankingMath.ts";
+
+test("same-tee Goodrich HI is the first choice for hole expectations", () => {
+  assert.equal(
+    holeExpectationHandicapIndex({
+      currentGoodrichTeeHandicapIndex: 11.2,
+      currentHandicapIndex: 14.5,
+      importedHandicapIndex: 13.8,
+      importedCourseHandicap: 16,
+      teePar: 70,
+      courseRating: 69.2,
+      slopeRating: 120,
+    }),
+    11.2
+  );
+});
+
+test("hole expectations fall back when a same-tee Goodrich HI is not established", () => {
+  assert.equal(
+    holeExpectationHandicapIndex({
+      currentGoodrichTeeHandicapIndex: null,
+      currentHandicapIndex: 14.5,
+      importedHandicapIndex: 13.8,
+      importedCourseHandicap: 16,
+      teePar: 70,
+      courseRating: 69.2,
+      slopeRating: 120,
+    }),
+    14.5
+  );
+});
 
 test("league hole index ranks average strokes over par, not raw average", () => {
   const ranked = rankLeagueHolesByAverageToPar([

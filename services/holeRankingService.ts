@@ -2,11 +2,16 @@ import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import {
   aggregateRawPerformanceEstimate,
   expectedHoleScoreFromTeeRating,
+  holeExpectationHandicapIndex,
   rankLeagueHolesByAverageToPar,
   shrinkPerformanceEstimate,
   type AggregatePerformanceObservation,
   type AggregateRawPerformanceEstimate,
 } from "@/lib/holeRankingMath";
+import {
+  calculateHandicapIndexDetails,
+  type AuditEvidenceRound,
+} from "@/lib/auditEvidence";
 
 export const GOODRICH_TEE_COLORS = ["Red", "Gold", "White", "Blue"] as const;
 export const MINIMUM_HOLE_SCORES = 3;
@@ -32,6 +37,8 @@ export type PlayerHoleRanking = {
   performanceConfidence: "Low" | "Moderate" | "High";
   posteriorStandardError: number;
   currentHandicapIndex: number | null;
+  currentGoodrichTeeHandicapIndex: number | null;
+  currentGoodrichTeeHandicapRoundCount: number;
   clubAverageIndex: number;
   vsClubIndex: number;
   rank: number;
@@ -80,6 +87,9 @@ export type PlayerGoodrichHoleRanking = {
   averageGrossScore: number;
   averageExpectedScore: number;
   averageVsExpected: number;
+  currentHandicapIndex: number | null;
+  currentGoodrichTeeHandicapIndex: number | null;
+  currentGoodrichTeeHandicapRoundCount: number;
   clubAverageIndex: number;
   vsClubIndex: number;
   worstRank: number;
@@ -106,6 +116,8 @@ export type HoleScoreRankingInput = {
   playerId: string;
   playerName: string;
   currentHandicapIndex: number | null;
+  currentGoodrichTeeHandicapIndex: number | null;
+  currentGoodrichTeeHandicapRoundCount: number;
   playedAt: string;
   teeName: string | null;
   holeNumber: number;
@@ -164,10 +176,27 @@ type CourseHoleQueryRow = {
   yardage: number | null;
 };
 
+type GoodrichHandicapRoundQueryRow = {
+  id: string;
+  player_id: string;
+  played_at: string;
+  differential: number | null;
+  score_type: string | null;
+  course_name: string | null;
+  tee_name: string | null;
+};
+
+type CurrentGoodrichTeeHandicap = {
+  index: number | null;
+  roundCount: number;
+};
+
 type ScoreObservation = {
   playerId: string;
   playerName: string;
   currentHandicapIndex: number | null;
+  currentGoodrichTeeHandicapIndex: number | null;
+  currentGoodrichTeeHandicapRoundCount: number;
   par: number;
   grossScore: number;
   expectedScore: number;
@@ -192,7 +221,7 @@ type EmpiricalBayesPrior = {
 };
 
 const METHODOLOGY =
-  "Only hole scores from the latest 12 months are included. The player's current Handicap Index is converted for the tee without rounding: expected round score equals Course Rating plus Current HI multiplied by Slope Rating divided by 113. Expected hole score equals hole par multiplied by expected round score divided by tee par. The displayed Course Rating and Slope Rating are the median values from distinct qualifying imported Goodrich rounds for that tee; each score uses its own imported rating and slope when available. A negative Handicap Index can still produce an expected score above par when the tee's Course Rating is above par. If the current index is unavailable, the imported round index is used as a fallback. The Raw Performance Index is calculated directly from aggregate averages: 100 plus 100 times aggregate strokes versus expected divided by aggregate expected strokes from par. An index of 100 matches expectation, 120 is 20% worse, and 80 is 20% better. The Adjusted Performance Index moves the raw index only partway toward the learned club baseline: 40% of the distance at 0% confidence, 20% at 50% confidence, and 0% at 100% confidence. Confidence uses the greater of the statistical reliability and a golf sample-size floor: three scores equal 5%, four equal 15%, five equal 25%, and each additional score adds 10 percentage points up to 100%. Player scoring variance is partially pooled with the tee-and-hole variance, and a robust empirical-Bayes prior prevents one unusual player from moving the club baseline excessively. Players need at least three scores on the same tee and hole during the 12-month window. Club averages give each qualifying player equal weight.";
+  "Only hole scores from the latest 12 months are included. A separate Current Goodrich Tee HI is calculated for each player and tee from up to the 20 most recent HI-counting Goodrich differentials on that exact tee, using the WHS score-count table and fewer-than-20 adjustment. The tee-specific Goodrich HI is converted without rounding: expected round score equals Course Rating plus Goodrich Tee HI multiplied by Slope Rating divided by 113. Expected hole score equals hole par multiplied by expected round score divided by tee par. The displayed Course Rating and Slope Rating are the median values from distinct qualifying imported Goodrich rounds for that tee; each score uses its own imported rating and slope when available. If fewer than three same-tee Goodrich differentials are available, the official Current HI is used, followed by the imported round index as a fallback. A negative Handicap Index can still produce an expected score above par when the tee's Course Rating is above par. The Raw Performance Index is calculated directly from aggregate averages: 100 plus 100 times aggregate strokes versus expected divided by aggregate expected strokes from par. An index of 100 matches expectation, 120 is 20% worse, and 80 is 20% better. The Adjusted Performance Index moves the raw index only partway toward the learned club baseline: 40% of the distance at 0% confidence, 20% at 50% confidence, and 0% at 100% confidence. Confidence uses the greater of the statistical reliability and a golf sample-size floor: three scores equal 5%, four equal 15%, five equal 25%, and each additional score adds 10 percentage points up to 100%. Player scoring variance is partially pooled with the tee-and-hole variance, and a robust empirical-Bayes prior prevents one unusual player from moving the club baseline excessively. Players need at least three scores on the same tee and hole during the 12-month window. Club averages give each qualifying player equal weight.";
 
 function finiteNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -428,6 +457,11 @@ export function goodrichHoleRankingsForPlayer(
           averageGrossScore: ranking.averageGrossScore,
           averageExpectedScore: ranking.averageExpectedScore,
           averageVsExpected: ranking.averageVsHandicap,
+          currentHandicapIndex: ranking.currentHandicapIndex,
+          currentGoodrichTeeHandicapIndex:
+            ranking.currentGoodrichTeeHandicapIndex,
+          currentGoodrichTeeHandicapRoundCount:
+            ranking.currentGoodrichTeeHandicapRoundCount,
           clubAverageIndex: ranking.clubAverageIndex,
           vsClubIndex: ranking.vsClubIndex,
           worstRank: ranking.rank,
@@ -463,28 +497,17 @@ function deriveExpectationHandicapIndex(
   courseRating: number | null,
   slopeRating: number | null
 ) {
-  const currentHandicapIndex = finiteNumber(row.currentHandicapIndex);
-  if (currentHandicapIndex !== null) return currentHandicapIndex;
-
-  const importedHandicapIndex = finiteNumber(row.handicapIndexUsed);
-  if (importedHandicapIndex !== null) return importedHandicapIndex;
-
-  const importedCourseHandicap = finiteNumber(row.courseHandicap);
-  if (importedCourseHandicap === null) return null;
-
-  if (
-    slopeRating === null ||
-    courseRating === null ||
-    teePar === null ||
-    slopeRating <= 0
-  ) {
-    return null;
-  }
-
-  return (
-    (importedCourseHandicap - (courseRating - teePar)) *
-    (113 / slopeRating)
-  );
+  return holeExpectationHandicapIndex({
+    currentGoodrichTeeHandicapIndex: finiteNumber(
+      row.currentGoodrichTeeHandicapIndex
+    ),
+    currentHandicapIndex: finiteNumber(row.currentHandicapIndex),
+    importedHandicapIndex: finiteNumber(row.handicapIndexUsed),
+    importedCourseHandicap: finiteNumber(row.courseHandicap),
+    teePar,
+    courseRating,
+    slopeRating,
+  });
 }
 
 export function buildHoleRankingReport(
@@ -634,6 +657,11 @@ export function buildHoleRankingReport(
       playerId: row.playerId,
       playerName: row.playerName.trim() || "Unknown Player",
       currentHandicapIndex: finiteNumber(row.currentHandicapIndex),
+      currentGoodrichTeeHandicapIndex: finiteNumber(
+        row.currentGoodrichTeeHandicapIndex
+      ),
+      currentGoodrichTeeHandicapRoundCount:
+        row.currentGoodrichTeeHandicapRoundCount,
       par,
       grossScore,
       expectedScore,
@@ -802,6 +830,10 @@ export function buildHoleRankingReport(
             playerId: values[0].playerId,
             playerName: values[0].playerName,
             currentHandicapIndex: values[0].currentHandicapIndex,
+            currentGoodrichTeeHandicapIndex:
+              values[0].currentGoodrichTeeHandicapIndex,
+            currentGoodrichTeeHandicapRoundCount:
+              values[0].currentGoodrichTeeHandicapRoundCount,
             teeRoundCount:
               roundIdsByTeePlayer.get(`${tee}|${values[0].playerId}`)?.size ??
               values.length,
@@ -978,13 +1010,85 @@ async function loadAllHoleScores(periodStart: string, periodEnd: string) {
   return rows;
 }
 
+async function loadAllCurrentGoodrichTeeHandicapRounds(periodEnd: string) {
+  const supabase = createSupabaseServerClient();
+  const pageSize = 1_000;
+  const rows: GoodrichHandicapRoundQueryRow[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("player_display_rounds")
+      .select(`
+        id,
+        player_id,
+        played_at,
+        differential,
+        score_type,
+        course_name,
+        tee_name
+      `)
+      .eq("counts_for_hi", true)
+      .ilike("course_name", "%Goodrich%")
+      .not("differential", "is", null)
+      .not("played_at", "is", null)
+      .lte("played_at", periodEnd)
+      .order("player_id", { ascending: true })
+      .order("played_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, from + pageSize - 1);
+
+    if (error) throw error;
+    const page = (data ?? []) as unknown as GoodrichHandicapRoundQueryRow[];
+    rows.push(...page);
+    if (page.length < pageSize) break;
+  }
+
+  return rows;
+}
+
+function currentGoodrichTeeHandicaps(
+  rows: GoodrichHandicapRoundQueryRow[]
+) {
+  const roundsByPlayerAndTee = new Map<string, AuditEvidenceRound[]>();
+
+  for (const row of rows) {
+    const tee = normalizeGoodrichTee(row.tee_name);
+    if (!tee || !row.player_id) continue;
+
+    const key = `${tee}|${row.player_id}`;
+    const current = roundsByPlayerAndTee.get(key) ?? [];
+    current.push({
+      id: row.id,
+      played_at: row.played_at,
+      differential: row.differential,
+      score_type: row.score_type,
+      course_name: row.course_name,
+    });
+    roundsByPlayerAndTee.set(key, current);
+  }
+
+  return new Map<string, CurrentGoodrichTeeHandicap>(
+    Array.from(roundsByPlayerAndTee.entries()).map(([key, rounds]) => {
+      const details = calculateHandicapIndexDetails(rounds);
+      return [
+        key,
+        {
+          index: details.index,
+          roundCount: details.selected.length,
+        },
+      ];
+    })
+  );
+}
+
 export async function getGoodrichHoleRankingReport(
   generatedAt = new Date().toISOString()
 ) {
   const supabase = createSupabaseServerClient();
   const { periodStart, periodEnd } = twelveMonthHoleRankingPeriod(generatedAt);
-  const [scoreRows, courseResult] = await Promise.all([
+  const [scoreRows, handicapRows, courseResult] = await Promise.all([
     loadAllHoleScores(periodStart, periodEnd),
+    loadAllCurrentGoodrichTeeHandicapRounds(periodEnd),
     supabase
       .from("course_holes")
       .select("tee_name, hole_number, par, handicap, yardage")
@@ -995,15 +1099,26 @@ export async function getGoodrichHoleRankingReport(
 
   if (courseResult.error) throw courseResult.error;
 
+  const currentGoodrichTeeHandicapByPlayer =
+    currentGoodrichTeeHandicaps(handicapRows);
+
   const scores = scoreRows.map<HoleScoreRankingInput>((row) => {
     const player = firstRelation(row.players);
     const round = firstRelation(row.rounds);
+    const tee = normalizeGoodrichTee(row.tee_name);
+    const goodrichTeeHandicap = tee
+      ? currentGoodrichTeeHandicapByPlayer.get(`${tee}|${row.player_id}`)
+      : null;
 
     return {
       roundId: row.round_id,
       playerId: row.player_id,
       playerName: player?.full_name ?? "Unknown Player",
       currentHandicapIndex: finiteNumber(player?.current_index),
+      currentGoodrichTeeHandicapIndex:
+        goodrichTeeHandicap?.index ?? null,
+      currentGoodrichTeeHandicapRoundCount:
+        goodrichTeeHandicap?.roundCount ?? 0,
       playedAt: round?.played_at ?? "",
       teeName: row.tee_name,
       holeNumber: row.hole_number,

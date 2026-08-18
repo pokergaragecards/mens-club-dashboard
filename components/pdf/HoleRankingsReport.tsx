@@ -38,11 +38,12 @@ const COLORS = {
   white: "#ffffff",
 };
 
-const MATRIX_PLAYER_WIDTH = 96;
-const MATRIX_OVERALL_WIDTH = 46;
+const MATRIX_PLAYER_WIDTH = 90;
+const MATRIX_OVERALL_WIDTH = 42;
 const MATRIX_HANDICAP_WIDTH = 34;
-const MATRIX_ROUNDS_WIDTH = 32;
-const MATRIX_HOLE_WIDTH = 30;
+const MATRIX_GOODRICH_HANDICAP_WIDTH = 34;
+const MATRIX_ROUNDS_WIDTH = 28;
+const MATRIX_HOLE_WIDTH = 29;
 const PLAYERS_PER_MATRIX_PAGE = 16;
 const COVER_HOLE_WIDTH = 36;
 const COVER_TEE_WIDTH = 177;
@@ -228,19 +229,27 @@ const s = StyleSheet.create({
   },
   summaryHole: { width: 32, textAlign: "center", fontFamily: "Helvetica-Bold" },
   summaryPar: { width: 30, textAlign: "center" },
-  summaryStroke: { width: 45, textAlign: "center" },
-  summaryYardage: { width: 45, textAlign: "right" },
-  summaryPlayer: { width: 140, fontSize: 8, fontFamily: "Helvetica-Bold" },
-  summaryHandicap: { width: 46, textAlign: "right" },
-  summaryAverage: { width: 46, textAlign: "right" },
+  summaryStroke: { width: 42, textAlign: "center" },
+  summaryYardage: { width: 42, textAlign: "right" },
+  summaryPlayer: { width: 132, fontSize: 8, fontFamily: "Helvetica-Bold" },
+  summaryHandicap: { width: 42, textAlign: "right" },
+  summaryGoodrichHandicap: {
+    width: 52,
+    textAlign: "right",
+  },
+  summaryGoodrichValue: {
+    color: COLORS.blue,
+    fontFamily: "Helvetica-Bold",
+  },
+  summaryAverage: { width: 42, textAlign: "right" },
   summaryRaw: {
-    width: 56,
+    width: 52,
     textAlign: "right",
     fontSize: 8,
     fontFamily: "Helvetica-Bold",
   },
   summaryValue: {
-    width: 60,
+    width: 56,
     textAlign: "right",
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
@@ -251,10 +260,10 @@ const s = StyleSheet.create({
   summaryBestValue: {
     color: COLORS.green,
   },
-  summaryConfidence: { width: 56, textAlign: "right" },
-  summaryScores: { width: 42, textAlign: "right" },
-  summaryField: { width: 52, textAlign: "right" },
-  summaryClub: { width: 74, textAlign: "right" },
+  summaryConfidence: { width: 52, textAlign: "right" },
+  summaryScores: { width: 38, textAlign: "right" },
+  summaryField: { width: 44, textAlign: "right" },
+  summaryClub: { width: 62, textAlign: "right" },
   note: {
     marginTop: 6,
     padding: 5,
@@ -323,6 +332,18 @@ const s = StyleSheet.create({
     borderColor: COLORS.gray300,
     fontSize: 5.8,
   },
+  matrixGoodrichHandicap: {
+    width: MATRIX_GOODRICH_HANDICAP_WIDTH,
+    flexShrink: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 2,
+    borderRightWidth: 0.5,
+    borderBottomWidth: 0.5,
+    borderColor: COLORS.gray300,
+    fontSize: 5.8,
+  },
+  matrixGoodrichValue: { color: COLORS.blue },
   matrixRounds: {
     width: MATRIX_ROUNDS_WIDTH,
     flexShrink: 0,
@@ -358,6 +379,11 @@ const s = StyleSheet.create({
     marginTop: 1,
     fontSize: 5.3,
     fontFamily: "Helvetica-Bold",
+  },
+  matrixHandicapRounds: {
+    marginTop: 1,
+    fontSize: 4.6,
+    color: COLORS.gray600,
   },
   playerWorstHole: {
     backgroundColor: "#fee2e2",
@@ -408,6 +434,8 @@ type MatrixPlayer = {
   playerId: string;
   playerName: string;
   currentHandicapIndex: number | null;
+  currentGoodrichTeeHandicapIndex: number | null;
+  currentGoodrichTeeHandicapRoundCount: number;
   teeRoundCount: number;
   averagePercentile: number;
   cells: Map<number, PlayerHoleRanking>;
@@ -467,6 +495,10 @@ function matrixPlayers(
         playerId: ranking.playerId,
         playerName: ranking.playerName,
         currentHandicapIndex: ranking.currentHandicapIndex,
+        currentGoodrichTeeHandicapIndex:
+          ranking.currentGoodrichTeeHandicapIndex,
+        currentGoodrichTeeHandicapRoundCount:
+          ranking.currentGoodrichTeeHandicapRoundCount,
         teeRoundCount: ranking.teeRoundCount,
         averagePercentile: 0,
         cells: new Map<number, PlayerHoleRanking>(),
@@ -544,6 +576,7 @@ function SummaryHeader({ view }: { view: HoleRankingView }) {
         {isBest ? "Best" : "Worst"} by Index
       </Text>
       <Text style={[s.cell, s.summaryHandicap]}>Current HI</Text>
+      <Text style={[s.cell, s.summaryGoodrichHandicap]}>Goodrich Tee HI</Text>
       <Text style={[s.cell, s.summaryAverage]}>Avg Score</Text>
       <Text style={[s.cell, s.summaryRaw]}>Raw Index</Text>
       <Text style={[s.cell, s.summaryValue]}>Adj. Index</Text>
@@ -578,6 +611,14 @@ function SummaryRow({
       </Text>
       <Text style={[s.cell, s.summaryHandicap]}>
         {handicapIndex(featured?.currentHandicapIndex ?? null)}
+      </Text>
+      <Text
+        style={[s.cell, s.summaryGoodrichHandicap, s.summaryGoodrichValue]}
+      >
+        {handicapIndex(featured?.currentGoodrichTeeHandicapIndex ?? null)}
+        {featured
+          ? ` (${featured.currentGoodrichTeeHandicapRoundCount})`
+          : ""}
       </Text>
       <Text style={[s.cell, s.summaryAverage]}>
         {performanceIndex(featured?.averageGrossScore ?? null, 2)}
@@ -705,12 +746,16 @@ function CoverPage({
         <Text style={s.methodText}>
           <Text style={s.methodLabel}>PLAYER ANALYSIS. </Text>
           Red, Gold, White, and Blue tees are analyzed separately using only
-          imported Goodrich hole scores from the latest 12 months. Expected
-          round score = Course Rating + Current HI x (Slope Rating / 113), and
+          imported Goodrich hole scores from the latest 12 months. A separate
+          Current Goodrich Tee HI is calculated from up to the 20 most recent
+          HI-counting Goodrich differentials on that exact tee. Expected round
+          score = Course Rating + Goodrich Tee HI x (Slope Rating / 113), and
           expected hole score is distributed in proportion to par without
-          rounding. The adjusted performance index accounts for sample size and
-          scoring variability; each player needs at least {report.minimumScores}
-          {" "}scores on the exact tee and hole.
+          rounding. At least three same-tee differentials are required to
+          establish the Goodrich Tee HI; otherwise official Current HI is used.
+          The adjusted performance index accounts for sample size and scoring
+          variability; each player needs at least {report.minimumScores}{" "}
+          scores on the exact tee and hole.
           {"\n"}
           <Text style={s.methodLabel}>PLAYER MATRIX. </Text>
           Each cell shows club rank and actual average score. Within each player&apos;s
@@ -836,14 +881,17 @@ export function HoleRankingsReport({
                 <Text style={s.methodText}>
                   Only hole scores from the latest 12 months ({report.periodStart}
                   {" "}through {report.periodEnd}) are included. Each expected
-                  score uses the player&apos;s current Handicap Index. Expected round
-                  = Course Rating + Current HI x (Slope Rating / 113), without
-                  rounding. Expected hole = hole par x (expected round / tee
-                  par). Each score uses its imported round rating and slope; the
-                  values shown above are the medians from distinct qualifying
-                  imported rounds for this tee. A negative index can still expect
-                  above par when Course Rating is above par. Stroke index is
-                  informational only.
+                  score uses the player&apos;s Current Goodrich Tee HI, calculated
+                  from up to the 20 most recent HI-counting Goodrich
+                  differentials on this exact tee. Expected round = Course Rating
+                  + Goodrich Tee HI x (Slope Rating / 113), without rounding.
+                  Expected hole = hole par x (expected round / tee par). At least
+                  three same-tee differentials are required; otherwise official
+                  Current HI is used, followed by the imported round index. Each
+                  score uses its imported round rating and slope; the values shown
+                  above are the medians from distinct qualifying imported rounds
+                  for this tee. A negative index can still expect above par when
+                  Course Rating is above par. Stroke index is informational only.
                   Raw Index = 100 + 100 x (aggregate strokes versus expected /
                   aggregate expected strokes from par). It is calculated from
                   the same underlying aggregate averages shown in the report,
@@ -928,8 +976,10 @@ export function HoleRankingsReport({
                   overlap. A dash means fewer than
                   {` ${report.minimumScores} `}qualifying scores. Avg {isBest ? "Best" : "Worst"} %
                   summarizes the holes on which the player qualifies; 100 is{" "}
-                  {view}. 12M Rds is the player&apos;s number of distinct imported
-                  rounds on this tee in the report period.
+                  {view}. Goodrich Tee HI is the same-tee value used for expected
+                  scoring; its parenthesized value is the number of differentials
+                  in that HI window. 12M Rds is the player&apos;s number of distinct
+                  imported rounds on this tee in the report period.
                 </Text>
 
                 <View style={s.matrixTable}>
@@ -944,6 +994,9 @@ export function HoleRankingsReport({
                     </View>
                     <View style={s.matrixHandicap}>
                       <Text style={s.matrixHeaderText}>Current HI</Text>
+                    </View>
+                    <View style={s.matrixGoodrichHandicap}>
+                      <Text style={s.matrixHeaderText}>Goodrich Tee HI</Text>
                     </View>
                     <View style={s.matrixRounds}>
                       <Text style={s.matrixHeaderText}>12M Rds</Text>
@@ -976,6 +1029,16 @@ export function HoleRankingsReport({
                         <View style={s.matrixHandicap}>
                           <Text style={s.matrixRank}>
                             {handicapIndex(player.currentHandicapIndex)}
+                          </Text>
+                        </View>
+                        <View style={s.matrixGoodrichHandicap}>
+                          <Text style={[s.matrixRank, s.matrixGoodrichValue]}>
+                            {handicapIndex(
+                              player.currentGoodrichTeeHandicapIndex
+                            )}
+                          </Text>
+                          <Text style={s.matrixHandicapRounds}>
+                            ({player.currentGoodrichTeeHandicapRoundCount})
                           </Text>
                         </View>
                         <View style={s.matrixRounds}>

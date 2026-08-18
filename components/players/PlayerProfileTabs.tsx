@@ -338,10 +338,13 @@ function Scorecard({
           Ranking period: <strong>{rankingPeriodStart}</strong> through{" "}
           <strong>{rankingPeriodEnd}</strong>. The Raw Performance Index comes
           directly from the aggregate average score versus aggregate expected
-          score. Expected round score is <strong>Course Rating + Current HI ×
-          (Slope Rating ÷ 113)</strong>, and expected hole score is hole par ×
-          (expected round ÷ tee par). The conversion is not rounded, and a
-          negative index can still expect above par from a tee rated above par.
+          score. Expected round score is <strong>Course Rating + Current
+          Goodrich Tee HI × (Slope Rating ÷ 113)</strong>, and expected hole
+          score is hole par × (expected round ÷ tee par). The Goodrich Tee HI
+          uses up to the 20 most recent HI-counting Goodrich differentials on
+          that exact tee; at least three are required, otherwise official
+          Current HI is used. The conversion is not rounded, and a negative
+          index can still expect above par from a tee rated above par.
           The Adjusted Index
           moves that raw value toward the club
           baseline by only 40% of the distance at 0% confidence, 20% at 50%
@@ -387,7 +390,12 @@ function Scorecard({
                 <span className="ml-3 text-gray-600">
                   Tee par {formatNumber(teeRanking.teePar, 0)} · Course Rating{" "}
                   {formatNumber(teeRanking.courseRating, 1)} · Slope Rating{" "}
-                  {formatSlope(teeRanking.slopeRating)}
+                  {formatSlope(teeRanking.slopeRating)} · Goodrich {normalizedTee} HI{" "}
+                  {formatNumber(
+                    teeRanking.currentGoodrichTeeHandicapIndex,
+                    1
+                  )}{" "}
+                  ({teeRanking.currentGoodrichTeeHandicapRoundCount} rounds)
                 </span>
               ) : null}
             </div>

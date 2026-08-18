@@ -128,8 +128,9 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
           <p className="mt-2 max-w-4xl text-lg text-slate-600">
             Red, Gold, White, and Blue tees are compared separately. Every
             score is measured against the number of handicap strokes the player
-            was expected to receive on that hole. Only scores from the latest
-            12 months are included.
+            was expected to receive on that hole using their current Goodrich HI
+            from that same tee. Only scores from the latest 12 months are
+            included.
           </p>
         </div>
 
@@ -161,16 +162,19 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
             Ranking period: {report.periodStart} through {report.periodEnd}.
           </strong>{" "}
           <strong>
-            Expected round = Course Rating + Current HI × (Slope Rating ÷ 113).
+            Expected round = Course Rating + Current Goodrich Tee HI × (Slope
+            Rating ÷ 113).
           </strong>{" "}
           Expected hole score = hole par × (expected round ÷ tee par), without
-          rounding the tee conversion. This converts the same Current HI
-          differently for Red, Gold, White, and Blue according to the imported
-          Course Rating and Slope Rating. Each score uses its own round&apos;s tee
-          values; the displayed tee values are the medians from distinct
-          qualifying imported rounds. Stroke index is informational only. A
-          negative Handicap Index can still have an expected score above par
-          when that tee&apos;s Course Rating is above par.{" "}
+          rounding the tee conversion. A separate Goodrich Tee HI is calculated
+          from up to the player&apos;s 20 most recent HI-counting Goodrich
+          differentials on Red, Gold, White, or Blue. At least three same-tee
+          differentials are required; otherwise the official Current HI is the
+          fallback. Each score uses its own round&apos;s tee values; the displayed
+          tee values are the medians from distinct qualifying imported rounds.
+          Stroke index is informational only. A negative Handicap Index can
+          still have an expected score above par when that tee&apos;s Course Rating
+          is above par.{" "}
           The <strong>Raw Performance Index</strong> is calculated directly from
           the aggregate averages: <strong>100 + 100 × (aggregate strokes versus
           expected ÷ aggregate expected strokes from par)</strong>. A raw index
@@ -273,7 +277,8 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
                       {featured.playerName}
                     </div>
                     <div className="mt-1 text-xs font-bold text-slate-600">
-                      Current HI {handicapIndex(featured.currentHandicapIndex)} | Avg score{" "}
+                      Current HI {handicapIndex(featured.currentHandicapIndex)} | Goodrich {tee} HI{" "}
+                      {handicapIndex(featured.currentGoodrichTeeHandicapIndex)} | Avg score{" "}
                       {featured.averageGrossScore.toFixed(2)}
                     </div>
                     <div
@@ -325,7 +330,7 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1540px] text-left">
+          <table className="w-full min-w-[1660px] text-left">
             <thead className="border-b border-slate-300 bg-slate-900 text-white">
               <tr>
                 <th className="p-3 text-center">
@@ -333,6 +338,7 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
                 </th>
                 <th className="p-3">Player</th>
                 <th className="p-3 text-right">Current HI</th>
+                <th className="p-3 text-right">Goodrich {tee} HI</th>
                 <th className="p-3 text-right">Scores</th>
                 <th className="p-3 text-right">Avg Gross</th>
                 <th className="p-3 text-right">Expected Avg</th>
@@ -368,6 +374,12 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
                   </td>
                   <td className="p-3 text-right text-lg font-black">
                     {handicapIndex(player.currentHandicapIndex)}
+                  </td>
+                  <td className="p-3 text-right text-lg font-black text-blue-800">
+                    {handicapIndex(player.currentGoodrichTeeHandicapIndex)}
+                    <span className="ml-1 block text-xs text-slate-500">
+                      ({player.currentGoodrichTeeHandicapRoundCount} rounds)
+                    </span>
                   </td>
                   <td className="p-3 text-right text-lg font-bold">
                     {player.scoreCount}
@@ -413,7 +425,7 @@ export default async function HoleRankingsPage({ searchParams }: PageProps) {
               ))}
               {!hole.players.length && (
                 <tr>
-                  <td colSpan={12} className="p-10 text-center text-lg font-bold text-slate-500">
+                  <td colSpan={13} className="p-10 text-center text-lg font-bold text-slate-500">
                     No active player has three qualifying {tee}-tee scores on
                     this hole yet.
                   </td>
